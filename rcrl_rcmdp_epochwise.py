@@ -14,7 +14,7 @@ if not hasattr(np, 'bool8'):
 
 # === Logging Configuration ===
 logging.basicConfig(
-    filename="rcrl_training_log_episode_costsmooth_betaexp2_safedist1.log",  # Log file name
+    filename="rcrl_training_log_episode_nocost.log",  # Log file name
     filemode="w",                # Overwrite the file each time the script is run
     format="%(asctime)s - %(levelname)s - %(message)s",  # Log message format
     level=logging.INFO           # Log level (INFO, DEBUG, ERROR, etc.)
@@ -23,7 +23,7 @@ logging.basicConfig(
 # === Hyperparameters ===
 gamma = 0.99
 hidden_dim = 256
-learning_rate = 1e-3
+learning_rate = 1e-4 #1e-3
 epochs = 10000  # Number of episodes to train
 lambda_fixed = 1.0
 # beta = 50 #2 #1000.0
@@ -34,11 +34,12 @@ lambda_fixed = 1.0
 perturb_eps = 0.1
 epsilon_tolerance = 0.1
 # CartPole specific
-safe_distance = 0.0 #1.0 #0.5
-safe_angle = 0.0 #0.12
+safe_distance = 1.0 #0.5
+safe_angle = 0.12
 
 # === Environment ===
 env = gym.make("CartPole-v1", render_mode=None)
+print("max permitted steps:", env.spec.max_episode_steps)
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.n
 
@@ -70,6 +71,20 @@ class ValueCritic(nn.Module):
     def forward(self, state):
         return self.model(state)
 
+class CostCritic(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1),
+            nn.Sigmoid()  # Ensures output is between 0 and 1
+        )
+
+    def forward(self, state):
+        return self.model(state)
+
+
 
 # === Utilities ===
 def add_uniform_noise(state, eps=0.05):
@@ -82,6 +97,7 @@ def add_uniform_noise(state, eps=0.05):
         A PyTorch tensor with added noise.
     """
     noise = np.random.uniform(-eps, eps, size=state.shape)
+    # noise = np.random.uniform(0, eps, size=state.shape)
     return torch.FloatTensor(state.numpy() + noise)
 
 
@@ -116,7 +132,9 @@ def robust_value_function(state, actor, cost_critic, perturb_eps, safe_distance,
 
         # Robust Bellman equation
         next_value = cost_critic(next_state).item() if not done else 0
-        q_value = (1 - gamma) * cost + gamma * max(cost, next_value)
+        # q_value = (1 - gamma) * cost + gamma * max(cost, next_value)
+        q_value = cost + gamma * max(cost, next_value)
+
         q_values.append(q_value)
 
     # Compute V_h^pi(s) as the expected value of Q_h^pi(s, a) under the policy
@@ -148,13 +166,18 @@ def robust_value_function(state, actor, cost_critic, perturb_eps, safe_distance,
 #     return 0  # Safe state
 
 def compute_cost(state, safe_distance, safe_angle):
-    x, x_dot, theta, theta_dot = state
+    # x, x_dot, theta, theta_dot = state
 
-    # Continuous cost based on how far the state deviates from safe ranges
-    position_cost = max(0, abs(x) - safe_distance)
-    angle_cost = max(0, abs(theta) - safe_angle)
+    # # Continuous cost based on how far the state deviates from safe ranges
+    # position_cost = max(0, (abs(x) - safe_distance)** 2)
+    # angle_cost = max(0, (abs(theta) - safe_angle)**2)
 
-    return position_cost + angle_cost
+    # return position_cost + angle_cost
+
+    # return abs(state[0].item())
+    return 0
+
+
 
 
 
@@ -217,7 +240,7 @@ def main():
     # === Initialize Networks and Optimizers ===
     actor = Actor()
     reward_critic = ValueCritic()
-    cost_critic = ValueCritic()
+    cost_critic = CostCritic()
 
     actor_optim = optim.Adam(actor.parameters(), lr=learning_rate)
     reward_optim = optim.Adam(reward_critic.parameters(), lr=learning_rate)
@@ -267,6 +290,7 @@ def main():
             h_s_values.append(h_s)
 
             probs = actor(state)
+            print(f"Action probabilities: {probs.detach().numpy()}")
             dist = Categorical(probs)
             action = dist.sample()
 
@@ -283,8 +307,12 @@ def main():
             cost_values.append(cost_critic(state))
 
             total_reward += reward
+            print("reward, total reward= ", reward, total_reward)
             total_cost += cost
             state = next_state
+
+        print(f"Episode ended at step {len(rewards)}")
+        print(f"Cart position: {state[0].item()}, Pole angle: {state[2].item()}")
 
         # Discounted returns
         reward_returns = discount(rewards, gamma)
@@ -327,7 +355,7 @@ def main():
 
         # Losses
         entropy_loss = dist.entropy().mean()  # Add entropy regularization
-        actor_loss = -(log_probs * chosen_adv).mean() - 0.01 * entropy_loss
+        actor_loss = -(log_probs * chosen_adv).mean() # - 0.1 * entropy_loss
         reward_loss = nn.functional.mse_loss(reward_values, reward_returns)
         cost_loss = nn.functional.mse_loss(cost_values, cost_returns)
 
@@ -358,11 +386,11 @@ def main():
         if (ep + 1) % 50 == 0:
             print(f"Ep {ep + 1} | Reward: {total_reward:.1f} | Cost: {total_cost:.2f} | V_L(pi): {vl_pi:.3f} | "
                   f"Actor Loss: {actor_loss.item():.3f} | Best Reward (under safety): {best_reward:.1f} | Beta : {beta}")
-            plot_metrics(episode_rewards, episode_costs, episode_vl_pi, save=True, filename="training_metrics_episode_costsmooth_betaexp2_safedist1.png")
+            plot_metrics(episode_rewards, episode_costs, episode_vl_pi, save=True, filename="training_metrics_episode_nocost.png")
 
 
     # # Save the final plot
-    plot_metrics(episode_rewards, episode_costs, episode_vl_pi, save=True, filename="training_metrics_episode_costsmooth_betaexp2_safedist1.png")
+    plot_metrics(episode_rewards, episode_costs, episode_vl_pi, save=True, filename="training_metrics_episode_costsmooth_nocost.png")
 
     # Save all models and data
     env.close()
