@@ -161,8 +161,12 @@ def main():
     best_reward = float('-inf')
     best_actor_state_dict = None
 
+    # === Training Parameters ===
+    max_steps = 100000  # Total number of steps to train
+    current_step = 0    # Step counter
+
     # === Training Loop ===
-    for ep in range(episodes):
+    while current_step < max_steps:
         state, _ = env.reset()
         state = add_uniform_noise(np.array(state), perturb_eps)
         state = torch.FloatTensor(state)
@@ -195,7 +199,7 @@ def main():
             next_state = add_uniform_noise(np.array(next_state), perturb_eps)
             next_state = torch.FloatTensor(next_state)
 
-            cost = abs(state[0].item())
+            cost = compute_cost(state, safe_distance, safe_angle)
 
             log_probs.append(dist.log_prob(action))
             rewards.append(reward)
@@ -206,6 +210,12 @@ def main():
             total_reward += reward
             total_cost += cost
             state = next_state
+
+            current_step += 1  # Increment step counter
+
+            # Break the loop if the total steps exceed the limit
+            if current_step >= max_steps:
+                break
 
         # Discounted returns
         reward_returns = discount(rewards, gamma)
@@ -220,28 +230,20 @@ def main():
 
         # Compute V_L(pi) and RCMDP objective
         vl_pi = max(h_s_values)  # V_L(pi) = max_s V_h^pi(s)
-        # Debugging: Log intermediate values
         avg_reward = reward_returns.mean().item()
 
         penalty_term = max(0, vl_pi - epsilon_tolerance)  # Apply penalty only if V_L(pi) > epsilon
         rcmdp_objective = max(reward_returns.mean().item() / lambda_fixed, beta * penalty_term)
-        #debugging
-        # print(f"Ep {ep+1} | Avg Reward: {avg_reward:.2f} | V_L(pi): {vl_pi:.2f} | RCMDP Obj: {rcmdp_objective:.2f}")
 
         # Choose advantage based on RCMDP objective
         chosen_adv = []
         for vr, vc, ar, ac in zip(reward_returns, cost_returns, adv_r, adv_c):
-            # if rcmdp_objective > 0:
             if rcmdp_objective > avg_reward / lambda_fixed:
                 chosen_adv.append(-ac)  # Penalize cost
             else:
                 chosen_adv.append(ar)  # Reward advantage
         chosen_adv = torch.stack(chosen_adv)
 
-        # Losses
-        # actor_loss = -(log_probs * chosen_adv).mean()
-        # reward_loss = nn.functional.mse_loss(reward_values, reward_returns)
-        # cost_loss = nn.functional.mse_loss(cost_values, cost_returns)
         # Losses
         entropy_loss = dist.entropy().mean()  # Add entropy regularization
         actor_loss = -(log_probs * chosen_adv).mean() - 0.01 * entropy_loss
@@ -275,12 +277,12 @@ def main():
             best_reward = total_reward
             best_actor_state_dict = deepcopy(actor.state_dict())
 
-        # Display
-        if (ep + 1) % 50 == 0:
-            print(f"Ep {ep+1} | Reward: {total_reward:.1f} | Cost: {total_cost:.2f} | V_L(pi): {vl_pi:.3f} | Actor Loss: {actor_loss.item():.3f} | Best Reward (under safety): {best_reward:.1f}")
-        # Logging to file instead of printing
+        # Log every 5000 steps
+        print(current_step)
+        if current_step % 100 == 0:
             logging.info(
-                f"Ep {ep+1} | Reward: {total_reward:.1f} | Cost: {total_cost:.2f} | V_L(pi): {vl_pi:.3f}  | Actor Loss: {actor_loss.item():.3f} | Best Reward (under safety): {best_reward:.1f}"
+                f"Step {current_step} | Reward: {total_reward:.1f} | Cost: {total_cost:.2f} | V_L(pi): {vl_pi:.3f} | "
+                f"Actor Loss: {actor_loss.item():.3f} | Best Reward (under safety): {best_reward:.1f}"
             )
 
     # === Save All Models ===
@@ -291,6 +293,7 @@ def main():
     torch.save(actor.state_dict(), 'actor.pth')                       # Final actor
     torch.save(reward_critic.state_dict(), 'reward_critic.pth')
     torch.save(cost_critic.state_dict(), 'cost_critic.pth')
+
 
 if __name__ == "__main__":
     main()
