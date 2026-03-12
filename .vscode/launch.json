@@ -1,0 +1,24 @@
+{
+    "version": "0.1.0",
+    "configurations": [
+        {
+            "name": "Python: RCRL (Conda Env)",
+            "type": "python",
+            "request": "launch",
+            "program": "/project/ag2682/sm3934/RCRL_on_RMDP/rcrl_rcmdp_mc.py",
+            "args": [
+                "--model_dir", "${workspaceFolder}/opv2v/opencood/checkpoints_test/"
+            ],
+            "cwd": "/home/csgrad/smukh039/AutoNetworkingRL/CoBEVT_AutoNet", //${workspaceFolder}",
+            "env": {
+                " PYTHONPATH": "/home/csgrad/smukh039/AutoNetworkingRL/CoBEVT_AutoNet:/home/csgrad/smukh039/AutoNetworkingRL/CoBEVT_AutoNet/opv2v"
+            },
+            "python": "/home/csgrad/smukh039/miniforge3/envs/cobevt_env/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "xdebugSettings": {
+                "max_depth": -1
+            }
+        }
+    ]
+}
