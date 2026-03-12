@@ -1,0 +1,346 @@
+SHELL=/bin/bash
+COLORTERM=truecolor
+SLURM_JOB_USER=sm3934
+SLURM_TASKS_PER_NODE=2
+SLURM_JOB_UID=624905
+HISTCONTROL=ignoredups
+TERM_PROGRAM_VERSION=1.104.1
+SLURM_EXPORT_ENV=NONE
+SLURM_TASK_PID=1028235
+CONDA_EXE=/home/sm3934/miniconda3/bin/conda
+_CE_M=
+LMOD_arch=x86_64
+EBDEVELVSCODE=/apps/easybuild/el9_5.x86_64/software/VSCode/1.88.1/easybuild/Core-VSCode-1.88.1-easybuild-devel
+EBROOTVSCODE=/apps/easybuild/el9_5.x86_64/software/VSCode/1.88.1
+EBDEVELCODEMINSERVER=/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/easybuild/Core-code-server-4.104.1-easybuild-devel
+SLURM_LOCALID=0
+SLURM_SUBMIT_DIR=/var/www/ood/apps/sys/dashboard
+LOG_LEVEL=debug
+HISTSIZE=1000
+HOSTNAME=n0111
+SLURMD_NODENAME=n0111
+SLURM_JOB_START_TIME=1773322197
+HYDRA_LAUNCHER_EXTRA_ARGS=--external-launcher
+_ModuleTable002_=ICIvYXBwcy9lYXN5YnVpbGQvZWw5XzUueDg2XzY0L21vZHVsZXMvYWxsL0NvcmUvY29kZS1zZXJ2ZXIvNC4xMDQuMS5sdWEiLApmdWxsTmFtZSA9ICJjb2RlLXNlcnZlci80LjEwNC4xIiwKbG9hZE9yZGVyID0gNSwKcHJvcFQgPSB7fSwKc3RhY2tEZXB0aCA9IDAsCnN0YXR1cyA9ICJhY3RpdmUiLAp1c2VyTmFtZSA9ICJjb2RlLXNlcnZlci80LjEwNC4xIiwKd1YgPSAiMDAwMDAwMDA0LjAwMDAwMDEwNC4wMDAwMDAwMDEuKnpmaW5hbCIsCn0sCmVhc3lidWlsZCA9IHsKZm4gPSAiL2FwcHMvbW9kdWxlZmlsZXMvZWFzeWJ1aWxkIiwKZnVsbE5hbWUgPSAiZWFzeWJ1aWxkIiwKbG9hZE9yZGVyID0gMSwKcHJvcFQgPSB7fSwKc3RhY2tEZXB0aCA9IDEsCnN0YXR1cyA9ICJhY3Rp
+__LMOD_REF_COUNT_MODULEPATH=/apps/modulefiles:1;/apps/easybuild/el9_5.x86_64/modules/all/Core:1
+SLURM_CLUSTER_NAME=wulver
+SLURM_JOB_END_TIME=1773350997
+LMOD_SITEPACKAGE_LOCATION=/apps/site/modules/SitePackage.lua
+SLURM_CPUS_ON_NODE=2
+MUJOCO_PY_MUJOCO_PATH=/home/sm3934/.mujoco/mujoco210
+VSCODE_PROXY_URI=https://ondemand.njit.edu/rnode/n0111/40422/proxy/{{port}}/
+SLURM_JOB_CPUS_PER_NODE=2
+LMOD_DIR=/usr/share/lmod/lmod/libexec
+PWD=/project/ag2682/sm3934/RCRL_on_RMDP
+PRTE_MCA_plm_slurm_args=--external-launcher
+SLURM_GTIDS=0
+LOGNAME=sm3934
+XDG_SESSION_TYPE=unspecified
+CONDA_PREFIX=/home/sm3934/miniconda3/envs/ipm_rcrl_env
+SLURM_JOB_PARTITION=debug
+MODULESHOME=/usr/share/lmod/lmod
+EBVERSIONVSCODE=1.88.1
+MANPATH=/apps/slurm/current/share/man:/usr/share/lmod/lmod/share/man:/usr/local/share/man:/usr/share/man:/cm/local/apps/environment-modules/current/share/man:/cm/local/apps/environment-modules/current/share/man:/cm/local/apps/environment-modules/current/share/man
+SLURM_TRES_PER_TASK=cpu=1
+SLURM_OOM_KILL_STEP=0
+LMOD_PREPEND_BLOCK=normal
+SLURM_JOB_NUM_NODES=1
+VSCODE_GIT_ASKPASS_NODE=/mmfs1/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/lib/node
+__LMOD_REF_COUNT_CMAKE_PREFIX_PATH=/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1:1;/apps/easybuild/el9_5.x86_64/software/VSCode/1.88.1:1
+SLURM_JOBID=865788
+I_MPI_HYDRA_BOOTSTRAP_EXEC_EXTRA_ARGS=--external-launcher
+SLURM_JOB_QOS=debug
+EBROOTCODEMINSERVER=/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1
+__LMOD_REF_COUNT_PATH=/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1:1;/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/bin:1;/apps/easybuild/el9_5.x86_64/software/VSCode/1.88.1/bin:1;/apps/site/bin:1;/apps/slurm/current/sbin:1;/apps/slurm/current/bin:1;/home/sm3934/miniconda3/bin:1;/home/sm3934/miniconda3/condabin:1;/home/sm3934/.local/bin:1;/home/sm3934/bin:1;/usr/local/bin:1;/usr/bin:1;/usr/local/sbin:1;/usr/sbin:1;/opt/TurboVNC/bin:2;/opt/dell/srvadmin/bin:1
+HOME=/home/sm3934
+_ModuleTable_Sz_=4
+SSH_ASKPASS=/usr/libexec/openssh/gnome-ssh-askpass
+__LMOD_REF_COUNT_LIBRARY_PATH=/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/lib:1;/apps/slurm/current/lib64/slurm:1;/apps/slurm/current/lib64:1
+LANG=en_US.UTF-8
+LS_COLORS=rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=01;37;41:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=01;36:*.au=01;36:*.flac=01;36:*.m4a=01;36:*.mid=01;36:*.midi=01;36:*.mka=01;36:*.mp3=01;36:*.mpc=01;36:*.ogg=01;36:*.ra=01;36:*.wav=01;36:*.oga=01;36:*.opus=01;36:*.spx=01;36:*.xspf=01;36:
+port=40422
+SLURM_PROCID=0
+WEBSOCKIFY_CMD=/usr/bin/websockify
+__LMOD_REF_COUNT_CPATH=/apps/slurm/current/include:1
+LMOD_SETTARG_FULL_SUPPORT=no
+CONDA_PROMPT_MODIFIER=(ipm_rcrl_env) 
+TMPDIR=/tmp
+GIT_ASKPASS=/mmfs1/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/lib/vscode/extensions/git/dist/askpass.sh
+CMAKE_PREFIX_PATH=/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1:/apps/easybuild/el9_5.x86_64/software/VSCode/1.88.1
+SLURM_CPUS_PER_TASK=1
+SLURM_NTASKS=2
+SLURM_TOPOLOGY_ADDR=core.ib_r401015u23.n0111
+LMOD_VERSION=8.7.39
+EBVERSIONCODEMINSERVER=4.104.1
+LMOD_PACKAGE_PATH=/apps/site/modules
+_ModuleTable003_=dmUiLAp1c2VyTmFtZSA9ICJlYXN5YnVpbGQiLAp3ViA9ICJNLip6ZmluYWwiLAp9LApzbHVybSA9IHsKZm4gPSAiL2FwcHMvbW9kdWxlZmlsZXMvc2x1cm0vd3VsdmVyIiwKZnVsbE5hbWUgPSAic2x1cm0vd3VsdmVyIiwKbG9hZE9yZGVyID0gMiwKcHJvcFQgPSB7fSwKc3RhY2tEZXB0aCA9IDEsCnN0YXR1cyA9ICJhY3RpdmUiLAp1c2VyTmFtZSA9ICJzbHVybS93dWx2ZXIiLAp3ViA9ICJed3VsdmVyLip6ZmluYWwiLAp9LAp3dWx2ZXIgPSB7CmZuID0gIi9hcHBzL21vZHVsZWZpbGVzL3d1bHZlciIsCmZ1bGxOYW1lID0gInd1bHZlciIsCmxvYWRPcmRlciA9IDMsCnByb3BUID0ge30sCnN0YWNrRGVwdGggPSAwLApzdGF0dXMgPSAiYWN0aXZlIiwKdXNlck5hbWUgPSAid3Vs
+HYDRA_BOOTSTRAP=slurm
+MODULEPATH_ROOT=/usr/share/modulefiles
+VSCODE_GIT_ASKPASS_EXTRA_ARGS=
+SLURM_TOPOLOGY_ADDR_PATTERN=switch.switch.node
+VSCODE_PYTHON_AUTOACTIVATE_GUARD=1
+_CONDA_EXE=/home/sm3934/miniconda3/bin/conda
+_CONDA_ROOT=/home/sm3934/miniconda3
+XDG_SESSION_CLASS=background
+LMOD_PKG=/usr/share/lmod/lmod
+SLURM_MEM_PER_NODE=8000
+code_server_version=
+TERM=xterm-256color
+LMOD_USER_LOADEDMODULES=VSCode/1.88.1:code-server/4.104.1
+_CE_CONDA=
+LESSOPEN=||/usr/bin/lesspipe.sh %s
+USER=sm3934
+LIBRARY_PATH=/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/lib:/apps/slurm/current/lib64/slurm:/apps/slurm/current/lib64
+SLURM_NODELIST=n0111
+VSCODE_GIT_IPC_HANDLE=/run/user/624905/vscode-git-7b1c5455c7.sock
+ENVIRONMENT=BATCH
+CONDA_SHLVL=7
+LOADEDMODULES=easybuild:slurm/wulver:wulver:VSCode/1.88.1:code-server/4.104.1
+SLURM_JOB_ACCOUNT=ag2682
+SLURM_PRIO_PROCESS=0
+SLURM_NPROCS=2
+DISPLAY=:1
+MUJOCO_PATH=/home/sm3934/.mujoco/mujoco-2.3.6
+LMOD_ROOT=/usr/share/lmod
+LMOD_SETTARG_CMD=:
+SHLVL=3
+SLURM_NNODES=1
+BASH_ENV=/usr/share/lmod/lmod/init/bash
+LMOD_FULL_SETTARG_SUPPORT=no
+LMOD_sys=Linux
+__LMOD_REF_COUNT_MANPATH=/apps/slurm/current/share/man:1;/usr/share/lmod/lmod/share/man:1;/usr/local/share/man:1;/usr/share/man:1;/cm/local/apps/environment-modules/current/share/man:2
+XDG_SESSION_ID=c15
+SLURM_SUBMIT_HOST=app02
+_ModuleTable001_=X01vZHVsZVRhYmxlXyA9IHsKTVR2ZXJzaW9uID0gMywKY19yZWJ1aWxkVGltZSA9IGZhbHNlLApjX3Nob3J0VGltZSA9IGZhbHNlLApkZXB0aFQgPSB7fSwKZmFtaWx5ID0ge30sCm1UID0gewpWU0NvZGUgPSB7CmZuID0gIi9hcHBzL2Vhc3lidWlsZC9lbDlfNS54ODZfNjQvbW9kdWxlcy9hbGwvQ29yZS9WU0NvZGUvMS44OC4xLmx1YSIsCmZ1bGxOYW1lID0gIlZTQ29kZS8xLjg4LjEiLApsb2FkT3JkZXIgPSA0LApwcm9wVCA9IHt9LApzdGFja0RlcHRoID0gMCwKc3RhdHVzID0gImFjdGl2ZSIsCnVzZXJOYW1lID0gIlZTQ29kZS8xLjg4LjEiLAp3ViA9ICIwMDAwMDAwMDEuMDAwMDAwMDg4LjAwMDAwMDAwMS4qemZpbmFsIiwKfSwKWyJjb2RlLXNlcnZlciJdID0gewpmbiA9
+CONDA_PYTHON_EXE=/home/sm3934/miniconda3/bin/python
+LD_LIBRARY_PATH=/home/sm3934/.mujoco/mujoco-2.3.6/bin:/home/sm3934/.mujoco/mujoco-2.3.6/bin:/home/sm3934/.mujoco/mujoco-2.3.x/bin:/home/sm3934/.mujoco/mujoco-2.3.x/plugin:/home/sm3934/.mujoco/mujoco-3.6.0/bin:/home/sm3934/.mujoco/mujoco-3.6.0/bin:/home/sm3934/.mujoco/mujoco-3.6.0/bin:/home/sm3934/.mujoco/mujoco-2.3.7/plugin:/home/sm3934/.mujoco/mujoco-2.3.7/bin:/home/sm3934/.mujoco/mujoco-2.3.7/bin:/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/lib:/apps/slurm/current/lib64/slurm:/apps/slurm/current/lib64:/home/sm3934/.mujoco/mujoco210/bin:/usr/lib/nvidia:/home/sm3934/.mujoco/mujoco210/bin:/home/sm3934/.mujoco/mujoco210/bin:/usr/lib/nvidia:/home/sm3934/.mujoco/mujoco210/bin:/home/sm3934/.mujoco/mujoco210/bin:/usr/lib/nvidia
+LMOD_COLORIZE=yes
+XDG_RUNTIME_DIR=/run/user/624905
+SLURM_JOB_ID=865788
+SLURM_NODEID=0
+password=YCVF2LIC7Xul8Mdh
+_ModuleTable004_=dmVyIiwKd1YgPSAiTS4qemZpbmFsIiwKfSwKfSwKbXBhdGhBID0gewoiL2FwcHMvbW9kdWxlZmlsZXMiLCAiL2FwcHMvZWFzeWJ1aWxkL2VsOV81Lng4Nl82NC9tb2R1bGVzL2FsbC9Db3JlIiwKfSwKc3lzdGVtQmFzZU1QQVRIID0gIi9hcHBzL21vZHVsZWZpbGVzIiwKfQo=
+S_COLORS=auto
+CONDA_DEFAULT_ENV=ipm_rcrl_env
+__LMOD_SEEN_NONCORE=1
+CMD_WLM_CLUSTER_NAME=wulver
+OMP_NUM_THREADS=1
+DEBUGINFOD_IMA_CERT_PATH=/etc/keys/ima:
+ENABLE_LMOD=1
+which_declare=declare -f
+VSCODE_GIT_ASKPASS_MAIN=/mmfs1/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/lib/vscode/extensions/git/dist/askpass-main.js
+host=n0111
+XDG_DATA_DIRS=/home/sm3934/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share
+__Init_Default_Modules=1
+BROWSER=/mmfs1/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/lib/vscode/bin/helpers/browser.sh
+SLURM_CONF=/apps/slurm/current/etc/slurm.conf
+PATH=/mmfs1/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/lib/vscode/bin/remote-cli:/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1:/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/bin:/apps/easybuild/el9_5.x86_64/software/VSCode/1.88.1/bin:/apps/site/bin:/apps/slurm/current/sbin:/apps/slurm/current/bin:/home/sm3934/miniconda3/envs/ipm_rcrl_env/bin:/home/sm3934/miniconda3/condabin:/home/sm3934/.local/bin:/home/sm3934/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/opt/TurboVNC/bin:/opt/dell/srvadmin/bin:/opt/TurboVNC/bin:/opt/TurboVNC/bin
+NODE_EXEC_PATH=/mmfs1/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/lib/node
+SLURM_JOB_NAME=::app=VSCode,
+MODULEPATH=/apps/modulefiles:/apps/easybuild/el9_5.x86_64/modules/all/Core
+__LMOD_INHERIT_LOGGED=865788
+_LMFILES_=/apps/modulefiles/easybuild:/apps/modulefiles/slurm/wulver:/apps/modulefiles/wulver:/apps/easybuild/el9_5.x86_64/modules/all/Core/VSCode/1.88.1.lua:/apps/easybuild/el9_5.x86_64/modules/all/Core/code-server/4.104.1.lua
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/624905/bus
+LMOD_CMD=/usr/share/lmod/lmod/libexec/lmod
+MKL_NUM_THREADS=1
+MAIL=/var/spool/mail/sm3934
+__LMOD_REF_COUNT_LD_LIBRARY_PATH=/apps/easybuild/el9_5.x86_64/software/code-server/4.104.1/lib:1;/apps/slurm/current/lib64/slurm:1;/apps/slurm/current/lib64:1;/home/sm3934/.mujoco/mujoco210/bin:4;/usr/lib/nvidia:2
+CONDA_PREFIX_1=/home/sm3934/miniconda3
+CONDA_PREFIX_2=/home/sm3934/miniconda3/envs/rcrl_env2
+CONDA_PREFIX_3=/home/sm3934/miniconda3/envs/ipm_rcrl_env
+LMOD_SYSTEM_DEFAULT_MODULES=wulver
+CONDA_PREFIX_4=/home/sm3934/miniconda3
+OMPI_MCA_plm_slurm_args=--external-launcher
+CONDA_PREFIX_5=/home/sm3934/miniconda3/envs/ipm_rcrl_env
+CONDA_PREFIX_6=/home/sm3934/miniconda3
+SLURM_GET_USER_ENV=1
+SLURM_JOB_GID=624905
+CPATH=/apps/slurm/current/include
+OLDPWD=/project/ag2682/sm3934
+SLURM_JOB_NODELIST=n0111
+TERM_PROGRAM=vscode
+VSCODE_IPC_HOOK_CLI=/run/user/624905/vscode-ipc-46fe7a3c-8d23-4b45-84e1-748538d23723.sock
+I_MPI_HYDRA_BOOTSTRAP=slurm
+BASH_FUNC_ml%%=() {  eval "$($LMOD_DIR/ml_cmd "$@")"
+}
+BASH_FUNC_find_port%%=() {  local host="${1:-localhost}";
+ local min_port=${2:-2000};
+ local max_port=${3:-65535};
+ local port_range=($(shuf -i ${min_port}-${max_port}));
+ local retries=1;
+ for ((attempt=0; attempt<=$retries; attempt++))
+ do
+ for port in "${port_range[@]}";
+ do
+ if port_used "${host}:${port}"; then
+ continue;
+ fi;
+ echo "${port}";
+ return 0;
+ done;
+ done;
+ echo "error: failed to find available port in range ${min_port}..${max_port}" 1>&2;
+ return 1
+}
+BASH_FUNC_which%%=() {  ( alias;
+ eval ${which_declare} ) | /usr/bin/which --tty-only --read-alias --read-functions --show-tilde --show-dot $@
+}
+BASH_FUNC_create_passwd%%=() {  tr -cd 'a-zA-Z0-9' < /dev/urandom 2> /dev/null | head -c${1:-8}
+}
+BASH_FUNC_random_number%%=() {  shuf -i ${1}-${2} -n 1
+}
+BASH_FUNC_module%%=() {  if [ -z "${LMOD_SH_DBG_ON+x}" ]; then
+ case "$-" in 
+ *v*x*)
+ __lmod_sh_dbg='vx'
+ ;;
+ *v*)
+ __lmod_sh_dbg='v'
+ ;;
+ *x*)
+ __lmod_sh_dbg='x'
+ ;;
+ esac;
+ fi;
+ if [ -n "${__lmod_sh_dbg:-}" ]; then
+ set +$__lmod_sh_dbg;
+ echo "Shell debugging temporarily silenced: export LMOD_SH_DBG_ON=1 for Lmod's output" 1>&2;
+ fi;
+ eval "$($LMOD_CMD shell "$@")" && eval "$(${LMOD_SETTARG_CMD:-:} -s sh)";
+ __lmod_my_status=$?;
+ if [ -n "${__lmod_sh_dbg:-}" ]; then
+ echo "Shell debugging restarted" 1>&2;
+ set -$__lmod_sh_dbg;
+ fi;
+ unset __lmod_sh_dbg;
+ return $__lmod_my_status
+}
+BASH_FUNC_wait_until_port_used%%=() {  local port="${1}";
+ local time="${2:-30}";
+ for ((i=1; i<=time*2; i++))
+ do
+ port_used "${port}";
+ port_status=$?;
+ if [ "$port_status" == "0" ]; then
+ return 0;
+ else
+ if [ "$port_status" == "127" ]; then
+ echo "commands to find port were either not found or inaccessible.";
+ echo "command options are lsof, nc, bash's /dev/tcp, or python (or python3) with socket lib.";
+ return 127;
+ fi;
+ fi;
+ sleep 0.5;
+ done;
+ return 1
+}
+BASH_FUNC_port_used%%=() {  local port="${1#*:}";
+ local host=$((expr "${1}" : '\(.*\):' || echo "localhost") | awk 'END{print $NF}');
+ local port_strategies=(port_used_nc port_used_lsof port_used_bash port_used_python port_used_python3);
+ for strategy in ${port_strategies[@]};
+ do
+ $strategy $host $port;
+ status=$?;
+ if [[ "$status" == "0" ]] || [[ "$status" == "1" ]]; then
+ return $status;
+ fi;
+ done;
+ return 127
+}
+BASH_FUNC_source_helpers%%=() {  function random_number () 
+ { 
+ shuf -i ${1}-${2} -n 1
+ };
+ export -f random_number;
+ function port_used_python () 
+ { 
+ python -c "import socket; socket.socket().connect(('$1',$2))" > /dev/null 2>&1
+ };
+ function port_used_python3 () 
+ { 
+ python3 -c "import socket; socket.socket().connect(('$1',$2))" > /dev/null 2>&1
+ };
+ function port_used_nc () 
+ { 
+ nc -w 2 "$1" "$2" < /dev/null > /dev/null 2>&1
+ };
+ function port_used_lsof () 
+ { 
+ lsof -i :"$2" > /dev/null 2>&1
+ };
+ function port_used_bash () 
+ { 
+ local bash_supported=$(strings /bin/bash 2>/dev/null | grep tcp);
+ if [ "$bash_supported" == "/dev/tcp/*/*" ]; then
+ ( : < /dev/tcp/$1/$2 ) > /dev/null 2>&1;
+ else
+ return 127;
+ fi
+ };
+ function port_used () 
+ { 
+ local port="${1#*:}";
+ local host=$((expr "${1}" : '\(.*\):' || echo "localhost") | awk 'END{print $NF}');
+ local port_strategies=(port_used_nc port_used_lsof port_used_bash port_used_python port_used_python3);
+ for strategy in ${port_strategies[@]};
+ do
+ $strategy $host $port;
+ status=$?;
+ if [[ "$status" == "0" ]] || [[ "$status" == "1" ]]; then
+ return $status;
+ fi;
+ done;
+ return 127
+ };
+ export -f port_used;
+ function find_port () 
+ { 
+ local host="${1:-localhost}";
+ local min_port=${2:-2000};
+ local max_port=${3:-65535};
+ local port_range=($(shuf -i ${min_port}-${max_port}));
+ local retries=1;
+ for ((attempt=0; attempt<=$retries; attempt++))
+ do
+ for port in "${port_range[@]}";
+ do
+ if port_used "${host}:${port}"; then
+ continue;
+ fi;
+ echo "${port}";
+ return 0;
+ done;
+ done;
+ echo "error: failed to find available port in range ${min_port}..${max_port}" 1>&2;
+ return 1
+ };
+ export -f find_port;
+ function wait_until_port_used () 
+ { 
+ local port="${1}";
+ local time="${2:-30}";
+ for ((i=1; i<=time*2; i++))
+ do
+ port_used "${port}";
+ port_status=$?;
+ if [ "$port_status" == "0" ]; then
+ return 0;
+ else
+ if [ "$port_status" == "127" ]; then
+ echo "commands to find port were either not found or inaccessible.";
+ echo "command options are lsof, nc, bash's /dev/tcp, or python (or python3) with socket lib.";
+ return 127;
+ fi;
+ fi;
+ sleep 0.5;
+ done;
+ return 1
+ };
+ export -f wait_until_port_used;
+ function create_passwd () 
+ { 
+ tr -cd 'a-zA-Z0-9' < /dev/urandom 2> /dev/null | head -c${1:-8}
+ };
+ export -f create_passwd
+}
+_=/usr/bin/printenv
