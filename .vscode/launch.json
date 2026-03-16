@@ -5,15 +5,15 @@
             "name": "Python: RCRL (Conda Env)",
             "type": "python",
             "request": "launch",
-            "program": "/project/ag2682/sm3934/RCRL_on_RMDP/rcrl_rcmdp_mc.py",
+            "program": "/project/ag2682/sm3934/RCRL_on_RMDP/ipm_rcmdp_rcrl.py",
             "args": [
-                "--model_dir", "${workspaceFolder}/opv2v/opencood/checkpoints_test/"
+                
             ],
-            "cwd": "/home/csgrad/smukh039/AutoNetworkingRL/CoBEVT_AutoNet", //${workspaceFolder}",
+            "cwd": "/project/ag2682/sm3934/RCRL_on_RMDP", //${workspaceFolder}",
             "env": {
-                " PYTHONPATH": "/home/csgrad/smukh039/AutoNetworkingRL/CoBEVT_AutoNet:/home/csgrad/smukh039/AutoNetworkingRL/CoBEVT_AutoNet/opv2v"
+                " PYTHONPATH": "/project/ag2682/sm3934/RCRL_on_RMDP"
             },
-            "python": "/home/csgrad/smukh039/miniforge3/envs/cobevt_env/bin/python",
+            "python": "/home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python",
             "console": "integratedTerminal",
             "justMyCode": false,
             "xdebugSettings": {
