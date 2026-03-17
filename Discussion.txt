@@ -1,13 +1,22 @@
-#PROBLEM1: cost functions critic should be >=0
-#PROBLEM2: sampled actions very similar, so q values very similar, V almost same as any q
-#PROBLEM3: for each state should we calculate a vlpi? but ultimately we are considering aggregated value, so max of all states should be fine
+#QUESTION1: cost functions critic should be >=0?
+#QUESTION2: sampled actions very similar, so q values very similar, V almost same as any q
+#QUESTION3: for each state should we calculate a vlpi? but ultimately we are considering aggregated value, so max of all states should be fine
 
 CONCERNS:
 - Taken ReLU in Cost Critic , but I dont think that is the reason it worked.
 -I took -ve of cost advantage to minimize it, not taken in IPM_RNPG code, still working. with -ve also working
 -I have taken expection over actions from Q->V by sampling 50 actions, so code is slow. each sampled action simulates next state and this is used in cost bellman
+-Learn V separately
 
 NEED TO DO:
+-Beta
 -in Hopper perturbed -> need to create cost function
 -in Safe control gym quadrotor
 -in safety gym 
+
+PRTURBATION:
+- perturb gravity, theta
+
+PLOT: 
+Vl_pi
+intuition of vl_pi: if in past there has been a higher value, then trajectory's highest value is either that + current value of current value as the highest value + highest value
