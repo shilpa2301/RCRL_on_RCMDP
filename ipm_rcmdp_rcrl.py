@@ -301,7 +301,7 @@ class ReplayBuffer:
 
 class Robust_RCAC_NPG:
   def __init__(self,args):
-    self.env = CartPoleCostEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
+    self.env = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
     #self.env.seed(args.seed)
     self.policy_dist = args.policy_dist
     self.max_action = args.max_action
@@ -1257,20 +1257,19 @@ class HopperPerturbedEnv(MujocoEnv, utils.EzPickle):
                 setattr(self.viewer.cam, key, value)
 
 
-# Define the plot_metrics function
-def plot_metrics(episode_rewards, episode_costs, save=False, filename="training_metrics.png"):
+def plot_metrics(episode_rewards, episode_costs, vl_pi_values, save=False, filename="training_metrics.png"):
     """
-    Plot the metrics (reward and cost) over episodes and optionally save the plot.
+    Plot the metrics (reward, cost, and vl_pi) over episodes and optionally save the plot.
     Args:
         episode_rewards: List of total rewards per episode.
         episode_costs: List of total costs per episode.
+        vl_pi_values: List of vl_pi values per episode.
         save: Whether to save the plot to a file.
         filename: File name to save the plot.
     """
     plt.ion()  # Turn on interactive mode
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(10, 8))
     plt.clf()  # Clear the current figure to avoid overlapping plots
-    # plt.figure(figsize=(10, 6))
 
     # Plot total rewards
     plt.subplot(2, 1, 1)
@@ -1280,12 +1279,13 @@ def plot_metrics(episode_rewards, episode_costs, save=False, filename="training_
     plt.title("Total Reward per Episode")
     plt.legend()
 
-    # Plot total costs
+    # Plot total costs and vl_pi on the same plot
     plt.subplot(2, 1, 2)
     plt.plot(episode_costs, label="Total Cost", color="red")
+    plt.plot(vl_pi_values, label="vl_pi", color="green", linestyle="--")
     plt.xlabel("Episode")
-    plt.ylabel("Cost")
-    plt.title("Total Cost per Episode")
+    plt.ylabel("Cost / vl_pi")
+    plt.title("Total Cost and vl_pi per Episode")
     plt.legend()
 
     plt.tight_layout()
@@ -1295,11 +1295,12 @@ def plot_metrics(episode_rewards, episode_costs, save=False, filename="training_
     plt.close()
 
 
+
 def main(args, number):
     seed, GAMMA = args.seed, args.GAMMA
-    env = CartPoleCostEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-    env_evaluate = CartPoleCostEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-    env_reset = CartPoleCostEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
+    env = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+    env_evaluate = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+    env_reset = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
     # Set random seed
     #env.reset(seed=seed)
     #env.seed(seed)
@@ -1352,6 +1353,7 @@ def main(args, number):
     episode_rewards = []
     episode_costs = []
     # steps = []
+    vl_pi_values = []
 
     for total_steps in tqdm(range(args.max_train_steps)):
         #if total_steps > args.max_train_steps // 2:
@@ -1481,24 +1483,24 @@ def main(args, number):
                     save_agent(agent, save_path, state_norm, reward_scaling)
                     max_value = evaluate_reward
 
-            # Track rewards and costs for the episode
-            # if done:
-            #     episode_rewards.append(total_reward)
-            #     episode_costs.append(total_cost)
-            #     steps.append(total_steps)  # Track the total steps for the x-axis
-                
-            # Plot metrics every 50 episodes
-            #     # Plot metrics every 50 episodes
-            # if (total_steps + 1) % 50 == 0:
-            #     plot_metrics(total_reward, total_cost, save=True, filename="ipm_training_metrics.png", step=True, steps=steps)
-        # Track rewards and costs for the episode
+        # Convert trajectory data to torch.Tensor before calling the function
+        trajectory = {
+            'states': [torch.tensor(state, dtype=torch.float32) for state in replay_buffer.s[:replay_buffer.count]],
+            'actions': [torch.tensor(action, dtype=torch.float32) for action in replay_buffer.a[:replay_buffer.count]],
+            'next_states': [torch.tensor(next_state, dtype=torch.float32) for next_state in replay_buffer.s_[:replay_buffer.count]],
+            'costs': [torch.tensor(cost, dtype=torch.float32) for cost in replay_buffer.c[:replay_buffer.count]]
+        }
+        vl_pi = agent.persistent_safety_function(trajectory, agent.actor, agent.Ccritic, agent.gamma)
+        vl_pi_values.append(vl_pi)
+
+           
         episode_rewards.append(total_reward)
         episode_costs.append(total_cost)
-        plot_metrics(episode_rewards, episode_costs, save=True, filename="ipm_rcrl_cartpole_unperturbed_maxcost.png")
+        plot_metrics(episode_rewards, episode_costs, vl_pi_values, save=True, filename="ipm_rcrl_cartpole_perturbed_maxcost_beta1.png")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
-    parser.add_argument("--env", type=str, default='CartPoleCostEnv',help="HopperPerturbed/CartPolePerturbed/CartPoleCostEnv")
+    parser.add_argument("--env", type=str, default='CartPolePerturbedEnv',help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv")
     parser.add_argument("--uncer_set", type=str, default='IPM', help="DS/IPM")
     parser.add_argument("--next_steps", type=int, default=2, help="Number of next states")
     parser.add_argument("--random_steps", type=int, default=int(25e3), help="Uniformlly sample action within random steps")
