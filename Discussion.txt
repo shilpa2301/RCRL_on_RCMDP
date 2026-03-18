@@ -13,6 +13,7 @@ NEED TO DO:
 -in Hopper perturbed -> need to create cost function
 -in Safe control gym quadrotor
 -in safety gym 
+-test_script
 
 PRTURBATION:
 - perturb gravity, theta
@@ -20,3 +21,4 @@ PRTURBATION:
 PLOT: 
 Vl_pi
 intuition of vl_pi: if in past there has been a higher value, then trajectory's highest value is either that + current value of current value as the highest value + highest value
+test script

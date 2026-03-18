@@ -323,7 +323,7 @@ class Robust_RCAC_NPG:
     self.adaptive_alpha = args.adaptive_alpha
     self.weight_reg = args.weight_reg
     self.lambda_ = args.lambda_
-    self.b = args.baseline
+    # self.b = args.baseline
     if self.adaptive_alpha:
         self.target_entropy = -args.action_dim
         self.log_alpha = torch.zeros(1, requires_grad=True)
@@ -435,7 +435,7 @@ class Robust_RCAC_NPG:
         #PROBLEM2: sampled actions very similar, so q values very similar, V almost same as any q
 
         # Sample multiple actions from the distribution
-        sampled_actions = dist.sample((50,))  # Sample 100 actions for Monte Carlo approximation
+        sampled_actions = dist.sample((50,))  # Sample 50 actions for Monte Carlo approximation
         log_probs = dist.log_prob(sampled_actions)  # Get log probabilities of sampled actions
 
         # Compute Q_h(s, a) for each sampled action
@@ -457,9 +457,9 @@ class Robust_RCAC_NPG:
             next_value = cost_critic(simulated_next_state).item()
 
             # Compute Q_h(s, a)
-            # q_value = (1-gamma)*current_cost + gamma * max(current_cost, next_value)
+            q_value = (1-gamma)*current_cost + gamma * max(current_cost, next_value)
             # q_value = current_cost + gamma * max(current_cost, next_value)
-            q_value = max(current_cost, next_value)
+            # q_value = max(current_cost, next_value)
             q_values.append(q_value)
 
         # Compute V_h(s) using a weighted average of Q_h(s, a) with the probabilities
@@ -514,7 +514,7 @@ class Robust_RCAC_NPG:
                 vl_pi = self.persistent_safety_function(trajectory, self.actor, self.Ccritic, self.gamma)
                 # Compute penalty term and beta penalty
                 penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
-                print(self.beta)
+                # print(self.beta)
                 beta_penalty = self.beta * penalty_term
                 # Decide whether to prioritize reward or cost based on beta_penalty
                 vs_mean = vs.mean().item()
@@ -1295,6 +1295,43 @@ def plot_metrics(episode_rewards, episode_costs, vl_pi_values, save=False, filen
     plt.close()
 
 
+def plot_metrics_without_vlpi(episode_rewards, episode_costs, save=False, filename="training_metrics.png"):
+    """
+    Plot the metrics (reward, cost, and vl_pi) over episodes and optionally save the plot.
+    Args:
+        episode_rewards: List of total rewards per episode.
+        episode_costs: List of total costs per episode.
+        vl_pi_values: List of vl_pi values per episode.
+        save: Whether to save the plot to a file.
+        filename: File name to save the plot.
+    """
+    plt.ion()  # Turn on interactive mode
+    plt.figure(figsize=(10, 8))
+    plt.clf()  # Clear the current figure to avoid overlapping plots
+
+    # Plot total rewards
+    plt.subplot(2, 1, 1)
+    plt.plot(episode_rewards, label="Total Reward", color="blue")
+    plt.xlabel("Episode")
+    plt.ylabel("Reward")
+    plt.title("Total Reward per Episode")
+    plt.legend()
+
+    # Plot total costs and vl_pi on the same plot
+    plt.subplot(2, 1, 2)
+    plt.plot(episode_costs, label="Total Cost", color="red")
+    plt.xlabel("Episode")
+    plt.ylabel("Cost")
+    plt.title("Total Cost per Episode")
+    plt.legend()
+
+    plt.tight_layout()
+    if save:
+        plt.savefig(filename)
+    plt.show()
+    plt.close()
+
+
 
 def main(args, number):
     seed, GAMMA = args.seed, args.GAMMA
@@ -1353,7 +1390,8 @@ def main(args, number):
     episode_rewards = []
     episode_costs = []
     # steps = []
-    vl_pi_values = []
+    # vl_pi_values = []
+    max_costs = []
 
     for total_steps in tqdm(range(args.max_train_steps)):
         #if total_steps > args.max_train_steps // 2:
@@ -1369,6 +1407,7 @@ def main(args, number):
 
         total_reward = 0
         total_cost = 0
+        max_cost = float('-inf')
 
         # beta = 1 + (ep / epochs) * (max_beta - min_beta)
         
@@ -1436,6 +1475,7 @@ def main(args, number):
                 s_, r,c, done, info = env.step(action)
                 total_reward += r
                 total_cost += c
+                max_cost = max(max_cost, c)
             x_pos = np.array([info['x_position']])
             if args.use_state_norm:
                 #nexts = state_norm(nexts, update=False)
@@ -1484,19 +1524,21 @@ def main(args, number):
                     max_value = evaluate_reward
 
         # Convert trajectory data to torch.Tensor before calling the function
-        trajectory = {
-            'states': [torch.tensor(state, dtype=torch.float32) for state in replay_buffer.s[:replay_buffer.count]],
-            'actions': [torch.tensor(action, dtype=torch.float32) for action in replay_buffer.a[:replay_buffer.count]],
-            'next_states': [torch.tensor(next_state, dtype=torch.float32) for next_state in replay_buffer.s_[:replay_buffer.count]],
-            'costs': [torch.tensor(cost, dtype=torch.float32) for cost in replay_buffer.c[:replay_buffer.count]]
-        }
-        vl_pi = agent.persistent_safety_function(trajectory, agent.actor, agent.Ccritic, agent.gamma)
-        vl_pi_values.append(vl_pi)
+        # trajectory = {
+        #     'states': [torch.tensor(state, dtype=torch.float32) for state in replay_buffer.s[:replay_buffer.count]],
+        #     'actions': [torch.tensor(action, dtype=torch.float32) for action in replay_buffer.a[:replay_buffer.count]],
+        #     'next_states': [torch.tensor(next_state, dtype=torch.float32) for next_state in replay_buffer.s_[:replay_buffer.count]],
+        #     'costs': [torch.tensor(cost, dtype=torch.float32) for cost in replay_buffer.c[:replay_buffer.count]]
+        # }
+        # vl_pi = agent.persistent_safety_function(trajectory, agent.actor, agent.Ccritic, agent.gamma)
+        # vl_pi_values.append(vl_pi)
 
            
         episode_rewards.append(total_reward)
         episode_costs.append(total_cost)
-        plot_metrics(episode_rewards, episode_costs, vl_pi_values, save=True, filename="ipm_rcrl_cartpole_perturbed_maxcost_beta1.png")
+        max_costs.append(max_cost)
+        # plot_metrics(episode_rewards, episode_costs, vl_pi_values, save=True, filename="ipm_rcrl_cartpole_perturbed_maxcost_beta25.png")
+        plot_metrics_without_vlpi(episode_rewards, max_costs, save=True, filename="ipm_rcrl_cartpole_perturbed_weightedcost_beta1_novlpi.png")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
