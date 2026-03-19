@@ -301,7 +301,7 @@ class ReplayBuffer:
 
 class Robust_RCAC_NPG:
   def __init__(self,args):
-    self.env = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
+    self.env = CartPoleCostEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
     #self.env.seed(args.seed)
     self.policy_dist = args.policy_dist
     self.max_action = args.max_action
@@ -1333,11 +1333,20 @@ def plot_metrics_without_vlpi(episode_rewards, episode_costs, save=False, filena
 
 
 
-def main(args, number):
+def main(args, run_number):
     seed, GAMMA = args.seed, args.GAMMA
-    env = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-    env_evaluate = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-    env_reset = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
+
+    # Create directories for the current run
+    model_dir = f"./models/{args.env}/run{run_number}/"
+    data_train_dir = f"./data_train/{args.env}/run{run_number}/"
+    plot_data_dir = f"./plot_data/{args.env}/run{run_number}/"
+    os.makedirs(model_dir, exist_ok=True)
+    os.makedirs(data_train_dir, exist_ok=True)
+    os.makedirs(plot_data_dir, exist_ok=True)
+
+    env = CartPoleCostEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+    env_evaluate = CartPoleCostEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+    env_reset = CartPoleCostEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
     # Set random seed
     #env.reset(seed=seed)
     #env.seed(seed)
@@ -1372,13 +1381,14 @@ def main(args, number):
     evaluate_costs = []  # Record the costs during the evaluating
     total_steps = 0  # Record the total steps during the training
     max_value = -np.inf
-    save_path = f"./models/RCAC_{args.env}_{GAMMA}" ###******* TENTATIVE PLEASE CHANGE TO YOUR FOLDER OF SAVING ACCORDINGLY ***********
+    # save_path = f"./models/RCAC_{args.env}_{GAMMA}" ###******* TENTATIVE PLEASE CHANGE TO YOUR FOLDER OF SAVING ACCORDINGLY ***********
 
     replay_buffer = ReplayBuffer(args)
     agent = Robust_RCAC_NPG(args)
 
     # Build a tensorboard
-    writer = SummaryWriter(log_dir='runs/RNAC/env_{}_{}_number_{}_seed_{}_GAMMA_{}'.format(args.env, args.policy_dist, number, seed, GAMMA))
+    # writer = SummaryWriter(log_dir='runs/RNAC/env_{}_{}_number_{}_seed_{}_GAMMA_{}'.format(args.env, args.policy_dist, number, seed, GAMMA))
+    writer = SummaryWriter(log_dir=f'runs/RNAC/env_{args.env}_{args.policy_dist}_run{run_number}_seed_{seed}_GAMMA_{GAMMA}')
 
     state_norm = Normalization(shape=args.state_dim)  # Trick 2:state normalization
     if args.use_reward_norm:  # Trick 3:reward normalization
@@ -1516,11 +1526,17 @@ def main(args, number):
                 writer.add_scalar('step_rewards_{}'.format(args.env), evaluate_rewards[-1], global_step=total_steps)
                 # Save the rewards
                 if evaluate_num % args.save_freq == 0:
-                    np.save('./data_train/RNAC_{}_env_{}_number_{}_seed_{}_GAMMA_{}.npy'.format(args.policy_dist, args.env, number, seed, GAMMA), np.array(evaluate_rewards))
+                    # np.save('./data_train/RNAC_{}_env_{}_number_{}_seed_{}_GAMMA_{}_run_{}_rewards.npy'.format(args.policy_dist, args.env, number, seed, GAMMA, run_number), np.array(evaluate_rewards))
+                    # np.save('./data_train/RNAC_{}_env_{}_number_{}_seed_{}_GAMMA_{}_run_{}_costs.npy'.format(args.policy_dist, args.env, number, seed, GAMMA, run_number), np.array(evaluate_costs))
+                    np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_rewards.npy', np.array(evaluate_rewards))
+                    np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy', np.array(evaluate_costs))
 
                 # save actor, critic for evaluation in perturbed environment
-                if evaluate_reward > max_value:
-                    save_agent(agent, save_path, state_norm, reward_scaling)
+                if evaluate_reward >= max_value:
+                    # save_agent(agent, save_path, state_norm, reward_scaling)
+                    save_agent(agent, f"{model_dir}/RCAC", state_norm, reward_scaling)
+                    max_value = evaluate_reward
+
                     max_value = evaluate_reward
 
         # Convert trajectory data to torch.Tensor before calling the function
@@ -1537,12 +1553,21 @@ def main(args, number):
         episode_rewards.append(total_reward)
         episode_costs.append(total_cost)
         max_costs.append(max_cost)
+        # Save data for plotting
+        np.save(f"{plot_data_dir}/episode_rewards.npy", episode_rewards)
+        np.save(f"{plot_data_dir}/max_costs.npy", max_costs)
         # plot_metrics(episode_rewards, episode_costs, vl_pi_values, save=True, filename="ipm_rcrl_cartpole_perturbed_maxcost_beta25.png")
-        plot_metrics_without_vlpi(episode_rewards, max_costs, save=True, filename="ipm_rcrl_cartpole_perturbed_weightedcost_beta1_novlpi.png")
+        # plot_metrics_without_vlpi(episode_rewards, max_costs, save=True, filename="ipm_rcrl_cartpole_perturbed.png")
+        plot_metrics_without_vlpi(episode_rewards, max_costs, save=True, filename=f"{plot_data_dir}/training_metrics.png")
+
+    # Save the evaluation rewards and costs for this run
+    np.save(f"{data_train_dir}/evaluate_rewards.npy", evaluate_rewards)
+    np.save(f"{data_train_dir}/evaluate_costs.npy", evaluate_costs)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
-    parser.add_argument("--env", type=str, default='CartPolePerturbedEnv',help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv")
+    parser.add_argument("--env", type=str, default='CartPoleCostEnv',help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv")
     parser.add_argument("--uncer_set", type=str, default='IPM', help="DS/IPM")
     parser.add_argument("--next_steps", type=int, default=2, help="Number of next states")
     parser.add_argument("--random_steps", type=int, default=int(25e3), help="Uniformlly sample action within random steps")
@@ -1574,10 +1599,11 @@ if __name__ == '__main__':
     parser.add_argument("--use_tanh", type=float, default=True, help="Trick 10: tanh activation function")
     parser.add_argument("--adaptive_alpha", type=float, default=False, help="Trick 11: adaptive entropy regularization")
     parser.add_argument("--weight_reg", type=float, default=0, help="Regularization for weight of critic")
-    parser.add_argument("--seed", type=int, default=2, help="seed")
+    parser.add_argument("--seed", type=int, default=7, help="seed 2, 5, 7") 
     parser.add_argument("--GAMMA", type=str, default='0', help="file name")
     parser.add_argument("--baseline",type=int,default=200,help="baseline")
     parser.add_argument("--lambda_",type=int,default=50,help="lambda")
+    run_number = 3
 
     args = parser.parse_args([])
     # make folders to dump results
@@ -1586,4 +1612,4 @@ if __name__ == '__main__':
     if not os.path.exists("./data_train"):
         os.makedirs("./data_train")
 
-    main(args, number=1)
+    main(args, run_number=run_number)

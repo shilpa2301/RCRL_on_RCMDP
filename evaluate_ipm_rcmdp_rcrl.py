@@ -82,6 +82,9 @@ def test_agent(agent, env, num_episodes=100, state_norm=None):
             # Step in the environment
             next_state, reward, cost, done, _ = env.step(action)
 
+            if state_norm:
+                next_state = state_norm(next_state, update=False)
+
             total_reward += reward
             total_cost += cost
             max_cost = max(max_cost, cost)
@@ -172,7 +175,7 @@ if __name__ == "__main__":
     args.action_dim = env.action_space.shape[0]
 
     # Specify the save path for the trained models
-    save_path = "./models/RCAC_CartPolePerturbedEnv_0"
+    save_path = "./models/run1/RCAC"
 
     # Load the trained agent and normalization objects
     agent, state_norm, reward_scaling = load_agent(args, save_path)
