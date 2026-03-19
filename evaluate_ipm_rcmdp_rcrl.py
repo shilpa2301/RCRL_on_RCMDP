@@ -71,23 +71,39 @@ def test_agent(agent, env, num_episodes=100, state_norm=None):
 
         while not done:
             # Normalize state if necessary
-            if state_norm:
+            if args.use_state_norm:
                 state = state_norm(state, update=False)
 
             # Get action from the policy
             action = agent.evaluate(state)
+            # action, _ = agent.choose_action(state)
             if agent.policy_dist == "Beta":
                 action = 2 * (action - 0.5) * agent.max_action  # Map [0, 1] to [-max_action, max_action]
 
             # Step in the environment
             next_state, reward, cost, done, _ = env.step(action)
 
-            if state_norm:
+            if args.use_state_norm:
                 next_state = state_norm(next_state, update=False)
+
+            # if args.use_reward_norm:
+            #     reward = reward_norm(reward)
+            #     cost = reward_norm(cost)
+            # elif args.use_reward_scaling:
+            #     reward = reward_scaling(reward)
+            #     cost = reward_scaling(cost)
 
             total_reward += reward
             total_cost += cost
             max_cost = max(max_cost, cost)
+
+            # if args.use_reward_norm:
+            #     reward = reward_norm(reward)
+            #     cost = reward_norm(cost)
+            # elif args.use_reward_scaling:
+            #     reward = reward_scaling(reward)
+            #     cost = reward_scaling(cost)
+            
             state = next_state
 
         rewards.append(total_reward)
@@ -173,6 +189,14 @@ if __name__ == "__main__":
     args.max_action = float(env.action_space.high[0])
     args.state_dim = env.observation_space.shape[0]
     args.action_dim = env.action_space.shape[0]
+    
+    env.reset(seed=args.seed)
+    env.action_space.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     # Specify the save path for the trained models
     save_path = "./models/run1/RCAC"

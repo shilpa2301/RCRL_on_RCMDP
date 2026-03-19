@@ -177,6 +177,21 @@ class Normalization:
         return x
 
 
+# class RewardScaling:
+#     def __init__(self, shape, gamma):
+#         self.shape = shape  # reward shape=1
+#         self.gamma = gamma  # discount factor
+#         self.running_ms = RunningMeanStd(shape=self.shape)
+#         self.R = np.zeros(self.shape)
+
+#     def __call__(self, x):
+#         self.R = self.gamma * self.R + x
+#         self.running_ms.update(self.R)
+#         x = x / (self.running_ms.std + 1e-8)  # Only divided std
+#         return x
+
+#     def reset(self):  # When an episode is done,we should reset 'self.R'
+#         self.R = np.zeros(self.shape)
 class RewardScaling:
     def __init__(self, shape, gamma):
         self.shape = shape  # reward shape=1
@@ -184,13 +199,14 @@ class RewardScaling:
         self.running_ms = RunningMeanStd(shape=self.shape)
         self.R = np.zeros(self.shape)
 
-    def __call__(self, x):
+    def __call__(self, x, update=True):
         self.R = self.gamma * self.R + x
-        self.running_ms.update(self.R)
+        if update:
+            self.running_ms.update(self.R)
         x = x / (self.running_ms.std + 1e-8)  # Only divided std
         return x
 
-    def reset(self):  # When an episode is done,we should reset 'self.R'
+    def reset(self):  # When an episode is done, we should reset 'self.R'
         self.R = np.zeros(self.shape)
 
 class Critic(nn.Module):
@@ -364,6 +380,7 @@ class Robust_RCAC_NPG:
             with torch.no_grad():
                 vs_mean = vs.mean().item()
                 vcs_mean = vcs.mean().item()
+                #todo: sum instead of mean
                 ch = np.argmax([vs_mean/self.lambda_, (vcs_mean-self.b)])
                 #print(vs_mean,vcs_mean,ch)
                 #input()
@@ -454,6 +471,7 @@ def evaluate_policy(args, env, agent, state_norm):
     times = 3
     evaluate_reward = 0
     evaluate_cost = 0
+    evaluate_max_cost = float('-inf')
     for _ in range(times):
         s = env.reset()
         if args.use_state_norm:
@@ -461,6 +479,7 @@ def evaluate_policy(args, env, agent, state_norm):
         done = False
         episode_reward = 0
         episode_cost = 0
+        max_cost = float('-inf')
         while not done:
             a = agent.evaluate(s)  # We use the deterministic policy during the evaluating
             if args.policy_dist == "Beta":
@@ -470,22 +489,32 @@ def evaluate_policy(args, env, agent, state_norm):
             s_, r,c, done, _ = env.step(action)
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
+            if args.use_reward_norm:
+                r = reward_norm(r, update=False)
+                c = reward_norm(c, update=False)
+            elif args.use_reward_scaling:
+                r = reward_scaling(r, update=False)
+                c = reward_scaling(c, update=False)
             episode_reward += r
             episode_cost += c
+            max_cost = max(max_cost, c)
             s = s_
         evaluate_reward += episode_reward
         evaluate_cost += episode_cost
+        evaluate_max_cost = max(evaluate_max_cost, max_cost)
 
-    return evaluate_reward / times,evaluate_cost / times
+    return evaluate_reward / times,evaluate_cost / times, evaluate_max_cost
 
-def save_agent(agent, save_path, state_norm, reward_scaling):
+def save_agent(agent, save_path, state_norm=None, reward_scaling=None):
     agent.actor.save(f'{save_path}_actor')
     agent.Rcritic.save(f'{save_path}_Rcritic')
     agent.Ccritic.save(f'{save_path}_Ccritic')
-    with open(f'{save_path}_state_norm', 'wb') as file1:
-        pickle.dump(state_norm, file1)
-    with open(f'{save_path}_reward_scaling', 'wb') as file2:
-        pickle.dump(reward_scaling, file2)
+    if state_norm:
+        with open(f'{save_path}_state_norm', 'wb') as file1:
+            pickle.dump(state_norm, file1)
+    if reward_scaling:
+        with open(f'{save_path}_reward_scaling', 'wb') as file2:
+            pickle.dump(reward_scaling, file2)
 
 class CartPoleCostEnv(gym.Env):
 
@@ -824,7 +853,7 @@ class HopperPerturbedEnv(MujocoEnv, utils.EzPickle):
 
 
 # Define the plot_metrics function
-def plot_metrics(episode_rewards, episode_costs, save=False, filename="training_metrics.png"):
+def plot_metrics(episode_rewards, episode_costs, max_costs, save=False, filename="training_metrics.png"):
     """
     Plot the metrics (reward and cost) over episodes and optionally save the plot.
     Args:
@@ -839,7 +868,7 @@ def plot_metrics(episode_rewards, episode_costs, save=False, filename="training_
     # plt.figure(figsize=(10, 6))
 
     # Plot total rewards
-    plt.subplot(2, 1, 1)
+    plt.subplot(3, 1, 1)
     plt.plot(episode_rewards, label="Total Reward", color="blue")
     plt.xlabel("Episode")
     plt.ylabel("Reward")
@@ -847,10 +876,18 @@ def plot_metrics(episode_rewards, episode_costs, save=False, filename="training_
     plt.legend()
 
     # Plot total costs
-    plt.subplot(2, 1, 2)
-    plt.plot(episode_costs, label="Total Cost", color="red")
+    plt.subplot(3, 1, 2)
+    plt.plot(max_costs, label="Max Cost", color="red")
     plt.xlabel("Episode")
-    plt.ylabel("Cost")
+    plt.ylabel("Max Cost")
+    plt.title("Max Cost per Episode")
+    plt.legend()
+
+    # Plot total costs
+    plt.subplot(3, 1, 3)
+    plt.plot(episode_costs, label="Total Cost", color="green")
+    plt.xlabel("Episode")
+    plt.ylabel("Total Cost")
     plt.title("Total Cost per Episode")
     plt.legend()
 
@@ -900,13 +937,14 @@ def main(args, number):
     evaluate_costs = []  # Record the costs during the evaluating
     total_steps = 0  # Record the total steps during the training
     max_value = -np.inf
-    save_path = f"./models/RCAC_{args.env}_{GAMMA}" ###******* TENTATIVE PLEASE CHANGE TO YOUR FOLDER OF SAVING ACCORDINGLY ***********
+    save_path = f"./models_baseline/RCAC_{args.env}_{GAMMA}" ###******* TENTATIVE PLEASE CHANGE TO YOUR FOLDER OF SAVING ACCORDINGLY ***********
+    evaluate_max_costs = []
 
     replay_buffer = ReplayBuffer(args)
     agent = Robust_RCAC_NPG(args)
 
     # Build a tensorboard
-    writer = SummaryWriter(log_dir='runs/RNAC/env_{}_{}_number_{}_seed_{}_GAMMA_{}'.format(args.env, args.policy_dist, number, seed, GAMMA))
+    writer = SummaryWriter(log_dir='runs/RNAC/baseline_env_{}_{}_number_{}_seed_{}_GAMMA_{}'.format(args.env, args.policy_dist, number, seed, GAMMA))
 
     state_norm = Normalization(shape=args.state_dim)  # Trick 2:state normalization
     if args.use_reward_norm:  # Trick 3:reward normalization
@@ -918,6 +956,7 @@ def main(args, number):
     episode_rewards = []
     episode_costs = []
     # steps = []
+    episode_max_costs = []
 
     for total_steps in tqdm(range(args.max_train_steps)):
         #if total_steps > args.max_train_steps // 2:
@@ -933,6 +972,7 @@ def main(args, number):
 
         total_reward = 0
         total_cost = 0
+        max_cost = float('-inf')
 
         while not done:
             episode_steps += 1
@@ -989,8 +1029,8 @@ def main(args, number):
                 total_cost += c
             else:
                 s_, r,c, done, info = env.step(action)
-                total_reward += r
-                total_cost += c
+                # total_reward += r
+                # total_cost += c
             x_pos = np.array([info['x_position']])
             if args.use_state_norm:
                 #nexts = state_norm(nexts, update=False)
@@ -1001,6 +1041,10 @@ def main(args, number):
             elif args.use_reward_scaling:
                 r = reward_scaling(r)
                 c = reward_scaling(c)
+
+            total_reward += r
+            total_cost += c
+            max_cost = max(max_cost, c)
 
             # When dead or win or reaching the max_episode_steps, done will be Ture, we need to distinguish them;
             # dw means dead or win,there is no next state s';
@@ -1023,20 +1067,28 @@ def main(args, number):
             # Evaluate the policy every 'evaluate_freq' steps
             if total_steps % args.evaluate_freq == 0:
                 evaluate_num += 1
-                evaluate_reward,evaluate_cost = evaluate_policy(args, env_evaluate, agent, state_norm)
+                evaluate_reward,evaluate_cost, evaluate_max_cost = evaluate_policy(args, env_evaluate, agent, state_norm)
                 #evaluate_cost = evaluate_cost_function(args, env_evaluate, agent, state_norm)
                 evaluate_rewards.append(evaluate_reward)
                 evaluate_costs.append(evaluate_cost)
-                print("evaluate_num:{} \t evaluate_reward:{} \t evaluate_cost:{}".format(evaluate_num, evaluate_reward,evaluate_cost))
+                evaluate_max_costs.append(evaluate_max_cost)
+                print("evaluate_num:{} \t evaluate_reward:{} \t evaluate_cost:{} \t evaluate_max_cost:{}".format(evaluate_num, evaluate_reward,evaluate_cost, evaluate_max_cost))
                 writer.add_scalar('step_rewards_{}'.format(args.env), evaluate_rewards[-1], global_step=total_steps)
                 # Save the rewards
                 if evaluate_num % args.save_freq == 0:
-                    np.save('./data_train/RNAC_{}_env_{}_number_{}_seed_{}_GAMMA_{}.npy'.format(args.policy_dist, args.env, number, seed, GAMMA), np.array(evaluate_rewards))
+                    np.save('./data_train_baseline/RNAC_{}_env_{}_number_{}_seed_{}_GAMMA_{}.npy'.format(args.policy_dist, args.env, number, seed, GAMMA), np.array(evaluate_rewards))
 
                 # save actor, critic for evaluation in perturbed environment
-                if evaluate_reward > max_value:
-                    save_agent(agent, save_path, state_norm, reward_scaling)
-                    max_value = evaluate_reward
+                if evaluate_reward >= max_value:
+                    # save_agent(agent, save_path, state_norm, reward_scaling)
+                    if args.use_reward_scaling and args.use_state_norm:
+                        save_agent(agent, f"models_baseline/RCAC", state_norm, reward_scaling)
+                    elif args.use_reward_scaling:
+                        save_agent(agent, f"models_baseline/RCAC", state_norm=None, reward_scaling=reward_scaling)
+                    elif args.use_state_norm:
+                        save_agent(agent, f"models_baseline/RCAC", state_norm)
+                    else:
+                        save_agent(agent, f"models_baseline/RCAC")
 
             # Track rewards and costs for the episode
             # if done:
@@ -1051,7 +1103,9 @@ def main(args, number):
         # Track rewards and costs for the episode
         episode_rewards.append(total_reward)
         episode_costs.append(total_cost)
-        plot_metrics(episode_rewards, episode_costs, save=True, filename="ipm_training_metrics_episode_mincost.png")
+        episode_max_costs.append(max_cost)
+        # max_costs.append(max_cost)
+        plot_metrics(episode_rewards, episode_costs, episode_max_costs, save=True, filename="plot_data_baseline/ipm_CartPole_perturbed_baseline.png")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
@@ -1077,7 +1131,7 @@ if __name__ == '__main__':
     parser.add_argument("--use_adv_norm", type=bool, default=True, help="Trick 1:advantage normalization")
     parser.add_argument("--use_state_norm", type=bool, default=True, help="Trick 2:state normalization")
     parser.add_argument("--use_reward_norm", type=bool, default=False, help="Trick 3:reward normalization")
-    parser.add_argument("--use_reward_scaling", type=bool, default=True, help="Trick 4:reward scaling")
+    parser.add_argument("--use_reward_scaling", type=bool, default=False, help="Trick 4:reward scaling")
     parser.add_argument("--entropy_coef", type=float, default=0.01, help="Trick 5: policy entropy")
     parser.add_argument("--use_lr_decay", type=bool, default=True, help="Trick 6:learning rate Decay")
     parser.add_argument("--use_grad_clip", type=bool, default=True, help="Trick 7: Gradient clip")
@@ -1088,14 +1142,14 @@ if __name__ == '__main__':
     parser.add_argument("--weight_reg", type=float, default=0, help="Regularization for weight of critic")
     parser.add_argument("--seed", type=int, default=2, help="seed")
     parser.add_argument("--GAMMA", type=str, default='0', help="file name")
-    parser.add_argument("--baseline",type=int,default=200,help="baseline")
+    parser.add_argument("--baseline",type=int,default=9,help="baseline, not 200")
     parser.add_argument("--lambda_",type=int,default=50,help="lambda")
 
     args = parser.parse_args([])
     # make folders to dump results
-    if not os.path.exists("./models"):
-        os.makedirs("./models")
-    if not os.path.exists("./data_train"):
-        os.makedirs("./data_train")
+    if not os.path.exists("./models_baseline"):
+        os.makedirs("./models_baseline")
+    if not os.path.exists("./data_train_baseline"):
+        os.makedirs("./data_train_baseline")
 
     main(args, number=1)
