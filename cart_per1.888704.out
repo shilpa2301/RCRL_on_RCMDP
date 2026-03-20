@@ -1,0 +1,11 @@
+n0026
+Fri Mar 20 04:00:56 PM EDT 2026
+/home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python
+env=CartPolePerturbedEnv
+state_dim=4
+action_dim=1
+max_action=10.0
+max_episode_steps=1000
+------use_orthogonal_init------
+------use_orthogonal_init------
+------use_orthogonal_init------

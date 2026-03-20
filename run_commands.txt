@@ -1,1 +1,5 @@
 conda create --name ipm_rcrl_env python=3.9 -c conda-forge
+
+scancel 888699
+sbatch cluster.sh 
+squeue -u sm3934

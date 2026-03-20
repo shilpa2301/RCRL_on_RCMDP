@@ -206,6 +206,10 @@ class RewardScaling:
     def reset(self):  # When an episode is done, we should reset 'self.R'
         self.R = np.zeros(self.shape)
 
+    def inverse(self, x_normalized):
+        return x_normalized * (self.running_ms.std + 1e-8)
+    
+
 class Critic(nn.Module):
     def __init__(self, args):
         super(Critic, self).__init__()
@@ -302,7 +306,7 @@ class ReplayBuffer:
 
 class Robust_RCAC_NPG:
   def __init__(self,args):
-    self.env = CartPoleCostEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
+    self.env = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
     #self.env.seed(args.seed)
     self.policy_dist = args.policy_dist
     self.max_action = args.max_action
@@ -342,8 +346,8 @@ class Robust_RCAC_NPG:
     self.Rcritic = Critic(args)
     self.Ccritic = CostCritic(args)
 
-    self.beta = 0.0
-    self.persistent_eps = 0.0
+    self.beta = args.beta
+    # self.persistent_eps = 0.0
 
     if self.set_adam_eps:  # Trick 9: set Adam epsilon=1e-5
         self.optimizer_actor = torch.optim.Adam(self.actor.parameters(), lr=self.lr_a, eps=1e-5)
@@ -394,23 +398,6 @@ class Robust_RCAC_NPG:
             p['lr'] = lr_c_now
 
   def persistent_safety_function(self, trajectory, actor, cost_critic, gamma):
-    """
-    Compute the robust value function V_h^pi(s) and vl_pi using bootstrapping.
-
-    Args:
-        trajectory (dict): Dictionary containing episode data:
-            - 'states': List of states (torch.Tensor).
-            - 'actions': List of actions (torch.Tensor).
-            - 'next_states': List of next states (torch.Tensor).
-            - 'costs': List of costs (torch.Tensor).
-        actor (torch.nn.Module): Policy network.
-        cost_critic (torch.nn.Module): Cost critic network.
-        gamma (float): Discount factor.
-
-    Returns:
-        v_h_pi_values (torch.Tensor): Robust value function V_h^pi(s) for all states.
-        vl_pi (float): Maximum cost value (max(V_h(s))) over the batch.
-    """
     states = trajectory['states']
     actions = trajectory['actions']
     next_states = trajectory['next_states']
@@ -424,16 +411,7 @@ class Robust_RCAC_NPG:
         action = actions[i]
         next_state = next_states[i]
         h_s = costs[i]
-
-        # Compute action probabilities
-        # a, a_logprob = self.choose_action(s)
-
-        #MODIFY this
-        # Get the action distribution from the actor
         dist = actor.get_dist(state)
-
-        #PROBLEM1: cost functions critic should be >=0
-        #PROBLEM2: sampled actions very similar, so q values very similar, V almost same as any q
 
         # Sample multiple actions from the distribution
         sampled_actions = dist.sample((50,))  # Sample 50 actions for Monte Carlo approximation
@@ -442,19 +420,14 @@ class Robust_RCAC_NPG:
         # Compute Q_h(s, a) for each sampled action
         q_values = []
         for sampled_action in sampled_actions:
-            # Use the actual cost for the action taken
             if torch.allclose(sampled_action, action, atol=1e-4):
                 current_cost = h_s
             else:
-                # Use the environment's cost calculation logic
-                x_position = state[0].item()  # Extract the cart position (x) from the state
-                theta = state[2].item()  # Extract the pole angle (theta) from the state
+                x_position = state[0].item() 
+                theta = state[2].item()  
                 current_cost = self.env.compute_cost(x_position, theta)
 
-            # Simulate the next state based on the sampled action
             simulated_next_state = self.env.simulate_next_state(state, sampled_action)
-
-            # Get V_h(simulated_next_state) from the cost critic
             next_value = cost_critic(simulated_next_state).item()
 
             # Compute Q_h(s, a)
@@ -467,11 +440,8 @@ class Robust_RCAC_NPG:
         q_values = torch.tensor(q_values)
         v_h_pi = torch.mean(q_values)
         v_h_pi_values.append(v_h_pi.item())
-
-        # Append cost value for vl_pi computation
         cost_values.append(v_h_pi.item())
 
-    # Compute vl_pi = max(V_h(s)) over all states
     vl_pi = max(cost_values)
 
     return vl_pi
@@ -497,6 +467,7 @@ class Robust_RCAC_NPG:
             # print("VCS shape:",vcs.shape)
             #shilpa rcrl
             # Construct trajectory dynamically from replay buffer
+            
             trajectory = {
                 'states': s,
                 'actions': a,
@@ -505,26 +476,13 @@ class Robust_RCAC_NPG:
             }
 
             with torch.no_grad():
-                # vs_mean = vs.mean().item()
-                # vcs_mean = vcs.mean().item()
-                # ch = np.argmax([vs_mean/self.lambda_, (vcs_mean-self.b)])
-                #print(vs_mean,vcs_mean,ch)
-                #input()
                 # Compute robust value function and V_L^pi
-                #PROBLEM3: for each state should we calculate a vlpi? but ultimately we are considering aggregated value, so max of all states should be fine
                 vl_pi = self.persistent_safety_function(trajectory, self.actor, self.Ccritic, self.gamma)
-                # Compute penalty term and beta penalty
                 penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
-                # print(self.beta)
                 beta_penalty = self.beta * penalty_term
-                # Decide whether to prioritize reward or cost based on beta_penalty
                 vs_mean = vs.mean().item()
-                # vcs_mean = vcs.mean().item()
-                ch = np.argmax([vs_mean, beta_penalty])  # Choose between reward and cost prioritization
-
-            reg_norm, weight_norm, bias_norm = 0, [], []
-
-            
+                ch = np.argmax([vs_mean, beta_penalty])  
+            reg_norm, weight_norm, bias_norm = 0, [], []           
 
            
             if ch==1:
@@ -610,7 +568,7 @@ class Robust_RCAC_NPG:
             self.alpha = self.log_alpha.exp()
 
 
-def evaluate_policy(args, env, agent, state_norm):
+def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     times = 3
     evaluate_reward = 0
     evaluate_cost = 0
@@ -632,15 +590,20 @@ def evaluate_policy(args, env, agent, state_norm):
             s_, r,c, done, _ = env.step(action)
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
-            if args.use_reward_norm:
-                r = reward_norm(r, update=False)
-                c = reward_norm(c, update=False)
-            elif args.use_reward_scaling:
-                r = reward_scaling(r, update=False)
-                c = reward_scaling(c, update=False)
+
             episode_reward += r
             episode_cost += c
             max_cost = max(max_cost, c)
+
+            # if args.use_reward_norm:
+            #     r = reward_norm(r, update=False)
+            #     c = reward_norm(c, update=False)
+            # elif args.use_reward_scaling:
+            #     r = reward_scaling(r, update=False)
+            #     c = reward_scaling(c, update=False)
+            # episode_reward += r
+            # episode_cost += c
+            # max_cost = max(max_cost, c)
             s = s_
         evaluate_reward += episode_reward
         evaluate_cost += episode_cost
@@ -772,12 +735,6 @@ class CartPoleCostEnv(gym.Env):
         # Cost is the absolute distance of the cart from the center (x)
         cost = abs(x)
 
-        # # Optional: Add more terms to the cost function based on other state variables
-        # # For example, penalize large pole angles or angular velocities
-        # angle_limit = 12 * np.pi / 180  # Angle limit in radians (12 degrees)
-        # if abs(theta) > angle_limit:
-        #     cost += 10.0  # Add a penalty for exceeding the angle limit
-
         done = (
             abs(x) > 2.4
             or abs(theta) > 12 * np.pi / 180
@@ -831,14 +788,6 @@ class CartPoleCostEnv(gym.Env):
 
 class CartPolePerturbedEnv(gym.Env):
     def __init__(self):
-        """
-        Initialize the CartPolePerturbedEnv with dynamic perturbations in gravity and theta.
-
-        Args:
-            gravity (float): Default gravitational constant. Default is 9.8.
-            theta_perturbation_std (float): Standard deviation of noise added to theta in each step.
-            gravity_perturbation_std (float): Standard deviation of noise added to gravity in each step.
-        """
         # Observation: [cart position, cart velocity, pole angle, pole angular velocity]
         self.observation_space = spaces.Box(
             low=-np.inf,
@@ -1327,9 +1276,9 @@ def main(args, run_number):
     os.makedirs(data_train_dir, exist_ok=True)
     os.makedirs(plot_data_dir, exist_ok=True)
 
-    env = CartPoleCostEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-    env_evaluate = CartPoleCostEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-    env_reset = CartPoleCostEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
+    env = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+    env_evaluate = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+    env_reset = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
     # Set random seed
     #env.reset(seed=seed)
     #env.seed(seed)
@@ -1391,7 +1340,7 @@ def main(args, run_number):
         #if total_steps > args.max_train_steps // 2:
         #    agent.gamma = 0.999
         s = env.reset()
-        s_org = copy.deepcopy(s)
+        # s_org = copy.deepcopy(s)
         if args.use_state_norm:
             s = state_norm(s)
         if args.use_reward_scaling:
@@ -1415,14 +1364,6 @@ def main(args, run_number):
         while not done:
             episode_steps += 1
             a, a_logprob = agent.choose_action(s)
-            #if total_steps < args.random_steps:  # Take the random actions in the beginning for the better exploration
-            #    a = env.action_space.sample()
-            #    s_tensor = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
-            #    with torch.no_grad():
-            #        dist = agent.actor.get_dist(s_tensor)
-            #        a_logprob = dist.log_prob(torch.Tensor(a)).numpy().flatten()
-            #else:
-            #    a, a_logprob = agent.choose_action(s)  # Action and the corresponding log probability
             if args.policy_dist == "Beta":
                 action = 2 * (a - 0.5) * args.max_action  # [0,1]->[-max,max]
             else:
@@ -1467,23 +1408,23 @@ def main(args, run_number):
                 total_cost += c
             else:
                 s_, r,c, done, info = env.step(action)
-                # total_reward += r
-                # total_cost += c
-                # max_cost = max(max_cost, c)
+                total_reward += r
+                total_cost += c
+                max_cost = max(max_cost, c)
             x_pos = np.array([info['x_position']])
             if args.use_state_norm:
                 #nexts = state_norm(nexts, update=False)
                 s_ = state_norm(s_)
             if args.use_reward_norm:
                 r = reward_norm(r)
-                c = reward_norm(c)
+                # c = reward_norm(c)
             elif args.use_reward_scaling:
                 r = reward_scaling(r)
-                c = reward_scaling(c)
+                # c = reward_scaling(c)
             
-            total_reward += r
-            total_cost += c
-            max_cost = max(max_cost, c)
+            # total_reward += r
+            # total_cost += c
+            # max_cost = max(max_cost, c)
 
             # When dead or win or reaching the max_episode_steps, done will be Ture, we need to distinguish them;
             # dw means dead or win,there is no next state s';
@@ -1496,7 +1437,7 @@ def main(args, run_number):
             # Take the 'action'，but store the original 'a'（especially for Beta）
             replay_buffer.store(s, a, a_logprob, r,c, s_, dw, done)
             s = copy.deepcopy(s_)
-            s_org = copy.deepcopy(state_norm.denormal(s_, update=False))
+            # s_org = copy.deepcopy(state_norm.denormal(s_, update=False))
 
             # When the number of transitions in buffer reaches batch_size,then update
             if replay_buffer.count == args.batch_size:
@@ -1506,7 +1447,11 @@ def main(args, run_number):
             # Evaluate the policy every 'evaluate_freq' steps
             if total_steps % args.evaluate_freq == 0:
                 evaluate_num += 1
-                evaluate_reward,evaluate_cost, evaluate_max_cost = evaluate_policy(args, env_evaluate, agent, state_norm)
+                if not args.use_reward_scaling:
+                    reward_scaling = None
+                if not args.use_state_norm:
+                    state_norm = None
+                evaluate_reward,evaluate_cost, evaluate_max_cost = evaluate_policy(args, env_evaluate, agent, state_norm=state_norm, reward_scaling=reward_scaling)
                 #evaluate_cost = evaluate_cost_function(args, env_evaluate, agent, state_norm)
                 evaluate_rewards.append(evaluate_reward)
                 evaluate_costs.append(evaluate_cost)
@@ -1515,47 +1460,31 @@ def main(args, run_number):
                 print("evaluate_num:{} \t evaluate_reward:{} \t evaluate_cost:{} \t evaluate_max_cost:{}".format(evaluate_num, evaluate_reward,evaluate_cost, evaluate_max_cost))
                 writer.add_scalar('step_rewards_{}'.format(args.env), evaluate_rewards[-1], global_step=total_steps)
                 # Save the rewards
-                if evaluate_num % args.save_freq == 0:
-                    # np.save('./data_train/RNAC_{}_env_{}_number_{}_seed_{}_GAMMA_{}_run_{}_rewards.npy'.format(args.policy_dist, args.env, number, seed, GAMMA, run_number), np.array(evaluate_rewards))
-                    # np.save('./data_train/RNAC_{}_env_{}_number_{}_seed_{}_GAMMA_{}_run_{}_costs.npy'.format(args.policy_dist, args.env, number, seed, GAMMA, run_number), np.array(evaluate_costs))
-                    np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_rewards.npy', np.array(evaluate_rewards))
-                    np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy', np.array(evaluate_costs))
-                    np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy', np.array(evaluate_max_cost))
+                # if evaluate_num % args.save_freq == 0:
+                np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_rewards.npy', np.array(evaluate_rewards))
+                np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy', np.array(evaluate_costs))
+                np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy', np.array(evaluate_max_cost))
 
                 # save actor, critic for evaluation in perturbed environment
-                if evaluate_reward >= max_value:
-                    # save_agent(agent, save_path, state_norm, reward_scaling)
-                    if args.use_reward_scaling and args.use_state_norm:
-                        save_agent(agent, f"{model_dir}/RCAC", state_norm, reward_scaling)
-                    elif args.use_reward_scaling:
-                        save_agent(agent, f"{model_dir}/RCAC", state_norm=None, reward_scaling=reward_scaling)
-                    elif args.use_state_norm:
-                        save_agent(agent, f"{model_dir}/RCAC", state_norm)
-                    else:
-                        save_agent(agent, f"{model_dir}/RCAC")
+                # if evaluate_reward >= max_value:
+                # if total_steps % 10:
+                #     # save_agent(agent, save_path, state_norm, reward_scaling)
+                if args.use_reward_scaling and args.use_state_norm:
+                    save_agent(agent, f"{model_dir}/RCAC", state_norm, reward_scaling)
+                elif args.use_reward_scaling:
+                    save_agent(agent, f"{model_dir}/RCAC", state_norm=None, reward_scaling=reward_scaling)
+                elif args.use_state_norm:
+                    save_agent(agent, f"{model_dir}/RCAC", state_norm)
+                else:
+                    save_agent(agent, f"{model_dir}/RCAC")
+                max_value = evaluate_reward
 
-                    max_value = evaluate_reward
-
-                    # max_value = evaluate_reward
-
-        # Convert trajectory data to torch.Tensor before calling the function
-        # trajectory = {
-        #     'states': [torch.tensor(state, dtype=torch.float32) for state in replay_buffer.s[:replay_buffer.count]],
-        #     'actions': [torch.tensor(action, dtype=torch.float32) for action in replay_buffer.a[:replay_buffer.count]],
-        #     'next_states': [torch.tensor(next_state, dtype=torch.float32) for next_state in replay_buffer.s_[:replay_buffer.count]],
-        #     'costs': [torch.tensor(cost, dtype=torch.float32) for cost in replay_buffer.c[:replay_buffer.count]]
-        # }
-        # vl_pi = agent.persistent_safety_function(trajectory, agent.actor, agent.Ccritic, agent.gamma)
-        # vl_pi_values.append(vl_pi)
-
-           
+                           
         episode_rewards.append(total_reward)
         episode_costs.append(total_cost)
         episode_max_costs.append(max_cost)        # Save data for plotting
         np.save(f"{plot_data_dir}/episode_rewards.npy", episode_rewards)
         np.save(f"{plot_data_dir}/episode_max_costs.npy", episode_max_costs)
-        # plot_metrics(episode_rewards, episode_costs, vl_pi_values, save=True, filename="ipm_rcrl_cartpole_perturbed_maxcost_beta25.png")
-        # plot_metrics_without_vlpi(episode_rewards, max_costs, save=True, filename="ipm_rcrl_cartpole_perturbed.png")
         plot_metrics(episode_rewards, episode_costs, episode_max_costs, save=True, filename=f"{plot_data_dir}/training_metrics.png")
 
     # Save the evaluation rewards and costs for this run
@@ -1566,12 +1495,12 @@ def main(args, run_number):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
-    parser.add_argument("--env", type=str, default='CartPoleCostEnv',help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv")
+    parser.add_argument("--env", type=str, default='CartPolePerturbedEnv',help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv")
     parser.add_argument("--uncer_set", type=str, default='IPM', help="DS/IPM")
     parser.add_argument("--next_steps", type=int, default=2, help="Number of next states")
     parser.add_argument("--random_steps", type=int, default=int(25e3), help="Uniformlly sample action within random steps")
     parser.add_argument("--max_train_steps", type=int, default=int(4.5e3), help="Maximum number of training steps")
-    parser.add_argument("--evaluate_freq", type=float, default=5e3, help="Evaluate the policy every 'evaluate_freq' steps")
+    parser.add_argument("--evaluate_freq", type=float, default=1e2, help="Evaluate the policy every 'evaluate_freq' steps")
     parser.add_argument("--save_freq", type=int, default=20, help="Save frequency")
     parser.add_argument("--policy_dist", type=str, default="Gaussian", help="Beta or Gaussian or Discrete")
     parser.add_argument("--batch_size", type=int, default=2048, help="Batch size")
@@ -1598,11 +1527,12 @@ if __name__ == '__main__':
     parser.add_argument("--use_tanh", type=float, default=True, help="Trick 10: tanh activation function")
     parser.add_argument("--adaptive_alpha", type=float, default=False, help="Trick 11: adaptive entropy regularization")
     parser.add_argument("--weight_reg", type=float, default=0, help="Regularization for weight of critic")
-    parser.add_argument("--seed", type=int, default=2, help="seed 2, 5, 7") 
+    parser.add_argument("--seed", type=int, default=5, help="seed 2, 5, 7") 
     parser.add_argument("--GAMMA", type=str, default='0', help="file name")
     parser.add_argument("--baseline",type=int,default=9,help="baseline")
     parser.add_argument("--lambda_",type=int,default=50,help="lambda")
-    run_number = 1
+    parser.add_argument("--beta",type=float,default=25.0,help="beta") 
+    run_number = 2
 
     args = parser.parse_args([])
     # make folders to dump results

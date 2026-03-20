@@ -24,3 +24,17 @@ PLOT:
 Vl_pi
 intuition of vl_pi: if in past there has been a higher value, then trajectory's highest value is either that + current value of current value as the highest value + highest value
 test script
+
+
+fixed:  dump steps, 
+        reward scaling removed to have consistent decision of baseline 2.0, 
+        state_norm experimenting
+
+run2: scaled rew , cost
+run3:orig rew, cost, state norm
+run4:scaled rew, orig cost
+run 5 : no state norm, orig reward, cost
+run 6: dump at 200 steps, no state norm, no scaling
+run 7: dump at 200 + run3
+
+run2: dump at 100, state_norm on, scaling off

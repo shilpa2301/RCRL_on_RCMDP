@@ -467,7 +467,7 @@ class Robust_RCAC_NPG:
             self.alpha = self.log_alpha.exp()
 
 
-def evaluate_policy(args, env, agent, state_norm):
+def evaluate_policy(args, env, agent, state_norm, reward_scaling):
     times = 3
     evaluate_reward = 0
     evaluate_cost = 0
@@ -1067,7 +1067,7 @@ def main(args, number):
             # Evaluate the policy every 'evaluate_freq' steps
             if total_steps % args.evaluate_freq == 0:
                 evaluate_num += 1
-                evaluate_reward,evaluate_cost, evaluate_max_cost = evaluate_policy(args, env_evaluate, agent, state_norm)
+                evaluate_reward,evaluate_cost, evaluate_max_cost = evaluate_policy(args, env_evaluate, agent, state_norm, reward_scaling)
                 #evaluate_cost = evaluate_cost_function(args, env_evaluate, agent, state_norm)
                 evaluate_rewards.append(evaluate_reward)
                 evaluate_costs.append(evaluate_cost)
@@ -1131,7 +1131,7 @@ if __name__ == '__main__':
     parser.add_argument("--use_adv_norm", type=bool, default=True, help="Trick 1:advantage normalization")
     parser.add_argument("--use_state_norm", type=bool, default=True, help="Trick 2:state normalization")
     parser.add_argument("--use_reward_norm", type=bool, default=False, help="Trick 3:reward normalization")
-    parser.add_argument("--use_reward_scaling", type=bool, default=False, help="Trick 4:reward scaling")
+    parser.add_argument("--use_reward_scaling", type=bool, default=True, help="Trick 4:reward scaling")
     parser.add_argument("--entropy_coef", type=float, default=0.01, help="Trick 5: policy entropy")
     parser.add_argument("--use_lr_decay", type=bool, default=True, help="Trick 6:learning rate Decay")
     parser.add_argument("--use_grad_clip", type=bool, default=True, help="Trick 7: Gradient clip")
