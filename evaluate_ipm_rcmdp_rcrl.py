@@ -152,7 +152,7 @@ def plot_metrics(episode_rewards, episode_costs, max_costs, save=False, filename
 if __name__ == "__main__":
     # Define your arguments (or load them from a config file)
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
-    parser.add_argument("--env", type=str, default='CartPoleCostEnv',help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv")
+    parser.add_argument("--env", type=str, default='CartPolePerturbedEnv',help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv")
     parser.add_argument("--policy_dist", type=str, default="Gaussian", help="Beta or Gaussian or Discrete")
     parser.add_argument("--batch_size", type=int, default=2048, help="Batch size")
     parser.add_argument("--mini_batch_size", type=int, default=64, help="Minibatch size")
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     args = parser.parse_args([])
 
     # Create the environment
-    env = CartPoleCostEnv() # CartPolePerturbedEnv()
+    env = CartPolePerturbedEnv() #CartPoleCostEnv() # CartPolePerturbedEnv()
     args.max_action = float(env.action_space.high[0])
     args.state_dim = env.observation_space.shape[0]
     args.action_dim = env.action_space.shape[0]
@@ -211,8 +211,8 @@ if __name__ == "__main__":
     # torch.backends.cudnn.benchmark = False
 
     # Specify the save path for the trained models
-    run = 2
-    save_path = "./models/CartPoleCostEnv/run2/RCAC"
+    run = 1
+    save_path = "./models/CartPoleCostEnv/run1/RCAC"
     # save_path = "./models_baseline/RCAC"
 
     # Load the trained agent and normalization objects
@@ -232,7 +232,7 @@ if __name__ == "__main__":
     # Plot the results
     if not os.path.exists(f"./plot_data/{args.env}"):
         os.makedirs("./plot_data/{args.env}")
-    plot_metrics(rewards, costs, max_costs, save=True, filename=f"./plot_inference/{args.env}/run{run}.png")
+    plot_metrics(rewards, costs, max_costs, save=True, filename=f"./plot_inference/{args.env}/run{run}_cartpole_on_robust.png")
 
     # Optional: Save the results to a file
     # np.save("test_rewards.npy", rewards)

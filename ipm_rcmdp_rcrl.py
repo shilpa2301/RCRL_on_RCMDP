@@ -306,7 +306,14 @@ class ReplayBuffer:
 
 class Robust_RCAC_NPG:
   def __init__(self,args):
-    self.env = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
+    if args.env == 'CartPolePerturbedEnv':
+        self.env = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
+    elif args.env == 'CartPoleCostEnv':
+        self.env = CartPoleCostEnv()
+    if args.env == 'HopperPerturbedEnv':
+        self.env = HopperPerturbedEnv()
+    else:
+        print("No env selected")
     #self.env.seed(args.seed)
     self.policy_dist = args.policy_dist
     self.max_action = args.max_action
@@ -817,7 +824,7 @@ class CartPolePerturbedEnv(gym.Env):
 
         # Perturbation parameters
         self.theta_perturbation_std = 0.05  # Noise for theta
-        self.gravity_perturbation_std = 0.5 #0.5  # Noise for gravity
+        self.gravity_perturbation_std = 0.5 #0.5 #0.5  # Noise for gravity
 
         self.state = None
         self.steps = 0
@@ -957,6 +964,7 @@ class CartPolePerturbedEnv(gym.Env):
 
         # Apply dynamic perturbations
         # theta += np.random.normal(0, self.theta_perturbation_std)  # Add noise to theta
+        # perturbed_gravity = self.default_gravity
         perturbed_gravity = self.default_gravity + np.random.normal(0, self.gravity_perturbation_std)  # Perturb gravity
 
         costheta = np.cos(theta)
@@ -1276,9 +1284,19 @@ def main(args, run_number):
     os.makedirs(data_train_dir, exist_ok=True)
     os.makedirs(plot_data_dir, exist_ok=True)
 
-    env = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-    env_evaluate = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-    env_reset = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
+    if args.env == 'CartPolePerturbedEnv':
+        env = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env_evaluate = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
+    elif args.env == 'CartPoleCostEnv':
+        env = CartPoleCostEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env_evaluate = CartPoleCostEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = CartPoleCostEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
+    elif args.env == 'HopperPerturbed':
+        env = HopperPerturbed() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env_evaluate = HopperPerturbed() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = HopperPerturbed() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
+    
     # Set random seed
     #env.reset(seed=seed)
     #env.seed(seed)
@@ -1356,10 +1374,10 @@ def main(args, run_number):
         
 
         # Update beta dynamically
-        max_beta = 200
-        min_beta = 1
-        scale = args.max_train_steps / 5
-        agent.beta = 25.0 #50.0 #min(max_beta, min_beta * np.exp(total_steps / scale))
+        # max_beta = 200
+        # min_beta = 1
+        # scale = args.max_train_steps / 5
+        agent.beta = args.beta #50.0 #min(max_beta, min_beta * np.exp(total_steps / scale))
 
         while not done:
             episode_steps += 1
@@ -1527,18 +1545,21 @@ if __name__ == '__main__':
     parser.add_argument("--use_tanh", type=float, default=True, help="Trick 10: tanh activation function")
     parser.add_argument("--adaptive_alpha", type=float, default=False, help="Trick 11: adaptive entropy regularization")
     parser.add_argument("--weight_reg", type=float, default=0, help="Regularization for weight of critic")
-    parser.add_argument("--seed", type=int, default=5, help="seed 2, 5, 7") 
+    parser.add_argument("--seed", type=int, default=2, help="seed 2, 5, 7, 11, 17") 
     parser.add_argument("--GAMMA", type=str, default='0', help="file name")
     parser.add_argument("--baseline",type=int,default=9,help="baseline")
     parser.add_argument("--lambda_",type=int,default=50,help="lambda")
-    parser.add_argument("--beta",type=float,default=25.0,help="beta") 
-    run_number = 2
+    parser.add_argument("--beta",type=float,default=50.0,help="beta") 
+    parser.add_argument("--run",type=int,default=1,help="run_number") 
 
-    args = parser.parse_args([])
+
+    args = parser.parse_args()
     # make folders to dump results
     if not os.path.exists("./models"):
         os.makedirs("./models")
     if not os.path.exists("./data_train"):
         os.makedirs("./data_train")
 
-    main(args, run_number=run_number)
+    print("run=", args.run,"seed=", args.seed, "env=", args.env)
+
+    main(args, run_number=args.run)
