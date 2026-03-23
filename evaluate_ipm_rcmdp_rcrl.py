@@ -212,7 +212,8 @@ if __name__ == "__main__":
 
     # Specify the save path for the trained models
     run = 1
-    save_path = "./models/CartPoleCostEnv/run1/RCAC"
+    save_path = "./models/CartPolePerturbedEnv/run1/RCAC"
+    save_path2 = "./models/CartPoleCostEnv/run1/RCAC"
     # save_path = "./models_baseline/RCAC"
 
     # Load the trained agent and normalization objects
@@ -232,7 +233,9 @@ if __name__ == "__main__":
     # Plot the results
     if not os.path.exists(f"./plot_data/{args.env}"):
         os.makedirs("./plot_data/{args.env}")
-    plot_metrics(rewards, costs, max_costs, save=True, filename=f"./plot_inference/{args.env}/run{run}_cartpole_on_robust.png")
+    # plot_metrics(rewards, costs, max_costs, save=True, filename=f"./plot_inference/{args.env}/run{run}_cartpole_on_robust.png")
+    plot_metrics(rewards, costs, max_costs, save=True, filename=f"./plot_inference/{args.env}/run{run}_cartpole_perturbed.png")
+
 
     # Optional: Save the results to a file
     # np.save("test_rewards.npy", rewards)
