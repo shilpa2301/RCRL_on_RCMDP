@@ -274,7 +274,7 @@ class ReplayBuffer:
 
 class Robust_RCAC_NPG:
   def __init__(self,args):
-    self.env = CartPoleCostEnv()#HopperPerturbedEnv()
+    self.env = HopperPerturbed()#HopperPerturbedEnv()
     #self.env.seed(args.seed)
     self.policy_dist = args.policy_dist
     self.max_action = args.max_action
@@ -617,7 +617,7 @@ class CartPoleCostEnv(gym.Env):
 
 
 
-class HopperPerturbedEnv(MujocoEnv, utils.EzPickle):
+class HopperPerturbed(MujocoEnv, utils.EzPickle):
 
     def __init__(
         self,
@@ -900,9 +900,9 @@ def plot_metrics(episode_rewards, episode_costs, max_costs, save=False, filename
 
 def main(args, number):
     seed, GAMMA = args.seed, args.GAMMA
-    env = CartPoleCostEnv()#gym.make(args.env)
-    env_evaluate = CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-    env_reset = CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
+    env = HopperPerturbed()#gym.make(args.env)
+    env_evaluate = HopperPerturbed()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+    env_reset = HopperPerturbed()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
     # Set random seed
     #env.reset(seed=seed)
     #env.seed(seed)
@@ -1105,11 +1105,11 @@ def main(args, number):
         episode_costs.append(total_cost)
         episode_max_costs.append(max_cost)
         # max_costs.append(max_cost)
-        plot_metrics(episode_rewards, episode_costs, episode_max_costs, save=True, filename="plot_data_baseline/ipm_CartPole_perturbed_baseline.png")
+        plot_metrics(episode_rewards, episode_costs, episode_max_costs, save=True, filename="plot_data_baseline/ipm_Hopper_perturbed_baseline.png")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
-    parser.add_argument("--env", type=str, default='CartPolePerturbed',help="HopperPerturbed/CartPolePerturbed")
+    parser.add_argument("--env", type=str, default='HopperPerturbed',help="HopperPerturbed/CartPolePerturbed")
     parser.add_argument("--uncer_set", type=str, default='IPM', help="DS/IPM")
     parser.add_argument("--next_steps", type=int, default=2, help="Number of next states")
     parser.add_argument("--random_steps", type=int, default=int(25e3), help="Uniformlly sample action within random steps")
@@ -1131,7 +1131,7 @@ if __name__ == '__main__':
     parser.add_argument("--use_adv_norm", type=bool, default=True, help="Trick 1:advantage normalization")
     parser.add_argument("--use_state_norm", type=bool, default=True, help="Trick 2:state normalization")
     parser.add_argument("--use_reward_norm", type=bool, default=False, help="Trick 3:reward normalization")
-    parser.add_argument("--use_reward_scaling", type=bool, default=True, help="Trick 4:reward scaling")
+    parser.add_argument("--use_reward_scaling", type=bool, default=False, help="Trick 4:reward scaling")
     parser.add_argument("--entropy_coef", type=float, default=0.01, help="Trick 5: policy entropy")
     parser.add_argument("--use_lr_decay", type=bool, default=True, help="Trick 6:learning rate Decay")
     parser.add_argument("--use_grad_clip", type=bool, default=True, help="Trick 7: Gradient clip")

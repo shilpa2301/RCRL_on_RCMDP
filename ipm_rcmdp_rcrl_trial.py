@@ -21,8 +21,10 @@ from gym import utils
 from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
-from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
-from envs.hopper import HopperPerturbedEnv
+# from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
+# from envs.hopper_perturbed import HopperPerturbedEnv
+from envs.hopper2 import HopperPerturbedEnv
+
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -101,13 +103,6 @@ class Actor_Gaussian(nn.Module):
         s = self.activate_func(self.fc2(s))
         mean = self.max_action * torch.tanh(self.mean_layer(s))  # [-1,1]->[-max_action,max_action]
         return mean
-
-    # def get_dist(self, s):
-    #     mean = self.forward(s)
-    #     log_std = self.log_std.expand_as(mean)  # To make 'log_std' have the same dimension as 'mean'
-    #     std = torch.exp(log_std)  # The reason we train the 'log_std' is to ensure std=exp(log_std)>0
-    #     dist = Normal(mean, std)  # Get the Gaussian distribution
-    #     return dist
 
     def get_dist(self, s):
         mean = self.forward(s)
@@ -298,9 +293,10 @@ class ReplayBuffer:
         self.s_ = np.zeros((args.batch_size, args.state_dim))
         self.dw = np.zeros((args.batch_size, 1))
         self.done = np.zeros((args.batch_size, 1))
+        self.infos = [] 
         self.count = 0
 
-    def store(self, s, a, a_logprob, r,c, s_, dw, done):
+    def store(self, s, a, a_logprob, r,c, s_, dw, done, info=None):
         self.s[self.count] = s
         self.a[self.count] = a
         self.a_logprob[self.count] = a_logprob
@@ -309,6 +305,11 @@ class ReplayBuffer:
         self.s_[self.count] = s_
         self.dw[self.count] = dw
         self.done[self.count] = done
+        # Store the info dictionary
+        if info is not None:
+            self.infos.append(info)
+        else:
+            self.infos.append({}) 
         self.count += 1
 
     def numpy_to_tensor(self):
@@ -321,7 +322,94 @@ class ReplayBuffer:
         dw = torch.tensor(self.dw, dtype=torch.float)
         done = torch.tensor(self.done, dtype=torch.float)
 
-        return s, a, a_logprob, r,c, s_, dw, done
+        return s, a, a_logprob, r,c, s_, dw, done,  self.infos
+
+    def reset(self):
+        """
+        Reset the replay buffer for the next episode.
+        """
+        self.s.fill(0)
+        self.a.fill(0)
+        self.a_logprob.fill(0)
+        self.r.fill(0)
+        self.c.fill(0)
+        self.s_.fill(0)
+        self.dw.fill(0)
+        self.done.fill(0)
+        self.infos.clear()
+        self.count = 0
+
+class PrioritizedReplayBuffer:
+    def __init__(self, capacity, alpha=0.6):
+        """
+        Prioritized Replay Buffer
+        Args:
+            capacity (int): Maximum number of transitions to store in the buffer.
+            alpha (float): How much prioritization is used (0 = uniform sampling, 1 = full prioritization).
+        """
+        self.capacity = capacity
+        self.alpha = alpha
+        self.pos = 0
+        self.buffer = []
+        self.priorities = np.zeros((capacity,), dtype=np.float32)
+
+    def add(self, transition, priority=1.0):
+        """
+        Add a new transition to the buffer.
+        Args:
+            transition (tuple): A tuple (s, a, r, s', done) representing a transition.
+            priority (float): The priority of the transition.
+        """
+        max_priority = self.priorities.max() if self.buffer else 1.0
+        if len(self.buffer) < self.capacity:
+            self.buffer.append(transition)
+        else:
+            self.buffer[self.pos] = transition
+
+        self.priorities[self.pos] = max(max_priority, priority)
+        self.pos = (self.pos + 1) % self.capacity
+
+    def sample(self, batch_size, beta=0.4):
+        """
+        Sample a batch of transitions with prioritized sampling.
+        Args:
+            batch_size (int): Number of transitions to sample.
+            beta (float): To what degree to use importance sampling (0 - no correction, 1 - full correction).
+        Returns:
+            transitions (list): A batch of sampled transitions.
+            indices (list): Indices of the sampled transitions.
+            weights (array): Importance sampling weights for the sampled transitions.
+        """
+        if len(self.buffer) == 0:
+            raise ValueError("The replay buffer is empty!")
+
+        priorities = self.priorities[:len(self.buffer)]
+        probabilities = priorities ** self.alpha
+        probabilities /= probabilities.sum()
+
+        indices = np.random.choice(len(self.buffer), batch_size, p=probabilities)
+        transitions = [self.buffer[idx] for idx in indices]
+
+        # Compute importance sampling weights
+        total = len(self.buffer)
+        weights = (total * probabilities[indices]) ** (-beta)
+        weights /= weights.max()
+
+        return transitions, indices, weights
+
+    def update_priorities(self, indices, priorities):
+        """
+        Update the priorities of sampled transitions.
+        Args:
+            indices (list): Indices of the sampled transitions.
+            priorities (array): New priorities for the sampled transitions.
+        """
+        for idx, priority in zip(indices, priorities):
+            self.priorities[idx] = priority
+
+    def __len__(self):
+        return len(self.buffer)
+
 
 
 class Robust_RCAC_NPG:
@@ -416,8 +504,8 @@ class Robust_RCAC_NPG:
         #hopper
         # print(f"Chosen action shape: {a.shape}, log_prob shape: {a_logprob.shape}")
         # Flatten the action and log probability tensors to ensure correct shape
-        return a.squeeze(0).numpy(), a_logprob.squeeze(0).numpy()
-        # return a.numpy().flatten(), a_logprob.numpy().flatten()
+        # return a.squeeze(0).numpy(), a_logprob.squeeze(0).numpy()
+        return a.numpy().flatten(), a_logprob.numpy().flatten()
   
   def lr_decay(self, total_steps):
         lr_a_now = self.lr_a * (1 - total_steps / self.max_train_steps)
@@ -429,11 +517,24 @@ class Robust_RCAC_NPG:
         for p in self.optimizer_Ccritic.param_groups:
             p['lr'] = lr_c_now
 
+  def log_sum_exp_fn(self, a, b, eta=0.1):
+        # Compute the Log-Sum-Exp smooth approximation of max(a, b)
+        # print("a, b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta))= ", a,b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta)))
+        # lse = eta * torch.log(torch.exp(a / eta) + torch.exp(b / eta))
+
+        # Find the maximum value between a and b : else exp(10/0.1) becomes infinity
+        max_val = torch.max(a, b)    
+        # Stabilize the log-sum-exp computation
+        lse = max_val + eta * torch.log(torch.exp((a - max_val) / eta) + torch.exp((b - max_val) / eta))
+        return lse
+
+  
   def persistent_safety_function(self, trajectory, actor, cost_critic, gamma):
     states = trajectory['states']
     actions = trajectory['actions']
     next_states = trajectory['next_states']
     costs = trajectory['costs']
+    infos = trajectory.get('infos', [{}] * len(states)) 
 
     v_h_pi_values = []
     cost_values = []
@@ -443,6 +544,7 @@ class Robust_RCAC_NPG:
         action = actions[i]
         next_state = next_states[i]
         h_s = costs[i]
+        info = infos[i]
         #cartpole
         # dist = actor.get_dist(state)
         # Sample multiple actions from the distribution
@@ -451,7 +553,6 @@ class Robust_RCAC_NPG:
 
         #hopper
         dist = actor.get_dist(state.unsqueeze(0))
-        # Sample 50 actions for the current state
         sampled_actions = dist.sample((50,))  # Shape: [50, 1, action_dim]
         sampled_actions = sampled_actions.squeeze(1)  # Remove the batch dimension, shape: [50, action_dim]
         log_probs = dist.log_prob(sampled_actions)
@@ -459,6 +560,7 @@ class Robust_RCAC_NPG:
         
         # Compute Q_h(s, a) for each sampled action
         q_values = []
+        # print("Samples actions=", sampled_actions)
         for sampled_action in sampled_actions:
             #hopper
             # print(f"Action shape after sampled action: {sampled_action.shape}")
@@ -474,26 +576,32 @@ class Robust_RCAC_NPG:
             if torch.allclose(sampled_action, action, atol=1e-4):
                 current_cost = h_s
             else:
-                x_position = state[0].item() 
-                theta = state[2].item()  
-                current_cost = self.env.compute_cost(x_position, theta)
+                #hopper
+                # Use the info dictionary to get z and angle
+                z, angle = self.env.get_z_and_angle_from_state(state, info)
+                current_cost = self.env.compute_cost(z, angle)
 
 
-            # print(f"State shape: {state.shape}")
-            # print(f"Expected qpos shape: {self.env.model.nq}, Expected qvel shape: {self.env.model.nv}")
             #cartpole
             # simulated_next_state = self.env.simulate_next_state(state, sampled_action)
             
             #hopper
-            simulated_next_state = self.env.simulate_next_state(state.numpy(), sampled_action.numpy())
+            simulated_next_state = self.env.simulate_next_state(state.numpy(), sampled_action.numpy(), info)
 
-            next_value = cost_critic(simulated_next_state).item()
+            next_value = cost_critic(simulated_next_state)#.item()
 
+            
             # Compute Q_h(s, a)
-            q_value = (1-gamma)*current_cost + gamma * max(current_cost, next_value)
+            current_cost = torch.tensor(current_cost, dtype=torch.float32)
+            next_value = torch.tensor(next_value).detach().clone()
+            q_value = (1 - gamma) * current_cost + gamma * self.log_sum_exp_fn(current_cost, next_value)
+            # q_value = (1-gamma)*current_cost + gamma * max(current_cost, next_value)
             # q_value = current_cost + gamma * max(current_cost, next_value)
             # q_value = max(current_cost, next_value)
             q_values.append(q_value)
+
+
+            # print("current cost, next value, q value=",current_cost, next_value, q_value)
 
         # Compute V_h(s) using a weighted average of Q_h(s, a) with the probabilities
         q_values = torch.tensor(q_values)
@@ -508,7 +616,36 @@ class Robust_RCAC_NPG:
 
 
   def update(self, replay_buffer, total_steps):
-        s, a, a_logprob, r,c, s_, dw, done = replay_buffer.numpy_to_tensor()  # Get training data
+        # s, a, a_logprob, r,c, s_, dw, done, infos = replay_buffer.numpy_to_tensor()  # Get training data
+        transitions, indices, weights = replay_buffer.sample(self.mini_batch_size, beta=0.4)
+        states, actions, log_probs, rewards, costs, next_states, dw, done, infos = zip(*transitions)
+
+        # # Convert to tensors
+        # # s = torch.tensor(states, dtype=torch.float)
+        # a = torch.tensor(actions, dtype=torch.float)
+        # a_logprob = torch.tensor(log_probs, dtype=torch.float)
+        # r = torch.tensor(rewards, dtype=torch.float)
+        # c = torch.tensor(costs, dtype=torch.float)
+        # # s_ = torch.tensor(next_states, dtype=torch.float)
+        # dw = torch.tensor(dw, dtype=torch.float)
+        # done = torch.tensor(done, dtype=torch.float)
+        # weights = torch.tensor(weights, dtype=torch.float)
+
+        
+        # # Ensure states and next_states are tensors
+        # s = torch.stack(states)  # Stack the tuple into a single tensor
+        # s_ = torch.stack(next_states)  # Stack the tuple into a single tensor
+
+        # Convert states and next_states to tensors
+        s = torch.tensor(np.stack(states), dtype=torch.float32)  # Stack the tuple into a single tensor
+        s_ = torch.tensor(np.stack(next_states), dtype=torch.float32)  # Stack the tuple into a single tensor
+        a = torch.tensor(np.array(actions), dtype=torch.float32)  # Convert actions to tensor
+        a_logprob = torch.tensor(np.array(log_probs), dtype=torch.float32)  # Convert log probabilities to tensor
+        r = torch.tensor(np.array(rewards), dtype=torch.float32).unsqueeze(1)  # Convert rewards to tensor and add dimension
+        c = torch.tensor(np.array(costs), dtype=torch.float32).unsqueeze(1)  # Convert costs to tensor and add dimension
+        dw = torch.tensor(np.array(dw), dtype=torch.float32).unsqueeze(1)  # Convert done-without-penalty flag to tensor
+        done = torch.tensor(np.array(done), dtype=torch.float32).unsqueeze(1)  # Convert done flag to tensor
+        weights = torch.tensor(np.array(weights), dtype=torch.float32).unsqueeze(1)  # Convert weights to tensor
         """
             Calculate the advantage using GAE
             'dw=True' means dead or win, there is no next state s'
@@ -521,17 +658,13 @@ class Robust_RCAC_NPG:
             vs_ = self.Rcritic(s_)
             vcs = self.Ccritic(s)
             vcs_ = self.Ccritic(s_)
-            # IPM uncertainty set
-            # print("VS shape:",vs.shape)
-            # print("VCS shape:",vcs.shape)
-            #shilpa rcrl
-            # Construct trajectory dynamically from replay buffer
-            
+                       
             trajectory = {
                 'states': s,
                 'actions': a,
                 'next_states': s_,
-                'costs': c
+                'costs': c,
+                'infos': infos
             }
 
             with torch.no_grad():
@@ -540,7 +673,10 @@ class Robust_RCAC_NPG:
                 penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
                 beta_penalty = self.beta * penalty_term
                 vs_mean = vs.mean().item()
-                ch = np.argmax([vs_mean, beta_penalty])  
+                # ch = np.argmax([vs_mean, beta_penalty]) 
+                ch = np.argmax([vs_mean/self.lambda_, beta_penalty])  
+                print("ch, vs_mean, vl_pi, beta_penalty =", ch, vs_mean, vl_pi, beta_penalty ) 
+
             reg_norm, weight_norm, bias_norm = 0, [], []           
 
            
@@ -580,7 +716,9 @@ class Robust_RCAC_NPG:
         # Optimize policy for K epochs:
         for _ in range(self.K_epochs):
             # Random sampling and no repetition. 'False' indicates that training will continue even if the number of samples in the last time is less than mini_batch_size
-            for index in BatchSampler(SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False):
+            # for index in BatchSampler(SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False):
+            for index in BatchSampler(SubsetRandomSampler(range(self.mini_batch_size)), self.mini_batch_size, False):
+
                 dist_now = self.actor.get_dist(s[index])
                 dist_entropy = dist_now.entropy().sum(1, keepdim=True)  # shape(mini_batch_size X 1)
                 a_logprob_now = dist_now.log_prob(a[index])
@@ -615,6 +753,10 @@ class Robust_RCAC_NPG:
                 if self.use_grad_clip:  # Trick 7: Gradient clip
                     torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.5)
                 self.optimizer_Ccritic.step()
+
+        # Update priorities in the replay buffer
+        td_errors = torch.abs(r + self.gamma * (1 - dw) * self.Ccritic(s_).detach() - self.Ccritic(s).detach()).numpy()
+        replay_buffer.update_priorities(indices, td_errors)
 
         if self.use_lr_decay:  # Trick 6:learning rate Decay
             self.lr_decay(total_steps)
@@ -683,240 +825,21 @@ def save_agent(agent, save_path, state_norm=None, reward_scaling=None):
 
 
 
-# class HopperPerturbedEnv(MujocoEnv, utils.EzPickle):
+# def linear_decay_schedule(start_value, end_value, current_step, total_steps):
+#     """
+#     Linearly decreases a value from start_value to end_value over total_steps.
 
-#     def __init__(
-#         self,
-#         xml_file="hopper.xml",
-#         forward_reward_weight=1.0,
-#         ctrl_cost_weight=1e-3,
-#         healthy_reward=1.0,
-#         terminate_when_unhealthy=True,
-#         healthy_state_range=(-100.0, 100.0),
-#         healthy_z_range=(0.7, float("inf")),
-#         healthy_angle_range=(-0.2, 0.2),
-#         reset_noise_scale=5e-3,
-#         exclude_current_positions_from_observation=True,
-#         hindsight_e=0.0,
-#         hindsight=False
-#     ):
+#     Args:
+#         start_value (float): Initial value of the parameter.
+#         end_value (float): Final value of the parameter.
+#         current_step (int): Current training step.
+#         total_steps (int): Total training steps.
 
-#         observation_space = spaces.Box(
-#             low=-np.inf,
-#             high=np.inf,
-#             shape=(11,),
-#             dtype=np.float64
-#         )
-
-#         MujocoEnv.__init__(self, xml_file, 4, observation_space)
-
-#         self._forward_reward_weight = forward_reward_weight
-
-#         self._ctrl_cost_weight = ctrl_cost_weight
-
-#         self._healthy_reward = healthy_reward
-#         self._terminate_when_unhealthy = terminate_when_unhealthy
-
-#         self._healthy_state_range = healthy_state_range
-#         self._healthy_z_range = healthy_z_range
-#         self._healthy_angle_range = healthy_angle_range
-
-#         self._reset_noise_scale = reset_noise_scale
-
-#         self._exclude_current_positions_from_observation = (
-#             exclude_current_positions_from_observation
-#         )
-#         # save base values*
-#         self.gravity = -9.81
-
-#         self.thigh_joint_damping = 1.0
-#         self.leg_joint_damping = 1.0
-#         self.foot_joint_damping = 1.0
-
-#         self.actuator_ctrlrange = (-1.0, 1.0)
-#         self.actuator_ctrllimited = int(1)
-
-#         # hindsight parameter*
-#         self.hindsight_e = hindsight_e
-#         self.hindsight = hindsight
-
-#         #MujocoEnv.__init__(self, xml_file, 4)
-
-
-
-#     @property
-#     def healthy_reward(self):
-#         return (
-#             float(self.is_healthy or self._terminate_when_unhealthy)
-#             * self._healthy_reward
-#         )
-
-#     def control_cost(self, action):
-#         control_cost = self._ctrl_cost_weight * np.sum(np.square(action))
-#         return control_cost
-
-#     @property
-#     def is_healthy(self):
-#         z, angle = self.data.qpos[1:3]
-#         state = self.state_vector()[2:]
-
-#         min_state, max_state = self._healthy_state_range
-#         min_z, max_z = self._healthy_z_range
-#         min_angle, max_angle = self._healthy_angle_range
-
-#         healthy_state = np.all(np.logical_and(min_state < state, state < max_state))
-#         healthy_z = min_z < z < max_z
-#         healthy_angle = min_angle < angle < max_angle
-
-#         is_healthy = all((healthy_state, healthy_z, healthy_angle))
-
-#         return is_healthy
-
-#     @property
-#     def done(self):
-#         done = not self.is_healthy if self._terminate_when_unhealthy else False
-#         return done
-
-#     def _get_obs(self):
-#         position = self.data.qpos.flat.copy()
-#         velocity = np.clip(self.data.qvel.flat.copy(), -10, 10)
-
-#         if self._exclude_current_positions_from_observation:
-#             position = position[1:]
-
-#         observation = np.concatenate((position, velocity)).ravel()
-#         return observation
-
-#     def test(self):
-#         #sim = self.sim
-#         model = self.model
-#         #print(sim.get_state())
-#         print('body_names: ', model.body_names)
-#         print('joint_names: ', model.joint_names)
-#         print('actuator_names: ', model.actuator_names)
-#         print('model.actuator_forcelimited', model.actuator_forcelimited)
-#         print('actuator_ctrlrange', model.actuator_ctrlrange)
-#         print('_actuator_gear', model.actuator_gear)
-#         print('_jnt_stiffness', model.jnt_stiffness)
-#         print('_dof_damping', model.dof_damping)
-#         print('_dof_frictionloss', model.dof_frictionloss)
-#         print('actuator_ctrllimited', model.actuator_ctrllimited)
-
-#     def step(self, action):
-#         if np.random.binomial(n=1, p=self.hindsight_e):
-#             action = self.action_space.sample()
-
-#         x_position_before = self.data.qpos[0]
-#         # add noise to action for next state -> stochastic model
-#         noise_low = -self._reset_noise_scale
-#         noise_high = self._reset_noise_scale
-#         noise = self.np_random.uniform(low=noise_low, high=noise_high, size=action.shape)
-#         action_noise = action + self.np_random.uniform(low=noise_low, high=noise_high, size=action.shape)
-#         self.do_simulation(action_noise, self.frame_skip)
-
-#         x_position_after = self.data.qpos[0]
-#         x_velocity = (x_position_after - x_position_before) / self.dt
-
-#         ctrl_cost = self.control_cost(action)
-
-#         forward_reward = self._forward_reward_weight * x_velocity
-#         healthy_reward = self.healthy_reward
-
-#         rewards = forward_reward + healthy_reward
-#         costs = ctrl_cost
-
-#         observation = self._get_obs()
-#         reward = rewards - costs
-#         done = self.done
-#         cost  = 1
-#         info = {
-#             "x_position": x_position_after,
-#             "x_velocity": x_velocity,
-#             "noise":noise
-#         }
-
-#         return observation, reward,cost, done, info
-
-#     def reset(
-#         self,
-#         x_pos: float = 0.0,
-#         state: Optional[int] = None,
-#         seed: Optional[int] = None,
-#         return_info: bool = False,
-#         options: Optional[dict] = None,
-#         use_xml: bool = False,
-#         gravity: float = -9.81,
-#         thigh_joint_stiffness: float = 0.0,
-#         leg_joint_stiffness: float = 0.0,
-#         foot_joint_stiffness: float = 0.0,
-#         springref: float = 0.0,
-#         actuator_ctrlrange: Tuple[float, float] = (-1.0, 1.0),
-#         joint_damping_p: float = 0.0,
-#         joint_frictionloss: float = 0.0
-#     ):
-#         ob, info = super().reset(seed=seed, options=options)
-#         # hindsight*
-#         if self.hindsight:
-#             actuator_ctrlrange = (-0.85, 0.85)
-#         # grab model
-#         model = self.model
-#         # perturb gravity in z (3rd) dimension*
-#         model.opt.gravity[2] = gravity
-#         # perturb thigh joint*
-#         model.jnt_stiffness[3] = thigh_joint_stiffness
-#         model.qpos_spring[3] = springref
-#         # perturb leg joint*
-#         model.jnt_stiffness[4] = leg_joint_stiffness
-#         model.qpos_spring[4] = springref
-#         # perturb foot joint*
-#         model.jnt_stiffness[5] = foot_joint_stiffness
-#         model.qpos_spring[5] = springref
-#         # perturb actuator (controller) control range*
-#         model.actuator_ctrllimited[0] = self.actuator_ctrllimited
-#         model.actuator_ctrlrange[0] = [actuator_ctrlrange[0],
-#                                         actuator_ctrlrange[1]]
-#         model.actuator_ctrllimited[1] = self.actuator_ctrllimited
-#         model.actuator_ctrlrange[1] = [actuator_ctrlrange[0],
-#                                         actuator_ctrlrange[1]]
-#         model.actuator_ctrllimited[2] = self.actuator_ctrllimited
-#         model.actuator_ctrlrange[2] = [actuator_ctrlrange[0],
-#                                         actuator_ctrlrange[1]]
-#         # perturb joint damping in percentage
-#         model.dof_damping[3] = self.thigh_joint_damping * (1 + joint_damping_p)
-#         model.dof_damping[4] = self.leg_joint_damping * (1 + joint_damping_p)
-#         model.dof_damping[5] = self.foot_joint_damping * (1 + joint_damping_p)
-#         # perturb joint frictionloss
-#         model.dof_frictionloss[3] = joint_frictionloss
-#         model.dof_frictionloss[4] = joint_frictionloss
-#         model.dof_frictionloss[5] = joint_frictionloss
-#         return ob
-
-#     def save_xml(self, savepath):
-#       mujoco.mj_saveLastXML(savepath, self.model)
-
-#     def reset_model(self):
-#         noise_low = -self._reset_noise_scale
-#         noise_high = self._reset_noise_scale
-
-#         qpos = self.init_qpos + self.np_random.uniform(
-#             low=noise_low, high=noise_high, size=self.model.nq
-#         )
-#         qvel = self.init_qvel + self.np_random.uniform(
-#             low=noise_low, high=noise_high, size=self.model.nv
-#         )
-
-#         self.set_state(qpos, qvel)
-
-#         observation = self._get_obs()
-#         return observation
-
-#     def viewer_setup(self):
-#         for key, value in DEFAULT_CAMERA_CONFIG.items():
-#             if isinstance(value, np.ndarray):
-#                 getattr(self.viewer.cam, key)[:] = value
-#             else:
-#                 setattr(self.viewer.cam, key, value)
-
+#     Returns:
+#         float: Updated parameter value.
+#     """
+#     fraction = min(current_step / total_steps, 1.0)  # Ensure it doesn't go below end_value
+#     return start_value - fraction * (start_value - end_value)
 
 
 def plot_metrics(episode_rewards, episode_costs, max_costs, save=False, filename="training_metrics.png"):
@@ -1009,6 +932,7 @@ def main(args, run_number):
     args.action_dim = env.action_space.shape[0]
     args.max_action = float(env.action_space.high[0])
     args.max_episode_steps = 1000  # Maximum number of steps per episode
+    
     lambda_ = args.lambda_
     b = args.baseline
     print("env={}".format(args.env))
@@ -1025,7 +949,9 @@ def main(args, run_number):
     # save_path = f"./models/RCAC_{args.env}_{GAMMA}" ###******* TENTATIVE PLEASE CHANGE TO YOUR FOLDER OF SAVING ACCORDINGLY ***********
     evaluate_max_costs = []
 
-    replay_buffer = ReplayBuffer(args)
+    # replay_buffer = ReplayBuffer(args)
+    replay_buffer = PrioritizedReplayBuffer(capacity=args.batch_size, alpha=0.6)
+
     agent = Robust_RCAC_NPG(args)
 
     # Build a tensorboard
@@ -1041,11 +967,15 @@ def main(args, run_number):
     # Tracking metrics for plotting
     episode_rewards = []
     episode_costs = []
-    # steps = []
-    # vl_pi_values = []
     episode_max_costs = []
 
     for total_steps in tqdm(range(args.max_train_steps)):
+        # if total_steps <= args.max_train_steps-3000 and total_steps%5==0:
+        #         agent.persistent_eps = linear_decay_schedule(
+        #                         start_value=5.0,  # Start with a high value (relaxed constraints)
+        #                         end_value=0.5,    # End with a strict constraint
+        #                         current_step=total_steps,
+        #                         total_steps=args.max_train_steps-3000)
         #if total_steps > args.max_train_steps // 2:
         #    agent.gamma = 0.999
         s = env.reset()
@@ -1144,17 +1074,76 @@ def main(args, run_number):
                 dw = False
 
             # Take the 'action'，but store the original 'a'（especially for Beta）
-            replay_buffer.store(s, a, a_logprob, r,c, s_, dw, done)
+            # replay_buffer.store(s, a, a_logprob, r,c, s_, dw, done, info)
+            td_error = abs(
+                    r + args.gamma * agent.Ccritic(torch.tensor(s_, dtype=torch.float, device=agent.Ccritic.fc1.weight.device)).item() -
+                    agent.Ccritic(torch.tensor(s, dtype=torch.float, device=agent.Ccritic.fc1.weight.device)).item()
+                )
+            replay_buffer.add((s, a, a_logprob, r, c, s_, dw, done, info), priority=td_error)
+
+
             s = copy.deepcopy(s_)
             # s_org = copy.deepcopy(state_norm.denormal(s_, update=False))
 
             # When the number of transitions in buffer reaches batch_size,then update
-            if replay_buffer.count == args.batch_size:
-                agent.update(replay_buffer, total_steps)
-                replay_buffer.count = 0
+            # if replay_buffer.count == args.batch_size:
+            #     agent.update(replay_buffer, total_steps)
+            #     replay_buffer.count = 0
+            # Update the model when buffer is full
+            # if len(replay_buffer) >= args.batch_size and total_steps % 10 == 0:
+            #     agent.update(replay_buffer, total_steps)
 
-            # Evaluate the policy every 'evaluate_freq' steps
-            if total_steps % args.evaluate_freq == 0:
+            # # Evaluate the policy every 'evaluate_freq' steps
+            # if total_steps % args.evaluate_freq == 0:
+            #     evaluate_num += 1
+            #     if not args.use_reward_scaling:
+            #         reward_scaling = None
+            #     if not args.use_state_norm:
+            #         state_norm = None
+            #     evaluate_reward,evaluate_cost, evaluate_max_cost = evaluate_policy(args, env_evaluate, agent, state_norm=state_norm, reward_scaling=reward_scaling)
+            #     #evaluate_cost = evaluate_cost_function(args, env_evaluate, agent, state_norm)
+            #     evaluate_rewards.append(evaluate_reward)
+            #     evaluate_costs.append(evaluate_cost)
+            #     evaluate_max_costs.append(evaluate_max_cost)
+
+            #     print("evaluate_num:{} \t evaluate_reward:{} \t evaluate_cost:{} \t evaluate_max_cost:{}".format(evaluate_num, evaluate_reward,evaluate_cost, evaluate_max_cost))
+            #     writer.add_scalar('step_rewards_{}'.format(args.env), evaluate_rewards[-1], global_step=total_steps)
+            #     # Save the rewards
+            #     # if evaluate_num % args.save_freq == 0:
+            #     np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_rewards.npy', np.array(evaluate_rewards))
+            #     np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy', np.array(evaluate_costs))
+            #     np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy', np.array(evaluate_max_cost))
+
+            #     # save actor, critic for evaluation in perturbed environment
+            #     # if evaluate_reward >= max_value:
+            #     # if total_steps % 10:
+            #     #     # save_agent(agent, save_path, state_norm, reward_scaling)
+            #     if args.use_reward_scaling and args.use_state_norm:
+            #         save_agent(agent, f"{model_dir}/RCAC", state_norm, reward_scaling)
+            #     elif args.use_reward_scaling:
+            #         save_agent(agent, f"{model_dir}/RCAC", state_norm=None, reward_scaling=reward_scaling)
+            #     elif args.use_state_norm:
+            #         save_agent(agent, f"{model_dir}/RCAC", state_norm)
+            #     else:
+            #         save_agent(agent, f"{model_dir}/RCAC")
+            #     max_value = evaluate_reward
+
+        if len(replay_buffer) >= args.batch_size and total_steps % 50 == 0:
+                for i in range(50):
+                    agent.update(replay_buffer, total_steps)
+                           
+        episode_rewards.append(total_reward)
+        episode_costs.append(total_cost)
+        episode_max_costs.append(max_cost)        # Save data for plotting
+        np.save(f"{plot_data_dir}/episode_rewards.npy", episode_rewards)
+        np.save(f"{plot_data_dir}/episode_max_costs.npy", episode_max_costs)
+        # print("episode_rewards=", episode_rewards)
+        # print("episode_max_costs=", episode_max_costs)
+        # print(f"Episode {total_steps}: Total Cost = {total_cost}, Max Cost = {max_cost}")
+        plot_metrics(episode_rewards, episode_costs, episode_max_costs, save=True, filename=f"{plot_data_dir}/training_metrics.png")
+
+        # Evaluate the policy every 'evaluate_freq' steps
+        if total_steps % args.evaluate_freq == 0:
                 evaluate_num += 1
                 if not args.use_reward_scaling:
                     reward_scaling = None
@@ -1187,16 +1176,6 @@ def main(args, run_number):
                 else:
                     save_agent(agent, f"{model_dir}/RCAC")
                 max_value = evaluate_reward
-
-                           
-        episode_rewards.append(total_reward)
-        episode_costs.append(total_cost)
-        episode_max_costs.append(max_cost)        # Save data for plotting
-        np.save(f"{plot_data_dir}/episode_rewards.npy", episode_rewards)
-        np.save(f"{plot_data_dir}/episode_max_costs.npy", episode_max_costs)
-        # print("episode_rewards=", episode_rewards)
-        # print("episode_max_costs=", episode_max_costs)
-        plot_metrics(episode_rewards, episode_costs, episode_max_costs, save=True, filename=f"{plot_data_dir}/training_metrics.png")
 
     # Save the evaluation rewards and costs for this run
     np.save(f"{data_train_dir}/evaluate_rewards.npy", evaluate_rewards)
@@ -1242,7 +1221,7 @@ if __name__ == '__main__':
     parser.add_argument("--seed", type=int, default=2, help="seed 2, 5, 7, 11, 17") 
     parser.add_argument("--GAMMA", type=str, default='0', help="file name")
     parser.add_argument("--baseline",type=int,default=9,help="baseline")
-    parser.add_argument("--lambda_",type=int,default=50,help="lambda")
+    parser.add_argument("--lambda_",type=int,default=1.0,help="lambda")
     parser.add_argument("--beta",type=float,default=50.0,help="beta") 
     parser.add_argument("--run",type=int,default=1,help="run_number") 
 

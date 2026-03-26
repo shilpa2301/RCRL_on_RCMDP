@@ -81,20 +81,16 @@ class CartPoleCostEnv(gym.Env):
         reward = 1.0
 
         # cost = distance from center
-        cost = abs(x)
-
+        cost = self.compute_cost(x, theta)
+       
+        # Normalize cost between 0 and 1
+        # normalized_cost = cost / self.max_cost
+        # cost = normalized_cost
         done = (
             abs(x) > 2.4
             or abs(theta) > 12 * np.pi / 180
             or self.steps >= self.max_episode_steps
         )
-
-        if done and self.steps < 450:
-            cost += 10.0   # penalty value (tunable)
-
-        # Normalize cost between 0 and 1
-        # normalized_cost = cost / self.max_cost
-        # cost = normalized_cost
 
         info = {
             "x_position": x
@@ -114,7 +110,10 @@ class CartPoleCostEnv(gym.Env):
             float: The computed cost.
         """
         # Cost is the absolute distance of the cart from the center (x)
-        cost = abs(x)
+        if abs(x) > 1:
+            cost = abs(x)
+        else:
+            cost = 0
 
         done = (
             abs(x) > 2.4
@@ -278,16 +277,12 @@ class CartPolePerturbedEnv(gym.Env):
         reward = 1.0
 
         # cost = distance from center
-        cost = abs(x)
-
+        cost = self.compute_cost(x, theta)
         done = (
             abs(x) > 2.4
             or abs(theta) > 12 * np.pi / 180
             or self.steps >= self.max_episode_steps
         )
-
-        if done and self.steps < 450:
-            cost += 10.0   # penalty value (tunable)
 
         info = {
             "x_position": x,
@@ -309,7 +304,10 @@ class CartPolePerturbedEnv(gym.Env):
             float: The computed cost.
         """
         # Cost is the absolute distance of the cart from the center (x)
-        cost = abs(x)
+        if abs(x) > 1:
+            cost = abs(x)
+        else:
+            cost = 0
 
         done = (
             abs(x) > 2.4
@@ -363,3 +361,4 @@ class CartPolePerturbedEnv(gym.Env):
 
         next_state = np.array([x, x_dot, theta, theta_dot], dtype=np.float32)
         return torch.tensor(next_state, dtype=torch.float32)
+

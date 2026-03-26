@@ -38,3 +38,9 @@ run 6: dump at 200 steps, no state norm, no scaling
 run 7: dump at 200 + run3
 
 run2: dump at 100, state_norm on, scaling off
+
+
+1. warm start : reward  then cost
+2. no perturbation
+3. modify cost above 1
+4. softmax temp small value 0.1

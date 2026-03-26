@@ -255,8 +255,8 @@ if __name__ == "__main__":
 
     # Specify the directories for the trained models
     directories = [
-        "./models/CartPolePerturbedEnv/run1/RCAC",
-        "./models/CartPoleCostEnv/run1/RCAC"
+        "./models/CartPolePerturbedEnv/run2/RCAC",
+        "./models/CartPoleCostEnv/run2/RCAC"
     ]
     labels = ["CartPolePerturbedEnv", "CartPoleCostEnv"]
 
@@ -264,4 +264,4 @@ if __name__ == "__main__":
     results = test_multiple_dirs(args, env, directories, num_episodes=100)
 
     # Plot the evaluation results
-    plot_evaluation(results, labels, save=True, filename="plot_inference/comparison_plot3.png", smooth_window=80)
+    plot_evaluation(results, labels, save=True, filename="plot_inference/comparison_plot4.png", smooth_window=80)
