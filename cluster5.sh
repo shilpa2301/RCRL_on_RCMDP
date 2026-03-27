@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --job-name=car3
+#SBATCH --job-name=carpm1
 #SBATCH --output=%x.%j.out # %x.%j expands to slurm JobName.JobID
 #SBATCH --error=%x.%j.err
 #SBATCH --partition=general
@@ -22,6 +22,7 @@ export PYTHONPATH=/project/ag2682/sm3934/RCRL_on_RMDP:$PYTHONPATH
 
 
 
-/home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RMDP/ipm_rcmdp_rcrl_max.py --run 3 --seed 3 --env CartPoleCostEnv --persistent_eps 2.0 --beta 25.0 --max_train_steps 5000
+# /home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RMDP/ipm_rcmdp_rcrl_max.py --run 3 --seed 3 --env CartPoleCostEnv --persistent_eps 2.0 --beta 25.0 --max_train_steps 5000
 # /home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RMDP/ipm_rcmdp_rcrl_max.py --run 1 --seed 1 --env CartPolePerturbedEnv --persistent_eps 2.0 --beta 25.0 --max_train_steps 6000
+/home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RMDP/code_ipm_rcmdp_primal_dual.py
 

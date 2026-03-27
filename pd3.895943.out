@@ -1,0 +1,76 @@
+n0093
+Fri Mar 27 12:42:00 AM EDT 2026
+/home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python
+run= 3 seed= 3 env= CartPoleCostEnv
+env=CartPoleCostEnv
+state_dim=4
+action_dim=1
+max_action=10.0
+max_episode_steps=1000
+No env selected
+------use_orthogonal_init------
+------use_orthogonal_init------
+------use_orthogonal_init------
+evaluate_num:1 	 evaluate_reward:32.0 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+New best model found! Saving model with reward: 32.0 and max cost: 10.0
+evaluate_num:2 	 evaluate_reward:35.333333333333336 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+New best model found! Saving model with reward: 35.333333333333336 and max cost: 10.0
+evaluate_num:3 	 evaluate_reward:49.333333333333336 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+New best model found! Saving model with reward: 49.333333333333336 and max cost: 10.0
+evaluate_num:4 	 evaluate_reward:45.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:5 	 evaluate_reward:55.0 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+New best model found! Saving model with reward: 55.0 and max cost: 10.0
+evaluate_num:6 	 evaluate_reward:72.66666666666667 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+New best model found! Saving model with reward: 72.66666666666667 and max cost: 10.0
+evaluate_num:7 	 evaluate_reward:40.333333333333336 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:8 	 evaluate_reward:39.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:9 	 evaluate_reward:55.0 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:10 	 evaluate_reward:40.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:11 	 evaluate_reward:45.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:12 	 evaluate_reward:47.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:13 	 evaluate_reward:53.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:14 	 evaluate_reward:77.33333333333333 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+New best model found! Saving model with reward: 77.33333333333333 and max cost: 10.0
+evaluate_num:15 	 evaluate_reward:40.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:16 	 evaluate_reward:56.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:17 	 evaluate_reward:49.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:18 	 evaluate_reward:49.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:19 	 evaluate_reward:71.66666666666667 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:20 	 evaluate_reward:80.66666666666667 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+New best model found! Saving model with reward: 80.66666666666667 and max cost: 10.0
+evaluate_num:21 	 evaluate_reward:92.66666666666667 	 evaluate_cost:10.338044227735518 	 evaluate_max_cost:11.014132683206554
+New best model found! Saving model with reward: 92.66666666666667 and max cost: 11.014132683206554
+evaluate_num:22 	 evaluate_reward:85.66666666666667 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:23 	 evaluate_reward:85.33333333333333 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+evaluate_num:24 	 evaluate_reward:132.66666666666666 	 evaluate_cost:50.46227541828234 	 evaluate_max_cost:12.448477726103905
+New best model found! Saving model with reward: 132.66666666666666 and max cost: 12.448477726103905
+evaluate_num:25 	 evaluate_reward:234.33333333333334 	 evaluate_cost:56.652543379635325 	 evaluate_max_cost:10.0
+New best model found! Saving model with reward: 234.33333333333334 and max cost: 10.0
+evaluate_num:26 	 evaluate_reward:333.6666666666667 	 evaluate_cost:279.10226679961346 	 evaluate_max_cost:12.404998624508101
+New best model found! Saving model with reward: 333.6666666666667 and max cost: 12.404998624508101
+evaluate_num:27 	 evaluate_reward:455.6666666666667 	 evaluate_cost:435.7469607383594 	 evaluate_max_cost:12.403833342040109
+New best model found! Saving model with reward: 455.6666666666667 and max cost: 12.403833342040109
+evaluate_num:28 	 evaluate_reward:395.0 	 evaluate_cost:404.29153500185475 	 evaluate_max_cost:12.404410564002937
+evaluate_num:29 	 evaluate_reward:500.0 	 evaluate_cost:489.2649788115209 	 evaluate_max_cost:2.160885611198312
+New best model found! Saving model with reward: 500.0 and max cost: 2.160885611198312
+evaluate_num:30 	 evaluate_reward:500.0 	 evaluate_cost:477.9566112395517 	 evaluate_max_cost:2.044905832840505
+evaluate_num:31 	 evaluate_reward:500.0 	 evaluate_cost:536.0970821371103 	 evaluate_max_cost:2.1753206903515467
+evaluate_num:32 	 evaluate_reward:500.0 	 evaluate_cost:526.9654134117096 	 evaluate_max_cost:1.7941306740797043
+evaluate_num:33 	 evaluate_reward:500.0 	 evaluate_cost:480.95300762192136 	 evaluate_max_cost:1.574466558922446
+evaluate_num:34 	 evaluate_reward:500.0 	 evaluate_cost:465.9626074262729 	 evaluate_max_cost:1.5016427694911731
+evaluate_num:35 	 evaluate_reward:500.0 	 evaluate_cost:492.31148766918835 	 evaluate_max_cost:1.5936108102700377
+evaluate_num:36 	 evaluate_reward:500.0 	 evaluate_cost:474.6706671881512 	 evaluate_max_cost:1.6366386630501082
+evaluate_num:37 	 evaluate_reward:500.0 	 evaluate_cost:483.51185428325863 	 evaluate_max_cost:1.59973678499254
+evaluate_num:38 	 evaluate_reward:500.0 	 evaluate_cost:491.5447539947125 	 evaluate_max_cost:1.7660600831501363
+evaluate_num:39 	 evaluate_reward:500.0 	 evaluate_cost:472.20581300276194 	 evaluate_max_cost:1.6499109831270689
+evaluate_num:40 	 evaluate_reward:500.0 	 evaluate_cost:514.0643279428319 	 evaluate_max_cost:1.6925310403799367
+evaluate_num:41 	 evaluate_reward:500.0 	 evaluate_cost:534.3086503643666 	 evaluate_max_cost:1.7963372671202
+evaluate_num:42 	 evaluate_reward:500.0 	 evaluate_cost:545.3497869761885 	 evaluate_max_cost:1.8477895816137397
+evaluate_num:43 	 evaluate_reward:500.0 	 evaluate_cost:547.7715408101539 	 evaluate_max_cost:1.8235400934961972
+evaluate_num:44 	 evaluate_reward:500.0 	 evaluate_cost:518.5244624324073 	 evaluate_max_cost:2.1273135654890996
+evaluate_num:45 	 evaluate_reward:500.0 	 evaluate_cost:447.52450755250055 	 evaluate_max_cost:2.2294350372564895
+evaluate_num:46 	 evaluate_reward:211.33333333333334 	 evaluate_cost:177.943605204283 	 evaluate_max_cost:12.4095241080972
+evaluate_num:47 	 evaluate_reward:241.66666666666666 	 evaluate_cost:166.8815365174132 	 evaluate_max_cost:12.4081295324173
+evaluate_num:48 	 evaluate_reward:229.66666666666666 	 evaluate_cost:166.31581230762572 	 evaluate_max_cost:12.406400870293131
+evaluate_num:49 	 evaluate_reward:230.0 	 evaluate_cost:173.44226932972 	 evaluate_max_cost:12.409815005267422
+evaluate_num:50 	 evaluate_reward:256.0 	 evaluate_cost:228.68872213419104 	 evaluate_max_cost:12.404484669429783

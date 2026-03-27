@@ -1,0 +1,8 @@
+/project/ag2682/sm3934/RCRL_on_RMDP/code_pd_rcrl.py:174: UserWarning: Creating a tensor from a list of numpy.ndarrays is extremely slow. Please consider converting the list to a single numpy.ndarray with numpy.array() before converting to a tensor. (Triggered internally at /pytorch/torch/csrc/utils/tensor_new.cpp:253.)
+  states = torch.tensor(states, dtype=torch.float32)
+Traceback (most recent call last):
+  File "/project/ag2682/sm3934/RCRL_on_RMDP/code_pd_rcrl.py", line 265, in <module>
+    main()
+  File "/project/ag2682/sm3934/RCRL_on_RMDP/code_pd_rcrl.py", line 215, in main
+    actor_loss = -(log_probs * adv).mean() - beta * entropy
+NameError: name 'beta' is not defined
