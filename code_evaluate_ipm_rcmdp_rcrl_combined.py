@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from ipm_rcmdp_rcrl_max import Actor_Beta, Actor_Gaussian, Actor_Discrete, Critic, CostCritic, Robust_RCAC_NPG, Normalization, RunningMeanStd, RewardScaling
+from code_ipm_rcmdp_rcrl_max import Actor_Beta, Actor_Gaussian, Actor_Discrete, Critic, CostCritic, Robust_RCAC_NPG, Normalization, RunningMeanStd, RewardScaling
 import argparse
 import pickle
 import matplotlib.pyplot as plt
@@ -132,77 +132,174 @@ def test_multiple_dirs(args, env, directories, num_episodes=100):
         results.append({'rewards': rewards, 'costs': costs, 'max_costs': max_costs})
     return results
 
-def plot_evaluation(data, labels, save=False, filename="evaluation_plot.png", smooth_window=10):
+# def plot_evaluation(data, labels, save=False, filename="evaluation_plot.png", smooth_window=10):
+#     """
+#     Plot raw and smoothed evaluation metrics from multiple directories.
+
+#     Args:
+#         data: A list of dictionaries, each containing 'rewards', 'costs', and 'max_costs'.
+#         labels: A list of labels corresponding to each dataset.
+#         save: Whether to save the plot to a file.
+#         filename: File name to save the plot.
+#         smooth_window: Window size for smoothing.
+#     """
+#     assert len(data) == len(labels), "Data and labels must have the same length"
+#     plt.rcParams.update({'font.size': 16})
+
+#     plt.figure(figsize=(12, 12))
+
+
+
+#     # Plot total rewards
+#     plt.subplot(3, 1, 1)
+#     for dataset, label in zip(data, labels):
+#         rewards = np.array(dataset['rewards'])
+#         smoothed_rewards = smooth(rewards, smooth_window)
+#         smoothed_x = range(len(smoothed_rewards))
+
+#         # Plot raw rewards for each episode
+#         # plt.plot(rewards, alpha=0.3, label=f"{label} (Raw)")
+
+#         # Plot smoothed rewards
+#         plt.plot(smoothed_x, smoothed_rewards, label=f"{label} (Smoothed)", linewidth=2)
+#     plt.xlabel("Episode")
+#     plt.ylabel("Reward")
+#     plt.title("Total Reward per Episode")
+#     plt.legend()
+
+#     # Plot max costs
+#     plt.subplot(3, 1, 2)
+#     for dataset, label in zip(data, labels):
+#         max_costs = np.array(dataset['max_costs'])
+#         smoothed_max_costs = smooth(max_costs, smooth_window)
+#         smoothed_x = range(len(smoothed_max_costs))
+
+#         # Plot raw max costs for each episode
+#         # plt.plot(max_costs, alpha=0.3, label=f"{label} (Raw)")
+
+#         # Plot smoothed max costs
+#         plt.plot(smoothed_x, smoothed_max_costs, label=f"{label} (Smoothed)", linewidth=2)
+#     plt.xlabel("Episode")
+#     plt.ylabel("Max Cost")
+#     plt.title("Max Cost per Episode")
+#     plt.legend()
+
+#     # Plot total costs
+#     plt.subplot(3, 1, 3)
+#     for dataset, label in zip(data, labels):
+#         costs = np.array(dataset['costs'])
+#         smoothed_costs = smooth(costs, smooth_window)
+#         smoothed_x = range(len(smoothed_costs))
+
+#         # Plot raw total costs for each episode
+#         # plt.plot(costs, alpha=0.3, label=f"{label} (Raw)")
+
+#         # Plot smoothed total costs
+#         plt.plot(smoothed_x, smoothed_costs, label=f"{label} (Smoothed)", linewidth=2)
+#     plt.xlabel("Episode")
+#     plt.ylabel("Total Cost")
+#     plt.title("Total Cost per Episode")
+#     plt.legend()
+
+#     plt.tight_layout()
+#     if save:
+#         plt.savefig(filename)
+#     # plt.show()
+#     plt.close()
+
+def plot_evaluation(data, labels, save=False, base_filename="evaluation_plot", smooth_window=10):
     """
     Plot raw and smoothed evaluation metrics from multiple directories.
 
     Args:
         data: A list of dictionaries, each containing 'rewards', 'costs', and 'max_costs'.
         labels: A list of labels corresponding to each dataset.
-        save: Whether to save the plot to a file.
-        filename: File name to save the plot.
+        save: Whether to save the plots to files.
+        base_filename: Base file name to save the plots.
         smooth_window: Window size for smoothing.
     """
     assert len(data) == len(labels), "Data and labels must have the same length"
 
-    plt.figure(figsize=(12, 12))
+    # Set global font size
+    # plt.rcParams.update({'font.size': 25})
+    plt.rcParams.update({'font.size': 85, 'lines.linewidth': 7})
+    fig_size = 28
 
     # Plot total rewards
-    plt.subplot(3, 1, 1)
+    plt.figure(figsize=(fig_size, fig_size))  # Adjust aspect ratio for square plots
     for dataset, label in zip(data, labels):
         rewards = np.array(dataset['rewards'])
         smoothed_rewards = smooth(rewards, smooth_window)
         smoothed_x = range(len(smoothed_rewards))
 
-        # Plot raw rewards for each episode
-        # plt.plot(rewards, alpha=0.3, label=f"{label} (Raw)")
-
         # Plot smoothed rewards
-        plt.plot(smoothed_x, smoothed_rewards, label=f"{label} (Smoothed)", linewidth=2)
+        plt.plot(smoothed_x, smoothed_rewards, label=f"{label}")
+    plt.axhline(y=0, color='gray', linestyle='--', linewidth=1)  # Optional: Add a baseline at y=0
     plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.title("Total Reward per Episode")
+    plt.ylabel("Cumulative Reward")
+    # plt.title("Total Reward per Episode")
     plt.legend()
+    plt.grid(True)
+
+    if save:
+        plt.savefig(f"{base_filename}_rewards.png")
+    plt.close()
 
     # Plot max costs
-    plt.subplot(3, 1, 2)
+    plt.figure(figsize=(fig_size, fig_size))  # Adjust aspect ratio for square plots
+
+    # Determine the maximum y-value among all max_costs
+    max_y_value = max(max(dataset['max_costs']) for dataset in data)
+    y_limit = max(2.5, max_y_value * 1.1)  # Ensure y-limit is at least 2.5
+
+    # Set y-axis limits explicitly
+    plt.ylim(-1, y_limit)
+
+    # Add light red background above the threshold and light blue below
+    plt.axhspan(2.0, y_limit, color='red', alpha=0.1)
+    plt.axhspan(-1, 2.0, color='blue', alpha=0.1)
+
     for dataset, label in zip(data, labels):
         max_costs = np.array(dataset['max_costs'])
         smoothed_max_costs = smooth(max_costs, smooth_window)
         smoothed_x = range(len(smoothed_max_costs))
 
-        # Plot raw max costs for each episode
-        # plt.plot(max_costs, alpha=0.3, label=f"{label} (Raw)")
-
         # Plot smoothed max costs
-        plt.plot(smoothed_x, smoothed_max_costs, label=f"{label} (Smoothed)", linewidth=2)
+        plt.plot(smoothed_x, smoothed_max_costs, label=f"{label}")
+
+    # Always plot the threshold line at y=2.0
+    plt.axhline(y=2.0, color='black', linestyle='--', label="Safety Relaxation")
+
     plt.xlabel("Episode")
-    plt.ylabel("Max Cost")
-    plt.title("Max Cost per Episode")
+    plt.ylabel("Peak Cost")
     plt.legend()
+    plt.grid(True)
+
+    if save:
+        plt.savefig(f"{base_filename}_max_costs.png")
+    plt.close()
+
 
     # Plot total costs
-    plt.subplot(3, 1, 3)
+    plt.figure(figsize=(fig_size, fig_size))  # Adjust aspect ratio for square plots
     for dataset, label in zip(data, labels):
         costs = np.array(dataset['costs'])
         smoothed_costs = smooth(costs, smooth_window)
         smoothed_x = range(len(smoothed_costs))
 
-        # Plot raw total costs for each episode
-        # plt.plot(costs, alpha=0.3, label=f"{label} (Raw)")
-
         # Plot smoothed total costs
-        plt.plot(smoothed_x, smoothed_costs, label=f"{label} (Smoothed)", linewidth=2)
+        plt.plot(smoothed_x, smoothed_costs, label=f"{label}")
     plt.xlabel("Episode")
-    plt.ylabel("Total Cost")
-    plt.title("Total Cost per Episode")
+    plt.ylabel("Cumulative Cost")
+    # plt.title("Total Cost per Episode")
     plt.legend()
+    plt.grid(True)
 
-    plt.tight_layout()
     if save:
-        plt.savefig(filename)
-    # plt.show()
+        plt.savefig(f"{base_filename}_total_costs.png")
     plt.close()
+
+
 
 
 if __name__ == "__main__":
@@ -261,14 +358,22 @@ if __name__ == "__main__":
     env.action_space.seed(args.seed)
 
     # Specify the directories for the trained models
+    # directories = [
+    #     "./models/CartPolePerturbedEnv/run5/Best_RCAC",
+    #     "./models/CartPoleCostEnv/run5/Best_RCAC"
+    # ]
+    # labels = ["CartPolePerturbedEnv", "CartPoleCostEnv"]
+
     directories = [
         "./models/CartPolePerturbedEnv/run5/Best_RCAC",
-        "./models/CartPoleCostEnv/run5/Best_RCAC"
+        "./models/CartPoleCostEnv_PD_RCRL/run3/Best_RCAC"
     ]
-    labels = ["CartPolePerturbedEnv", "CartPoleCostEnv"]
+    labels = ["Ours", "PrimalDual"]
+
 
     # Test agents from multiple directories
     results = test_multiple_dirs(args, env, directories, num_episodes=100)
 
     # Plot the evaluation results
-    plot_evaluation(results, labels, save=True, filename="plot_inference/comparison_plot_fixed5_b.png", smooth_window=80)
+    plot_evaluation(results, labels, save=True, base_filename="plot_inference/comparison_PC", smooth_window=1)
+    # plot_evaluation(results, labels, save=True, base_filename="plot_inference/comparison_plot_fixed5", smooth_window=80)

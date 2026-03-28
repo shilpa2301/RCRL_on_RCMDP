@@ -1,0 +1,298 @@
+n0093
+Fri Mar 27 02:14:04 PM EDT 2026
+/home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python
+run= 23 seed= 1 env= CartPoleCostEnv
+env=CartPoleCostEnv
+state_dim=4
+action_dim=1
+max_action=10.0
+max_episode_steps=1000
+No env selected
+------use_orthogonal_init------
+------use_orthogonal_init------
+------use_orthogonal_init------
+evaluate_num:1 	 evaluate_reward:40.0 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 0 0.03214578330516815 tensor([0.3209]) -41.97856140136719
+evaluate_num:2 	 evaluate_reward:32.333333333333336 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 0 7.398255825042725 tensor([29.7348]) 693.3709106445312
+ch, vs_mean, vl_pi, beta penalty= 0 15.000330924987793 tensor([25.4880]) 587.2003784179688
+ch, vs_mean, vl_pi, beta penalty= 0 19.08812713623047 tensor([31.7696]) 744.2401123046875
+evaluate_num:3 	 evaluate_reward:79.33333333333333 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 0 23.535526275634766 tensor([34.3826]) 809.5650634765625
+ch, vs_mean, vl_pi, beta penalty= 0 29.666431427001953 tensor([41.3628]) 984.0693359375
+ch, vs_mean, vl_pi, beta penalty= 0 37.103965759277344 tensor([48.2033]) 1155.0821533203125
+ch, vs_mean, vl_pi, beta penalty= 0 47.322723388671875 tensor([59.0729]) 1426.8218994140625
+ch, vs_mean, vl_pi, beta penalty= 0 54.875526428222656 tensor([58.3325]) 1408.31201171875
+ch, vs_mean, vl_pi, beta penalty= 0 57.93977737426758 tensor([64.3672]) 1559.1802978515625
+ch, vs_mean, vl_pi, beta penalty= 0 58.68708801269531 tensor([69.2214]) 1680.5341796875
+ch, vs_mean, vl_pi, beta penalty= 0 62.37040328979492 tensor([71.9237]) 1748.0936279296875
+ch, vs_mean, vl_pi, beta penalty= 0 64.91127014160156 tensor([75.5283]) 1838.2069091796875
+ch, vs_mean, vl_pi, beta penalty= 0 67.8040771484375 tensor([78.1344]) 1903.3590087890625
+ch, vs_mean, vl_pi, beta penalty= 0 68.23326110839844 tensor([79.8871]) 1947.1768798828125
+evaluate_num:4 	 evaluate_reward:225.66666666666666 	 evaluate_cost:149.21902288491896 	 evaluate_max_cost:12.418305745772017
+ch, vs_mean, vl_pi, beta penalty= 1 69.50984954833984 tensor([82.6143]) 2015.3568115234375
+ch, vs_mean, vl_pi, beta penalty= 1 9.913034439086914 tensor([10.3697]) 209.2416229248047
+ch, vs_mean, vl_pi, beta penalty= 1 10.567730903625488 tensor([11.8367]) 245.91726684570312
+ch, vs_mean, vl_pi, beta penalty= 1 2.0658047199249268 tensor([2.5643]) 14.10837173461914
+ch, vs_mean, vl_pi, beta penalty= 1 9.814517974853516 tensor([11.0790]) 226.97572326660156
+ch, vs_mean, vl_pi, beta penalty= 1 1.8500456809997559 tensor([2.2285]) 5.713706970214844
+ch, vs_mean, vl_pi, beta penalty= 1 10.331393241882324 tensor([10.8893]) 222.23252868652344
+ch, vs_mean, vl_pi, beta penalty= 1 1.9227683544158936 tensor([2.1494]) 3.7340164184570312
+ch, vs_mean, vl_pi, beta penalty= 1 10.255191802978516 tensor([11.7731]) 244.32691955566406
+ch, vs_mean, vl_pi, beta penalty= 1 2.0164010524749756 tensor([2.3041]) 7.602584362030029
+evaluate_num:5 	 evaluate_reward:176.33333333333334 	 evaluate_cost:107.87151896634428 	 evaluate_max_cost:12.409060304917539
+ch, vs_mean, vl_pi, beta penalty= 1 9.737275123596191 tensor([11.4110]) 235.2743682861328
+ch, vs_mean, vl_pi, beta penalty= 0 1.6944894790649414 tensor([1.9299]) -1.7524629831314087
+ch, vs_mean, vl_pi, beta penalty= 1 16.161043167114258 tensor([18.8944]) 422.3604736328125
+ch, vs_mean, vl_pi, beta penalty= 1 6.57558536529541 tensor([7.6176]) 140.4399871826172
+ch, vs_mean, vl_pi, beta penalty= 1 5.86824893951416 tensor([6.9062]) 122.65505981445312
+ch, vs_mean, vl_pi, beta penalty= 1 6.924925327301025 tensor([16.2567]) 356.41778564453125
+ch, vs_mean, vl_pi, beta penalty= 1 6.094452381134033 tensor([7.5822]) 139.55386352539062
+evaluate_num:6 	 evaluate_reward:153.0 	 evaluate_cost:99.28922416312787 	 evaluate_max_cost:12.427513797607752
+ch, vs_mean, vl_pi, beta penalty= 1 5.715240955352783 tensor([8.9602]) 174.00592041015625
+ch, vs_mean, vl_pi, beta penalty= 1 6.075528621673584 tensor([7.5326]) 138.31546020507812
+ch, vs_mean, vl_pi, beta penalty= 1 5.484457969665527 tensor([6.3248]) 108.11967468261719
+ch, vs_mean, vl_pi, beta penalty= 1 7.04158353805542 tensor([8.9631]) 174.07757568359375
+ch, vs_mean, vl_pi, beta penalty= 1 4.83286714553833 tensor([5.6408]) 91.02008056640625
+ch, vs_mean, vl_pi, beta penalty= 1 6.679132461547852 tensor([7.2740]) 131.8505096435547
+ch, vs_mean, vl_pi, beta penalty= 1 5.169938564300537 tensor([5.7542]) 93.856201171875
+evaluate_num:7 	 evaluate_reward:135.66666666666666 	 evaluate_cost:86.27013505020034 	 evaluate_max_cost:12.417027095709965
+ch, vs_mean, vl_pi, beta penalty= 1 6.869420528411865 tensor([7.3381]) 133.45130920410156
+ch, vs_mean, vl_pi, beta penalty= 1 5.2425031661987305 tensor([5.6032]) 90.0792465209961
+ch, vs_mean, vl_pi, beta penalty= 1 6.888330459594727 tensor([7.3514]) 133.78390502929688
+ch, vs_mean, vl_pi, beta penalty= 1 5.098247051239014 tensor([5.4863]) 87.15739440917969
+ch, vs_mean, vl_pi, beta penalty= 1 6.715158462524414 tensor([7.2063]) 130.1586456298828
+ch, vs_mean, vl_pi, beta penalty= 1 5.104754447937012 tensor([5.3910]) 84.77603149414062
+ch, vs_mean, vl_pi, beta penalty= 1 6.901612281799316 tensor([7.2868]) 132.16908264160156
+evaluate_num:8 	 evaluate_reward:133.33333333333334 	 evaluate_cost:83.55273342832066 	 evaluate_max_cost:12.418323413635408
+ch, vs_mean, vl_pi, beta penalty= 1 5.200180530548096 tensor([5.4886]) 87.21491241455078
+ch, vs_mean, vl_pi, beta penalty= 1 6.979425430297852 tensor([7.5652]) 139.12948608398438
+ch, vs_mean, vl_pi, beta penalty= 1 5.131129264831543 tensor([5.6349]) 90.8725357055664
+ch, vs_mean, vl_pi, beta penalty= 1 6.839435577392578 tensor([7.2375]) 130.93650817871094
+ch, vs_mean, vl_pi, beta penalty= 1 5.141602993011475 tensor([5.3739]) 84.347412109375
+ch, vs_mean, vl_pi, beta penalty= 1 7.008126258850098 tensor([7.4837]) 137.0927276611328
+evaluate_num:9 	 evaluate_reward:138.33333333333334 	 evaluate_cost:80.44636118887149 	 evaluate_max_cost:12.436251262474272
+ch, vs_mean, vl_pi, beta penalty= 1 4.736089706420898 tensor([5.3890]) 84.72503662109375
+ch, vs_mean, vl_pi, beta penalty= 1 7.123666286468506 tensor([7.7662]) 144.1543731689453
+ch, vs_mean, vl_pi, beta penalty= 1 5.243855953216553 tensor([5.4589]) 86.47317504882812
+ch, vs_mean, vl_pi, beta penalty= 1 6.888357639312744 tensor([7.2394]) 130.9839630126953
+ch, vs_mean, vl_pi, beta penalty= 1 5.10998010635376 tensor([5.8382]) 95.95508575439453
+ch, vs_mean, vl_pi, beta penalty= 1 6.969600677490234 tensor([7.4410]) 136.0259552001953
+evaluate_num:10 	 evaluate_reward:127.33333333333333 	 evaluate_cost:77.31131242454204 	 evaluate_max_cost:12.433199549689494
+ch, vs_mean, vl_pi, beta penalty= 1 5.265259265899658 tensor([5.6264]) 90.65926361083984
+ch, vs_mean, vl_pi, beta penalty= 1 6.966588973999023 tensor([7.2966]) 132.4140167236328
+ch, vs_mean, vl_pi, beta penalty= 1 5.083778381347656 tensor([5.3157]) 82.89353942871094
+ch, vs_mean, vl_pi, beta penalty= 1 7.247751712799072 tensor([7.4059]) 135.14761352539062
+ch, vs_mean, vl_pi, beta penalty= 1 5.043890953063965 tensor([5.2346]) 80.86553955078125
+ch, vs_mean, vl_pi, beta penalty= 1 6.909813404083252 tensor([7.3209]) 133.02276611328125
+ch, vs_mean, vl_pi, beta penalty= 1 5.216458320617676 tensor([5.3985]) 84.96195983886719
+evaluate_num:11 	 evaluate_reward:126.33333333333333 	 evaluate_cost:72.84348723045544 	 evaluate_max_cost:12.441592595960756
+ch, vs_mean, vl_pi, beta penalty= 1 6.877719879150391 tensor([7.1589]) 128.97293090820312
+ch, vs_mean, vl_pi, beta penalty= 1 5.2304911613464355 tensor([5.9219]) 98.04780578613281
+ch, vs_mean, vl_pi, beta penalty= 1 7.020591735839844 tensor([7.2203]) 130.5077667236328
+ch, vs_mean, vl_pi, beta penalty= 1 5.264233589172363 tensor([5.4361]) 85.90216827392578
+ch, vs_mean, vl_pi, beta penalty= 1 7.02120304107666 tensor([7.4448]) 136.11981201171875
+ch, vs_mean, vl_pi, beta penalty= 1 5.065330505371094 tensor([5.2266]) 80.66461181640625
+evaluate_num:12 	 evaluate_reward:117.0 	 evaluate_cost:71.63861429794873 	 evaluate_max_cost:12.445752865481456
+ch, vs_mean, vl_pi, beta penalty= 1 6.9343719482421875 tensor([7.4189]) 135.471435546875
+ch, vs_mean, vl_pi, beta penalty= 1 4.916871547698975 tensor([5.1238]) 78.09422302246094
+ch, vs_mean, vl_pi, beta penalty= 1 7.186367988586426 tensor([7.4224]) 135.55946350097656
+ch, vs_mean, vl_pi, beta penalty= 1 4.83296537399292 tensor([5.1909]) 79.77312469482422
+ch, vs_mean, vl_pi, beta penalty= 1 7.093987941741943 tensor([7.4953]) 137.382080078125
+ch, vs_mean, vl_pi, beta penalty= 1 5.0234150886535645 tensor([5.6868]) 92.1698226928711
+evaluate_num:13 	 evaluate_reward:126.66666666666667 	 evaluate_cost:68.130978831308 	 evaluate_max_cost:12.418029297758189
+ch, vs_mean, vl_pi, beta penalty= 1 7.226638317108154 tensor([7.4897]) 137.2427978515625
+ch, vs_mean, vl_pi, beta penalty= 1 5.027036666870117 tensor([5.6115]) 90.28828430175781
+ch, vs_mean, vl_pi, beta penalty= 1 7.227154731750488 tensor([7.6186]) 140.46533203125
+ch, vs_mean, vl_pi, beta penalty= 1 4.582347393035889 tensor([4.9233]) 73.08255767822266
+ch, vs_mean, vl_pi, beta penalty= 1 7.0001630783081055 tensor([7.2178]) 130.44451904296875
+ch, vs_mean, vl_pi, beta penalty= 1 5.089778900146484 tensor([5.3954]) 84.8861312866211
+evaluate_num:14 	 evaluate_reward:125.0 	 evaluate_cost:68.77997092962262 	 evaluate_max_cost:12.432160417627173
+ch, vs_mean, vl_pi, beta penalty= 1 7.2090044021606445 tensor([7.3447]) 133.61729431152344
+ch, vs_mean, vl_pi, beta penalty= 1 5.197975158691406 tensor([5.3286]) 83.21601104736328
+ch, vs_mean, vl_pi, beta penalty= 1 6.926015377044678 tensor([7.6025]) 140.06216430664062
+ch, vs_mean, vl_pi, beta penalty= 1 5.005478858947754 tensor([5.4239]) 85.59720611572266
+ch, vs_mean, vl_pi, beta penalty= 1 6.769892692565918 tensor([7.2138]) 130.34478759765625
+ch, vs_mean, vl_pi, beta penalty= 1 5.028596878051758 tensor([5.3184]) 82.95922088623047
+evaluate_num:15 	 evaluate_reward:116.66666666666667 	 evaluate_cost:67.88768714438346 	 evaluate_max_cost:12.414525411110759
+ch, vs_mean, vl_pi, beta penalty= 1 6.825937747955322 tensor([7.2041]) 130.1018829345703
+ch, vs_mean, vl_pi, beta penalty= 1 5.053621292114258 tensor([5.3607]) 84.01738739013672
+ch, vs_mean, vl_pi, beta penalty= 1 7.071678161621094 tensor([7.3099]) 132.74757385253906
+ch, vs_mean, vl_pi, beta penalty= 1 5.17040491104126 tensor([5.7835]) 94.58869934082031
+ch, vs_mean, vl_pi, beta penalty= 1 6.835935592651367 tensor([7.2083]) 130.20779418945312
+evaluate_num:16 	 evaluate_reward:113.0 	 evaluate_cost:67.09433510017554 	 evaluate_max_cost:12.448664846468796
+ch, vs_mean, vl_pi, beta penalty= 1 5.185195446014404 tensor([5.4251]) 85.62651824951172
+ch, vs_mean, vl_pi, beta penalty= 1 7.112405776977539 tensor([7.5013]) 137.53152465820312
+ch, vs_mean, vl_pi, beta penalty= 1 5.404484748840332 tensor([5.5447]) 88.61643981933594
+ch, vs_mean, vl_pi, beta penalty= 1 6.904933929443359 tensor([7.1861]) 129.65150451660156
+ch, vs_mean, vl_pi, beta penalty= 1 5.241086006164551 tensor([5.7295]) 93.23779296875
+ch, vs_mean, vl_pi, beta penalty= 1 6.837552547454834 tensor([7.2071]) 130.17640686035156
+evaluate_num:17 	 evaluate_reward:116.33333333333333 	 evaluate_cost:66.3764231142623 	 evaluate_max_cost:12.448796476386454
+ch, vs_mean, vl_pi, beta penalty= 1 5.349810600280762 tensor([5.7433]) 93.58331298828125
+ch, vs_mean, vl_pi, beta penalty= 1 6.549144744873047 tensor([6.7770]) 119.42407989501953
+ch, vs_mean, vl_pi, beta penalty= 1 5.665440559387207 tensor([5.7846]) 94.61578369140625
+ch, vs_mean, vl_pi, beta penalty= 1 6.469374656677246 tensor([6.8702]) 121.75424194335938
+ch, vs_mean, vl_pi, beta penalty= 1 5.609491348266602 tensor([5.7995]) 94.98738098144531
+ch, vs_mean, vl_pi, beta penalty= 1 6.65632438659668 tensor([6.8764]) 121.91028594970703
+evaluate_num:18 	 evaluate_reward:116.0 	 evaluate_cost:65.30348743126139 	 evaluate_max_cost:12.440958963816303
+ch, vs_mean, vl_pi, beta penalty= 1 5.637250900268555 tensor([5.7749]) 94.3724365234375
+ch, vs_mean, vl_pi, beta penalty= 1 6.5114312171936035 tensor([7.0592]) 126.47989654541016
+ch, vs_mean, vl_pi, beta penalty= 1 5.497146129608154 tensor([5.6015]) 90.0381088256836
+ch, vs_mean, vl_pi, beta penalty= 1 6.9349365234375 tensor([7.1536]) 128.8402862548828
+ch, vs_mean, vl_pi, beta penalty= 1 5.330011367797852 tensor([5.5595]) 88.98631286621094
+evaluate_num:19 	 evaluate_reward:116.66666666666667 	 evaluate_cost:63.508630462006785 	 evaluate_max_cost:12.453568649079497
+ch, vs_mean, vl_pi, beta penalty= 1 6.815930366516113 tensor([7.0802]) 127.00532531738281
+ch, vs_mean, vl_pi, beta penalty= 1 5.572079181671143 tensor([5.6874]) 92.18616485595703
+ch, vs_mean, vl_pi, beta penalty= 1 6.771109104156494 tensor([6.9041]) 122.602294921875
+ch, vs_mean, vl_pi, beta penalty= 1 5.409542560577393 tensor([5.6631]) 91.57762145996094
+ch, vs_mean, vl_pi, beta penalty= 1 6.791690826416016 tensor([6.9497]) 123.74339294433594
+ch, vs_mean, vl_pi, beta penalty= 1 5.287520408630371 tensor([5.6567]) 91.41754150390625
+evaluate_num:20 	 evaluate_reward:115.33333333333333 	 evaluate_cost:63.38710760613535 	 evaluate_max_cost:12.452113882452805
+ch, vs_mean, vl_pi, beta penalty= 1 6.476624488830566 tensor([6.8207]) 120.51793670654297
+ch, vs_mean, vl_pi, beta penalty= 1 5.462976455688477 tensor([5.7388]) 93.46965789794922
+ch, vs_mean, vl_pi, beta penalty= 1 6.573068618774414 tensor([6.9113]) 122.78215789794922
+ch, vs_mean, vl_pi, beta penalty= 1 5.559199333190918 tensor([5.7408]) 93.52085876464844
+ch, vs_mean, vl_pi, beta penalty= 1 6.526463031768799 tensor([6.7711]) 119.278564453125
+ch, vs_mean, vl_pi, beta penalty= 1 5.586834907531738 tensor([5.7371]) 93.42670440673828
+evaluate_num:21 	 evaluate_reward:112.66666666666667 	 evaluate_cost:61.62599386549534 	 evaluate_max_cost:12.415953748905805
+ch, vs_mean, vl_pi, beta penalty= 1 6.668400764465332 tensor([7.0003]) 125.00723266601562
+ch, vs_mean, vl_pi, beta penalty= 1 5.625142574310303 tensor([6.0345]) 100.86241912841797
+ch, vs_mean, vl_pi, beta penalty= 1 6.437902450561523 tensor([6.9950]) 124.87541198730469
+ch, vs_mean, vl_pi, beta penalty= 1 5.6538920402526855 tensor([5.7457]) 93.6430435180664
+ch, vs_mean, vl_pi, beta penalty= 1 6.522019863128662 tensor([6.8253]) 120.63272094726562
+evaluate_num:22 	 evaluate_reward:111.0 	 evaluate_cost:61.59170947743903 	 evaluate_max_cost:12.412857450710376
+ch, vs_mean, vl_pi, beta penalty= 1 5.567695617675781 tensor([5.6538]) 91.34404754638672
+ch, vs_mean, vl_pi, beta penalty= 1 6.771320819854736 tensor([6.9024]) 122.55956268310547
+ch, vs_mean, vl_pi, beta penalty= 1 5.589413642883301 tensor([5.7575]) 93.93753814697266
+ch, vs_mean, vl_pi, beta penalty= 1 6.628599643707275 tensor([6.9030]) 122.57624816894531
+ch, vs_mean, vl_pi, beta penalty= 1 5.506260395050049 tensor([5.8455]) 96.138427734375
+ch, vs_mean, vl_pi, beta penalty= 1 6.24971866607666 tensor([6.5893]) 114.7328109741211
+evaluate_num:23 	 evaluate_reward:109.66666666666667 	 evaluate_cost:60.80553325262283 	 evaluate_max_cost:12.452298186280649
+ch, vs_mean, vl_pi, beta penalty= 1 5.621315002441406 tensor([5.9280]) 98.20040130615234
+ch, vs_mean, vl_pi, beta penalty= 1 6.4907546043396 tensor([6.6208]) 115.52043151855469
+ch, vs_mean, vl_pi, beta penalty= 1 5.735024452209473 tensor([6.0412]) 101.02967834472656
+ch, vs_mean, vl_pi, beta penalty= 1 6.233556747436523 tensor([6.5471]) 113.67761993408203
+ch, vs_mean, vl_pi, beta penalty= 1 5.943670272827148 tensor([6.1271]) 103.1775131225586
+evaluate_num:24 	 evaluate_reward:113.0 	 evaluate_cost:60.33767637325724 	 evaluate_max_cost:12.43949679448047
+ch, vs_mean, vl_pi, beta penalty= 1 6.090783596038818 tensor([6.6169]) 115.4231185913086
+ch, vs_mean, vl_pi, beta penalty= 1 5.77239465713501 tensor([5.9456]) 98.63988494873047
+ch, vs_mean, vl_pi, beta penalty= 1 6.323049068450928 tensor([6.6698]) 116.7446517944336
+ch, vs_mean, vl_pi, beta penalty= 1 5.713305473327637 tensor([5.9189]) 97.97195434570312
+ch, vs_mean, vl_pi, beta penalty= 1 6.421110153198242 tensor([6.9070]) 122.67430877685547
+evaluate_num:25 	 evaluate_reward:111.66666666666667 	 evaluate_cost:59.05366721303196 	 evaluate_max_cost:12.448666569813327
+ch, vs_mean, vl_pi, beta penalty= 1 5.492888450622559 tensor([5.6685]) 91.71333312988281
+ch, vs_mean, vl_pi, beta penalty= 1 6.711984634399414 tensor([6.9447]) 123.617919921875
+ch, vs_mean, vl_pi, beta penalty= 1 5.4718017578125 tensor([5.6620]) 91.54998016357422
+ch, vs_mean, vl_pi, beta penalty= 1 6.541396141052246 tensor([7.0858]) 127.1462173461914
+ch, vs_mean, vl_pi, beta penalty= 1 5.325097560882568 tensor([5.5424]) 88.56053161621094
+ch, vs_mean, vl_pi, beta penalty= 1 6.907575607299805 tensor([7.1461]) 128.65170288085938
+evaluate_num:26 	 evaluate_reward:115.66666666666667 	 evaluate_cost:58.7232880331295 	 evaluate_max_cost:12.449436094335855
+ch, vs_mean, vl_pi, beta penalty= 1 5.24783992767334 tensor([5.5189]) 87.9729995727539
+ch, vs_mean, vl_pi, beta penalty= 1 7.040165901184082 tensor([7.1707]) 129.2681121826172
+ch, vs_mean, vl_pi, beta penalty= 1 5.392189979553223 tensor([5.5114]) 87.78425598144531
+ch, vs_mean, vl_pi, beta penalty= 1 6.939840316772461 tensor([7.1330]) 128.32569885253906
+ch, vs_mean, vl_pi, beta penalty= 1 5.425045013427734 tensor([5.5203]) 88.00692749023438
+evaluate_num:27 	 evaluate_reward:110.66666666666667 	 evaluate_cost:58.480420771838226 	 evaluate_max_cost:12.445227622920058
+ch, vs_mean, vl_pi, beta penalty= 1 6.684547424316406 tensor([7.3405]) 133.51161193847656
+ch, vs_mean, vl_pi, beta penalty= 1 5.274515151977539 tensor([5.6220]) 90.54891967773438
+ch, vs_mean, vl_pi, beta penalty= 1 6.604044437408447 tensor([6.9463]) 123.65711975097656
+ch, vs_mean, vl_pi, beta penalty= 1 5.390844345092773 tensor([5.5778]) 89.44538879394531
+ch, vs_mean, vl_pi, beta penalty= 1 6.841716289520264 tensor([7.0378]) 125.94416046142578
+evaluate_num:28 	 evaluate_reward:107.0 	 evaluate_cost:59.29479159605588 	 evaluate_max_cost:12.450183517844938
+ch, vs_mean, vl_pi, beta penalty= 1 5.452406406402588 tensor([5.6056]) 90.14051055908203
+ch, vs_mean, vl_pi, beta penalty= 1 6.865706920623779 tensor([6.9563]) 123.90852355957031
+ch, vs_mean, vl_pi, beta penalty= 1 5.436846733093262 tensor([5.6072]) 90.18098449707031
+ch, vs_mean, vl_pi, beta penalty= 1 6.786380767822266 tensor([6.9566]) 123.91532897949219
+ch, vs_mean, vl_pi, beta penalty= 1 5.57060432434082 tensor([5.6604]) 91.50981903076172
+ch, vs_mean, vl_pi, beta penalty= 1 6.642800331115723 tensor([6.9640]) 124.09971618652344
+evaluate_num:29 	 evaluate_reward:113.66666666666667 	 evaluate_cost:56.441478468179874 	 evaluate_max_cost:12.44682310757505
+ch, vs_mean, vl_pi, beta penalty= 1 5.279392242431641 tensor([5.5811]) 89.5272216796875
+ch, vs_mean, vl_pi, beta penalty= 1 6.498945236206055 tensor([6.7605]) 119.01249694824219
+ch, vs_mean, vl_pi, beta penalty= 1 5.574917793273926 tensor([5.7221]) 93.0537338256836
+ch, vs_mean, vl_pi, beta penalty= 1 6.655445575714111 tensor([6.8653]) 121.63156127929688
+ch, vs_mean, vl_pi, beta penalty= 1 5.315443515777588 tensor([5.7183]) 92.95697021484375
+evaluate_num:30 	 evaluate_reward:93.66666666666667 	 evaluate_cost:42.11722209764188 	 evaluate_max_cost:12.453104544475279
+ch, vs_mean, vl_pi, beta penalty= 1 6.41377067565918 tensor([6.8341]) 120.85164642333984
+ch, vs_mean, vl_pi, beta penalty= 1 4.891053199768066 tensor([5.5797]) 89.49241638183594
+ch, vs_mean, vl_pi, beta penalty= 1 6.442375659942627 tensor([7.1503]) 128.7578887939453
+ch, vs_mean, vl_pi, beta penalty= 1 4.60475492477417 tensor([5.4801]) 87.00203704833984
+evaluate_num:31 	 evaluate_reward:89.66666666666667 	 evaluate_cost:26.029748603801323 	 evaluate_max_cost:12.409889082212969
+ch, vs_mean, vl_pi, beta penalty= 1 5.789296627044678 tensor([7.5219]) 138.04873657226562
+ch, vs_mean, vl_pi, beta penalty= 1 4.17747688293457 tensor([4.9887]) 74.71852111816406
+ch, vs_mean, vl_pi, beta penalty= 1 5.780458450317383 tensor([7.2865]) 132.16134643554688
+ch, vs_mean, vl_pi, beta penalty= 1 4.505481243133545 tensor([5.3772]) 84.43008422851562
+evaluate_num:32 	 evaluate_reward:78.0 	 evaluate_cost:13.616596872456482 	 evaluate_max_cost:11.383545905590745
+ch, vs_mean, vl_pi, beta penalty= 1 5.898259162902832 tensor([7.4421]) 136.05128479003906
+ch, vs_mean, vl_pi, beta penalty= 1 3.8902273178100586 tensor([4.5105]) 62.76261901855469
+ch, vs_mean, vl_pi, beta penalty= 1 5.840372085571289 tensor([6.4221]) 110.55162048339844
+evaluate_num:33 	 evaluate_reward:68.33333333333333 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 4.200119495391846 tensor([4.4384]) 60.9593620300293
+ch, vs_mean, vl_pi, beta penalty= 1 5.935229301452637 tensor([6.2059]) 105.1467056274414
+ch, vs_mean, vl_pi, beta penalty= 1 4.109521865844727 tensor([4.3674]) 59.185516357421875
+ch, vs_mean, vl_pi, beta penalty= 1 5.670213222503662 tensor([5.9022]) 97.55618286132812
+evaluate_num:34 	 evaluate_reward:69.0 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 4.320775985717773 tensor([4.4847]) 62.11868667602539
+ch, vs_mean, vl_pi, beta penalty= 1 5.645370006561279 tensor([5.9166]) 97.91580200195312
+ch, vs_mean, vl_pi, beta penalty= 1 4.209993839263916 tensor([4.3676]) 59.19104766845703
+evaluate_num:35 	 evaluate_reward:68.66666666666667 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 5.735480785369873 tensor([5.9223]) 98.05793762207031
+ch, vs_mean, vl_pi, beta penalty= 1 4.184201240539551 tensor([4.3377]) 58.442474365234375
+ch, vs_mean, vl_pi, beta penalty= 1 5.871522903442383 tensor([5.9497]) 98.74176025390625
+evaluate_num:36 	 evaluate_reward:68.66666666666667 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 4.14630126953125 tensor([4.3081]) 57.70209884643555
+ch, vs_mean, vl_pi, beta penalty= 1 5.755928039550781 tensor([5.9616]) 99.03900909423828
+ch, vs_mean, vl_pi, beta penalty= 1 4.069611072540283 tensor([4.2939]) 57.348323822021484
+evaluate_num:37 	 evaluate_reward:65.66666666666667 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 5.7511115074157715 tensor([5.9951]) 99.87644958496094
+ch, vs_mean, vl_pi, beta penalty= 1 4.1415276527404785 tensor([4.3132]) 57.82902145385742
+ch, vs_mean, vl_pi, beta penalty= 1 5.778188705444336 tensor([6.1350]) 103.3748779296875
+evaluate_num:38 	 evaluate_reward:64.0 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 4.1004815101623535 tensor([4.3061]) 57.65190124511719
+ch, vs_mean, vl_pi, beta penalty= 1 5.793495178222656 tensor([5.9010]) 97.52540588378906
+ch, vs_mean, vl_pi, beta penalty= 1 4.202219009399414 tensor([4.3046]) 57.615234375
+ch, vs_mean, vl_pi, beta penalty= 1 5.7959208488464355 tensor([5.8904]) 97.26030731201172
+evaluate_num:39 	 evaluate_reward:62.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 4.12691068649292 tensor([4.2518]) 56.2938232421875
+ch, vs_mean, vl_pi, beta penalty= 1 5.761053562164307 tensor([5.8829]) 97.07234191894531
+ch, vs_mean, vl_pi, beta penalty= 1 4.160797595977783 tensor([4.2725]) 56.813419342041016
+evaluate_num:40 	 evaluate_reward:56.333333333333336 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 5.668540954589844 tensor([5.7891]) 94.72868347167969
+ch, vs_mean, vl_pi, beta penalty= 1 4.207247734069824 tensor([4.3236]) 58.088802337646484
+evaluate_num:41 	 evaluate_reward:57.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 5.756723403930664 tensor([5.8518]) 96.29537200927734
+ch, vs_mean, vl_pi, beta penalty= 1 4.1477742195129395 tensor([4.2842]) 57.104469299316406
+ch, vs_mean, vl_pi, beta penalty= 1 5.706082344055176 tensor([5.8694]) 96.73421478271484
+evaluate_num:42 	 evaluate_reward:58.0 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 4.187346935272217 tensor([4.3580]) 58.94932556152344
+ch, vs_mean, vl_pi, beta penalty= 1 5.557034969329834 tensor([5.6759]) 91.89859771728516
+ch, vs_mean, vl_pi, beta penalty= 1 4.400555610656738 tensor([4.4607]) 61.51714324951172
+evaluate_num:43 	 evaluate_reward:62.0 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 5.572238445281982 tensor([5.6630]) 91.57520294189453
+ch, vs_mean, vl_pi, beta penalty= 1 4.415802478790283 tensor([4.4792]) 61.979164123535156
+ch, vs_mean, vl_pi, beta penalty= 1 5.5388665199279785 tensor([5.6150]) 90.37600708007812
+evaluate_num:44 	 evaluate_reward:55.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 4.361026287078857 tensor([4.4838]) 62.09434127807617
+ch, vs_mean, vl_pi, beta penalty= 1 5.619126796722412 tensor([5.7105]) 92.76219940185547
+ch, vs_mean, vl_pi, beta penalty= 1 4.340961456298828 tensor([4.4170]) 60.425376892089844
+evaluate_num:45 	 evaluate_reward:55.333333333333336 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 5.473817825317383 tensor([5.5449]) 88.62207794189453
+ch, vs_mean, vl_pi, beta penalty= 1 4.446983814239502 tensor([4.5871]) 64.67845153808594
+evaluate_num:46 	 evaluate_reward:60.333333333333336 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 5.436280727386475 tensor([5.5175]) 87.9375
+ch, vs_mean, vl_pi, beta penalty= 1 4.549529075622559 tensor([4.6548]) 66.37103271484375
+ch, vs_mean, vl_pi, beta penalty= 1 5.416903018951416 tensor([5.4844]) 87.10954284667969
+evaluate_num:47 	 evaluate_reward:56.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 4.516439914703369 tensor([4.6683]) 66.7073974609375
+ch, vs_mean, vl_pi, beta penalty= 1 5.34334135055542 tensor([5.4862]) 87.15606689453125
+ch, vs_mean, vl_pi, beta penalty= 1 4.507722854614258 tensor([4.6582]) 66.45606994628906
+evaluate_num:48 	 evaluate_reward:56.0 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 5.238520622253418 tensor([5.3337]) 83.34343719482422
+ch, vs_mean, vl_pi, beta penalty= 1 4.6294145584106445 tensor([4.8143]) 70.35791778564453
+ch, vs_mean, vl_pi, beta penalty= 1 5.121679306030273 tensor([5.2455]) 81.13731384277344
+evaluate_num:49 	 evaluate_reward:56.666666666666664 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 4.835119247436523 tensor([4.9320]) 73.29936218261719
+ch, vs_mean, vl_pi, beta penalty= 1 4.985788345336914 tensor([5.0625]) 76.56353759765625
+evaluate_num:50 	 evaluate_reward:56.333333333333336 	 evaluate_cost:10.0 	 evaluate_max_cost:10.0
+ch, vs_mean, vl_pi, beta penalty= 1 4.893008708953857 tensor([4.9977]) 74.94288635253906
+ch, vs_mean, vl_pi, beta penalty= 1 4.9302873611450195 tensor([5.0546]) 76.36430358886719
+ch, vs_mean, vl_pi, beta penalty= 1 5.026844024658203 tensor([5.1152]) 77.8800277709961
