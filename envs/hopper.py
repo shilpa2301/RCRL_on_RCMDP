@@ -154,9 +154,7 @@ class HopperPerturbedEnv(MujocoEnv, EzPickle):
         observation = self._get_obs()
         reward = rewards - costs
         done = self.done
-        # cost  = 1
-        cost = 0.0
-        z, angle = self.data.qpos[1:3]
+        cost = compute_cost()
 
         # Add cost if the hopper falls below the height threshold
         if z < self._healthy_z_range[0]:
@@ -263,37 +261,71 @@ class HopperPerturbedEnv(MujocoEnv, EzPickle):
             else:
                 setattr(self.viewer.cam, key, value)
 
-    def compute_cost(self, z, angle):
-        """
-        Compute the cost based on the current state.
+    # def compute_cost(self, z, angle):
+    #     """
+    #     Compute the cost based on the current state.
 
-        Args:
-            z (float): The hopper's vertical height.
-            angle (float): The hopper's angle.
+    #     Args:
+    #         z (float): The hopper's vertical height.
+    #         angle (float): The hopper's angle.
 
-        Returns:
-            float: The computed cost.
-        """
-        # cost = 0.0
-        # z, angle = self.data.qpos[1:3]
-        cost = 0.0
+    #     Returns:
+    #         float: The computed cost.
+    #     """
+    #     # cost = 0.0
+    #     # z, angle = self.data.qpos[1:3]
+    #     cost = 0.0
 
-        # Add cost if the hopper falls below the height threshold
-        if z < self._healthy_z_range[0]:
-            cost += 1.0  # Cost for falling below height threshold
+    #     # Add cost if the hopper falls below the height threshold
+    #     if z < self._healthy_z_range[0]:
+    #         cost += 1.0  # Cost for falling below height threshold
 
-        # Add cost if the hopper exceeds the angle threshold
-        if abs(angle) > self._healthy_angle_range[1]:
-            cost += 0.01  # Cost for exceeding angle threshold
+    #     # Add cost if the hopper exceeds the angle threshold
+    #     if abs(angle) > self._healthy_angle_range[1]:
+    #         cost += 0.01  # Cost for exceeding angle threshold
 
-        # Add penalty if the hopper becomes unhealthy prematurely
-        done = not (self.is_healthy and self.steps < self.max_episode_steps)
-        if done:
-            cost += 20.0  # Penalty for premature termination
+    #     # Add penalty if the hopper becomes unhealthy prematurely
+    #     done = not (self.is_healthy and self.steps < self.max_episode_steps)
+    #     if done:
+    #         cost += 20.0  # Penalty for premature termination
 
-        # cost = 1.0
+    #     # cost = 1.0
 
-        return cost
+    #     return cost
+
+    def hopper_spike_like_cost(
+        obs: np.ndarray,
+        prev_obs: Optional[np.ndarray],
+        z_safe: float = 0.92,
+        z_fail: float = 0.72,
+        angle_safe: float = 0.11,
+        angle_fail: float = 0.20,
+        drop_safe: float = 0.010,
+        drop_fail: float = 0.050,
+    ) -> Dict[str, float]:
+        z = float(obs[0])
+        angle = abs(float(obs[1]))
+
+        c_low = max(0.0, (z_safe - z) / max(1e-6, (z_safe - z_fail)))
+        c_tilt = max(0.0, (angle - angle_safe) / max(1e-6, (angle_fail - angle_safe)))
+        collapse = min(1.0, max(c_low, c_tilt))
+
+        if prev_obs is None:
+            impact = 0.0
+        else:
+            prev_z = float(prev_obs[0])
+            dz_down = max(0.0, prev_z - z)
+            raw_drop = max(0.0, (dz_down - drop_safe) / max(1e-6, (drop_fail - drop_safe)))
+            gate = max(
+                0.0,
+                min(1.0, (z_safe - z) / max(1e-6, (z_safe - z_fail))),
+                min(1.0, (angle - angle_safe) / max(1e-6, (angle_fail - angle_safe))),
+            )
+            impact = min(1.0, raw_drop * (0.35 + 0.65 * gate))
+
+        total = min(1.0, max(collapse, impact))
+        return {"total": total, "collapse": collapse, "impact": impact}
+
 
     def simulate_next_state(self, state, action, info):
         """

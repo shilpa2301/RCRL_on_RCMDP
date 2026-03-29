@@ -5,13 +5,13 @@
             "name": "Python: RCRL (Conda Env)",
             "type": "python",
             "request": "launch",
-            "program": "/project/ag2682/sm3934/RCRL_on_RMDP/ipm_rcmdp_rcrl_trial.py",
+            "program": "/project/ag2682/sm3934/RCRL_on_RMDP/code_ipm_rcmdp_rcrl_max_hopper2.py",
             "args": [
-                "--run", "4",
+                "--run", "21",
                 "--seed", "2",
                 "--env", "HopperPerturbedEnv",
-                "--persistent_eps", "50.0",
-                "--beta", "1.0"
+                "--persistent_eps", "0.5",
+                "--beta", "25.0"
                 "--max_train_steps", "10000"
 
                 

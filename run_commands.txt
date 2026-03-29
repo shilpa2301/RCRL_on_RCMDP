@@ -4,8 +4,8 @@ scancel 888699
 sbatch cluster.sh 
 squeue -u sm3934
 
-python ipm_rcmdp_rcrl_trial.py --run 2 --seed 2 --env HopperPerturbedEnv --persistent_eps 2.0 --beta 5 --max_train_steps 10000 --batch_size 1024
+python code_ipm_rcmdp_rcrl_max_hopper.py --run 23 --seed 1 --env HopperPerturbedEnv --persistent_eps 2.0 --beta 5 --max_train_steps 10000 --batch_size 1024
 
-python ipm_rcmdp_rcrl_max.py --run 13 --seed 2 --env CartPoleCostEnv --persistent_eps 5.0 --beta 25.0 --max_train_steps 6000
+python code_ipm_rcmdp_rcrl_max.py --run 13 --seed 1 --env CartPoleCostEnv --persistent_eps 2.0 --beta 25.0 --max_train_steps 6000
 
 python code_ipm_rcmdp_rcrl_max.py --run 23 --seed 1 --env CartPolePerturbedEnv --persistent_eps 5.0 --beta 25.0 --max_train_steps 6000

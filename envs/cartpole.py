@@ -292,7 +292,7 @@ class CartPolePerturbedEnv(gym.Env):
 
         return self.state, reward, cost, done, info
 
-    def compute_cost_1(self, x, theta):
+    def compute_cost(self, x, theta):
         """
         Compute the cost based on the current state.
 
@@ -320,7 +320,7 @@ class CartPolePerturbedEnv(gym.Env):
 
         return cost
 
-    def compute_cost(self, x, theta):
+    def compute_cost_2(self, x, theta):
         """
         Compute the combined cost based on the cart's position and pole's angle.
 

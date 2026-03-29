@@ -532,10 +532,12 @@ class Robust_RCAC_NPG:
               reg_norm = torch.sqrt(torch.sum(torch.stack(weight_norm)) + torch.sum(torch.stack(bias_norm[0:-1])))
               deltas = (1-self.gamma)*c + self.gamma *self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_)) - vcs - self.alpha * a_logprob.sum(dim=1, keepdim=True) - self.weight_reg * reg_norm
               for delta, d in zip(reversed(deltas.flatten().numpy()), reversed(done.flatten().numpy())):
-                  gae = max(delta, gae * (1.0 - d))
-                  adv.insert(0, gae)
+                    #   gae = max(delta, gae * (1.0 - d))
+                    gae = delta +self.gamma * self.lamda * gae * (1.0 - d)
+                    adv.insert(0, gae)
               adv = torch.tensor(adv, dtype=torch.float).view(-1, 1)
-              v_target = adv  # + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
+              #v_target = adv  # + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
+              v_target = adv + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True) 
               if self.use_adv_norm:  # Trick 1:advantage normalization
                   adv = ((adv - adv.mean()) / (adv.std() + 1e-5))
               #shilpa
@@ -577,23 +579,26 @@ class Robust_RCAC_NPG:
                     torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
                 self.optimizer_actor.step()
 
-                v_s = self.Rcritic(s[index])
-                v_cs = self.Ccritic(s[index])
-                # Calculate the loss of critic
-                Rcritic_loss = F.mse_loss(v_target[index], v_s)
-                Ccritic_loss = F.mse_loss(v_target[index], v_cs)
-                # Update Reward critic
-                self.optimizer_Rcritic.zero_grad()
-                Rcritic_loss.backward()
-                if self.use_grad_clip:  # Trick 7: Gradient clip
-                    torch.nn.utils.clip_grad_norm_(self.Rcritic.parameters(), 0.5)
-                self.optimizer_Rcritic.step()
-                #Update Cost critic
-                self.optimizer_Ccritic.zero_grad()
-                Ccritic_loss.backward()
-                if self.use_grad_clip:  # Trick 7: Gradient clip
-                    torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.5)
-                self.optimizer_Ccritic.step()
+                if ch == 0:
+                    v_s = self.Rcritic(s[index])
+                    # Calculate the loss of critic
+                    Rcritic_loss = F.mse_loss(v_target[index], v_s)
+                    # Update Reward critic
+                    self.optimizer_Rcritic.zero_grad()
+                    Rcritic_loss.backward()
+                    if self.use_grad_clip:  # Trick 7: Gradient clip
+                        torch.nn.utils.clip_grad_norm_(self.Rcritic.parameters(), 0.5)
+                    self.optimizer_Rcritic.step()
+
+                else:
+                    v_cs = self.Ccritic(s[index])
+                    Ccritic_loss = F.mse_loss(v_target[index], v_cs)
+                    #Update Cost critic
+                    self.optimizer_Ccritic.zero_grad()
+                    Ccritic_loss.backward()
+                    if self.use_grad_clip:  # Trick 7: Gradient clip
+                        torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.5)
+                    self.optimizer_Ccritic.step()
 
         if self.use_lr_decay:  # Trick 6:learning rate Decay
             self.lr_decay(total_steps)

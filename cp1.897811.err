@@ -1,0 +1,7 @@
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+  0%|          | 0/5000 [00:00<?, ?it/s]/project/ag2682/sm3934/RCRL_on_RMDP/code_ipm_rcmdp_rcrl_max.py:710: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+  0%|          | 1/5000 [00:00<31:36,  2.64it/s]  0%|          | 2/5000 [00:00<29:37,  2.81it/s]  0%|          | 3/5000 [00:01<31:58,  2.60it/s]  0%|          | 4/5000 [00:01<30:42,  2.71it/s]  0%|          | 5/5000 [00:01<32:56,  2.53it/s]  0%|          | 6/5000 [00:02<30:45,  2.71it/s]  0%|          | 7/5000 [00:02<29:29,  2.82it/s][2026-03-29T12:50:35.024] error: *** JOB 897811 ON n0008 CANCELLED AT 2026-03-29T12:50:35 DUE to SIGNAL Terminated ***

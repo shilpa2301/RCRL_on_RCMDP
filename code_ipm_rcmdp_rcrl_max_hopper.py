@@ -21,7 +21,8 @@ from gym import utils
 from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
-from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
+# from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
+from envs.hopper_4 import HopperPerturbedEnv
 
 
 
@@ -162,7 +163,16 @@ class RunningMeanStd:
         self.std = np.sqrt(self.S)
 
     def update(self, x):
-        x = np.array(x)
+        # print("x=", x)
+        #cartpole
+        # x = np.array(x)
+
+        #hopper
+        if isinstance(x, tuple):
+            x = x[0]  # Extract the NumPy array from the tuple
+        # Convert to NumPy array
+        x = np.array(x, dtype=np.float64)
+
         self.n += 1
         if self.n == 1:
             self.mean = x
@@ -180,6 +190,12 @@ class Normalization:
 
     def __call__(self, x, update=True):
         # Whether to update the mean and std,during the evaluating,update=False
+        #hopper
+        # print(x)
+        if isinstance(x, tuple):
+            x = x[0]  # Extract the NumPy array from the tuple
+        # Convert to NumPy array
+        x = np.array(x, dtype=np.float64)
         if update:
             self.running_ms.update(x)
         x = (x - self.running_ms.mean) / (self.running_ms.std + 1e-8)
@@ -396,8 +412,8 @@ class Robust_RCAC_NPG:
                 dist = self.actor.get_dist(s)
                 a = dist.sample()
                 a_logprob = dist.log_prob(a)
-        # return a.numpy().flatten(), a_logprob.numpy().flatten()
-        return a.squeeze(0).numpy(), a_logprob.squeeze(0).numpy()
+        return a.numpy().flatten(), a_logprob.numpy().flatten()
+        # return a.squeeze(0).numpy(), a_logprob.squeeze(0).numpy()
 
 
   def lr_decay(self, total_steps):
@@ -537,6 +553,7 @@ class Robust_RCAC_NPG:
             with torch.no_grad():
                 # Compute robust value function and V_L^pi
                 # vl_pi = self.persistent_safety_function(trajectory, self.actor, self.Ccritic, self.gamma)
+                # print ("vcs.shape =", vcs.shape)
                 vl_pi = torch.max(vcs)
                 # penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
                 penalty_term = vl_pi - self.persistent_eps
@@ -604,23 +621,26 @@ class Robust_RCAC_NPG:
                     torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
                 self.optimizer_actor.step()
 
-                v_s = self.Rcritic(s[index])
-                v_cs = self.Ccritic(s[index])
-                # Calculate the loss of critic
-                Rcritic_loss = F.mse_loss(v_target[index], v_s)
-                Ccritic_loss = F.mse_loss(v_target[index], v_cs)
-                # Update Reward critic
-                self.optimizer_Rcritic.zero_grad()
-                Rcritic_loss.backward()
-                if self.use_grad_clip:  # Trick 7: Gradient clip
-                    torch.nn.utils.clip_grad_norm_(self.Rcritic.parameters(), 0.5)
-                self.optimizer_Rcritic.step()
-                #Update Cost critic
-                self.optimizer_Ccritic.zero_grad()
-                Ccritic_loss.backward()
-                if self.use_grad_clip:  # Trick 7: Gradient clip
-                    torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.5)
-                self.optimizer_Ccritic.step()
+                if ch == 0:
+                    v_s = self.Rcritic(s[index])
+                    # Calculate the loss of critic
+                    Rcritic_loss = F.mse_loss(v_target[index], v_s)
+                    # Update Reward critic
+                    self.optimizer_Rcritic.zero_grad()
+                    Rcritic_loss.backward()
+                    if self.use_grad_clip:  # Trick 7: Gradient clip
+                        torch.nn.utils.clip_grad_norm_(self.Rcritic.parameters(), 0.5)
+                    self.optimizer_Rcritic.step()
+
+                else:
+                    v_cs = self.Ccritic(s[index])
+                    Ccritic_loss = F.mse_loss(v_target[index], v_cs)
+                    #Update Cost critic
+                    self.optimizer_Ccritic.zero_grad()
+                    Ccritic_loss.backward()
+                    if self.use_grad_clip:  # Trick 7: Gradient clip
+                        torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.5)
+                    self.optimizer_Ccritic.step()
 
         if self.use_lr_decay:  # Trick 6:learning rate Decay
             self.lr_decay(total_steps)
@@ -640,6 +660,11 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     evaluate_max_cost = float('-inf')
     for _ in range(times):
         s = env.reset()
+        #hopper
+        if isinstance(s, tuple):
+            s = s[0]  # Extract the NumPy array from the tuple
+        # Convert to NumPy array
+        s = np.array(s, dtype=np.float64)
         if args.use_state_norm:
             s = state_norm(s, update=False)  # During the evaluating,update=False
         done = False
@@ -653,6 +678,11 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
             else:
                 action = a
             s_, r,c, done, _ = env.step(action)
+            #hopper
+            if isinstance(s, tuple):
+                s = s[0]  # Extract the NumPy array from the tuple
+            # Convert to NumPy array
+            s = np.array(s, dtype=np.float64)
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
 
@@ -705,6 +735,9 @@ def plot_metrics(episode_rewards, episode_costs, max_costs, save=False, filename
     # Plot total rewards
     plt.subplot(3, 1, 1)
     plt.plot(episode_rewards, label="Total Reward", color="blue")
+    plt.axhline(y=3000, color="orange", linestyle="--", label="Threshold: 3000")  # Dashed line at y=3000
+    plt.axhline(y=1000, color="magenta", linestyle="--", label="Threshold: 1000") 
+    plt.axhline(y=300, color="purple", linestyle="--", label="Threshold: 300")    # Dashed line at y=300
     plt.xlabel("Episode")
     plt.ylabel("Reward")
     plt.title("Total Reward per Episode")
@@ -752,10 +785,10 @@ def main(args, run_number):
         env = CartPoleCostEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = CartPoleCostEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = CartPoleCostEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == 'HopperPerturbed':
-        env = HopperPerturbed() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = HopperPerturbed() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = HopperPerturbed() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
+    elif args.env == 'HopperPerturbedEnv':
+        env = HopperPerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env_evaluate = HopperPerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = HopperPerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
     
     # Set random seed
     #env.reset(seed=seed)
@@ -820,6 +853,11 @@ def main(args, run_number):
         #if total_steps > args.max_train_steps // 2:
         #    agent.gamma = 0.999
         s = env.reset()
+        #hopper
+        if isinstance(s, tuple):
+            s = s[0]  # Extract the NumPy array from the tuple
+        # Convert to NumPy array
+        s = np.array(s, dtype=np.float64)
         # s_org = copy.deepcopy(s)
         if args.use_state_norm:
             s = state_norm(s)
@@ -884,6 +922,10 @@ def main(args, run_number):
                 total_cost += c
             else:
                 s_, r,c, done, info = env.step(action)
+                if isinstance(s, tuple):
+                    s = s[0]  # Extract the NumPy array from the tuple
+                # Convert to NumPy array
+                s = np.array(s, dtype=np.float64)
                 total_reward += r
                 total_cost += c
                 max_cost = max(max_cost, c)
@@ -973,7 +1015,7 @@ def main(args, run_number):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
-    parser.add_argument("--env", type=str, default='CartPolePerturbedEnv',help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv")
+    parser.add_argument("--env", type=str, default='CartPolePerturbedEnv',help="HopperPerturbedEnv/CartPolePerturbedEnv/CartPoleCostEnv")
     parser.add_argument("--uncer_set", type=str, default='IPM', help="DS/IPM")
     parser.add_argument("--next_steps", type=int, default=2, help="Number of next states")
     parser.add_argument("--random_steps", type=int, default=int(25e3), help="Uniformlly sample action within random steps")
@@ -1012,7 +1054,7 @@ if __name__ == '__main__':
     parser.add_argument("--beta",type=float,default=1.0,help="beta") 
     parser.add_argument("--run",type=int,default=1,help="run_number") 
     parser.add_argument("--warm_start_flag",type=int,default=0,help="warm_start_flag") 
-    parser.add_argument("--warm_start_episode",type=int,default=300,help="warm_start_episode") 
+    parser.add_argument("--warm_start_episode",type=int,default=1500,help="warm_start_episode") 
 
 
 
