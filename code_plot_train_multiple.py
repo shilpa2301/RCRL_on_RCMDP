@@ -6,7 +6,7 @@ def smooth(data, window_size):
     smoothed_data = np.convolve(data, np.ones(window_size) / window_size, mode='valid')
     return smoothed_data
 
-def plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=False, filename="aggregated_plot.png", smooth_window=10):
+def plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=False, base_filename="aggregated_plot", smooth_window=10):
     """
     Plot mean and standard deviation of rewards and max costs from multiple directories.
     
@@ -18,12 +18,14 @@ def plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=False, fi
         filename (str): Filename to save the plot as.
         smooth_window (int): Window size for smoothing.
     """
+    
     assert len(data_dirs) == len(labels) == len(num_runs_list), "data_dirs, labels, and num_runs_list must have the same length"
 
-    plt.figure(figsize=(12, 8))
+    plt.rcParams.update({'font.size': 85, 'lines.linewidth': 7})
+    fig_size = 28
 
     # Plot Rewards
-    plt.subplot(2, 1, 1)
+    plt.figure(figsize=(fig_size, fig_size))  # Square figure
     for data_dir, label, num_runs in zip(data_dirs, labels, num_runs_list):
         all_rewards = []
         min_length = float('inf')  # Track the shortest run length
@@ -48,18 +50,22 @@ def plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=False, fi
         # Adjust x-axis for the smoothed plots
         smoothed_x = range(len(smoothed_mean_rewards))
 
-        # Plot raw and smoothed rewards
-        # plt.plot(mean_rewards, label=f"{label} (Raw)", alpha=0.3)
+        # Plot smoothed rewards
         plt.plot(smoothed_x, smoothed_mean_rewards, label=f"{label}", linewidth=2)
         plt.fill_between(smoothed_x, smoothed_mean_rewards - smoothed_std_rewards, smoothed_mean_rewards + smoothed_std_rewards, alpha=0.2)
 
+    plt.axhline(y=0, color='gray', linestyle='--', linewidth=1)  # Optional: Add a baseline at y=0
     plt.xlabel("Episode")
     plt.ylabel("Reward")
-    plt.title("Mean and Smoothed Total Rewards")
-    plt.legend()
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15), ncol=len(labels))  # Legend above the plot
+    plt.grid(True)
+
+    if save:
+        plt.savefig(f"{base_filename}_rewards.png", bbox_inches='tight')
+    plt.close()
 
     # Plot Max Costs
-    plt.subplot(2, 1, 2)
+    plt.figure(figsize=(fig_size, fig_size))  # Square figure
     for data_dir, label, num_runs in zip(data_dirs, labels, num_runs_list):
         all_max_costs = []
         min_length = float('inf')  # Track the shortest run length
@@ -84,29 +90,54 @@ def plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=False, fi
         # Adjust x-axis for the smoothed plots
         smoothed_x = range(len(smoothed_mean_max_costs))
 
-        # Plot raw and smoothed max costs
-        # plt.plot(mean_max_costs, label=f"{label} (Raw)", alpha=0.3)
+        # Plot smoothed max costs
         plt.plot(smoothed_x, smoothed_mean_max_costs, label=f"{label}", linewidth=2)
         plt.fill_between(smoothed_x, smoothed_mean_max_costs - smoothed_std_max_costs, smoothed_mean_max_costs + smoothed_std_max_costs, alpha=0.2)
 
+    # Always plot the threshold line at y=2.0
+    plt.axhline(y=2.0, color='black', linestyle='--', label="Safety Relaxation")
+
     plt.xlabel("Episode")
     plt.ylabel("Max Cost")
-    plt.title("Mean and Smoothed Max Costs")
-    plt.legend()
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15), ncol=len(labels))  # Legend above the plot
+    plt.grid(True)
 
-    plt.tight_layout()
     if save:
-        plt.savefig(filename)
-    # plt.show()
+        plt.savefig(f"{base_filename}_max_costs.png", bbox_inches='tight')
     plt.close()
+    
 
 # Example usage
-data_dirs = [
-    "./plot_data/CartPoleCostEnv",
-    "./plot_data/CartPolePerturbedEnv",
-    "./plot_data/CartPoleCostEnv_PD"
-]
-labels = ["CartPoleCostEnv", "CartPolePerturbedEnv", "Vanilla_Primal_Dual"]
-num_runs_list = [2, 2, 3]
+# data_dirs = [
+#     "./plot_data/CartPoleCostEnv",
+#     "./plot_data/CartPolePerturbedEnv",
+#     "./plot_data/CartPoleCostEnv_PD"
+# ]
+# labels = ["CartPoleCostEnv", "CartPolePerturbedEnv", "Vanilla_Primal_Dual"]
+# num_runs_list = [2, 2, 3]
 
-plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=True, filename="train_plots/combined_plot_with_PD.png", smooth_window=80)
+# data_dirs = [
+#     "./plot_data/CartPoleCostEnv",
+#     # "./plot_data/CartPolePerturbedEnv",
+#     "./plot_data/CartPoleCostEnv_PD_RCRL"
+# ]
+# labels = ["Surrogate Obj", "PD (RCRL)"]
+# num_runs_list = [3, 2]
+
+# data_dirs = [
+#     # "./plot_data/CartPoleCostEnv",
+#     "./plot_data/CartPolePerturbedEnv",
+#     # "./plot_data/CartPoleCostEnv_PD_RCRL"
+# ]
+# labels = ["Ours"]
+# num_runs_list = [3]
+
+data_dirs = [
+    # "./plot_data/CartPoleCostEnv",
+    "./plot_data/CartPolePerturbedEnv_Cost3",
+    # "./plot_data/CartPoleCostEnv_PD_RCRL"
+]
+labels = ["Ours-C2"]
+num_runs_list = [3]
+
+plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=True, base_filename="train_plots/New_Ours_C2", smooth_window=80)

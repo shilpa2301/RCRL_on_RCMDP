@@ -369,7 +369,7 @@ class CartPolePerturbedEnv(gym.Env):
 
         return cost
 
-    def compute_cost(self, x, theta):
+    def compute_cost_2(self, x, theta):
         """
         Compute the combined cost based on the cart's position and pole's angle.
 
@@ -412,7 +412,54 @@ class CartPolePerturbedEnv(gym.Env):
 
 
         return cost
+        
+    def compute_cost(self, x, theta):
+        """
+        Compute the combined cost based on the cart's position and pole's angle.
 
+        Args:
+            x (float): The cart's position (distance from the center).
+            theta (float): The pole's angle (in radians).
+
+        Returns:
+            float: The computed combined cost.
+        """
+        # Define thresholds and warnings for position and angle
+        self.x_warning = 1.0  # Warning threshold for cart position
+        self.x_threshold = 2.4  # Termination threshold for cart position
+        self.theta_warning = 8 * np.pi / 180  # Warning threshold for pole angle (in radians)
+        self.theta_threshold_radians = 12 * np.pi / 180  # Termination threshold for pole angle (in radians)
+
+        # # Compute the peak margin cost
+        # peak_margin_cost = min(
+        #     1.0,
+        #     max(
+        #         max(0.0, (abs(x) - self.x_warning) / (self.x_threshold - self.x_warning)),
+        #         max(0.0, (abs(theta) - self.theta_warning) / (self.theta_threshold_radians - self.theta_warning))
+        #     ),
+        # )
+
+        cost = max(0.0, (abs(x) - self.x_warning) / (self.x_threshold - self.x_warning)) + max(0.0, (abs(theta) - self.theta_warning) / (self.theta_threshold_radians - self.theta_warning))
+            
+    
+
+        # if abs(theta) > self.theta_warning:
+            # cost = abs(theta)
+        # cost = max (0.0, (abs(theta) - self.theta_warning) / (self.theta_threshold_radians - self.theta_warning))
+        # else:
+            # cost = 0
+
+        # done = (
+        #     abs(x) > 2.4
+        #     or abs(theta) > 12 * np.pi / 180
+        #     or self.steps >= self.max_episode_steps
+        # )
+
+        # if done and self.steps < 450:
+        #     cost += 10.0   # penalty value (tunable)
+
+
+        return cost
 
     def simulate_next_state(self, state, action):
         """

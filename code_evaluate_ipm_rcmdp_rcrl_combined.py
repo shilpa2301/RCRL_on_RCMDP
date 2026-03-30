@@ -238,6 +238,7 @@ def plot_evaluation(data, labels, save=False, base_filename="evaluation_plot", s
     plt.xlabel("Episode")
     plt.ylabel("Cumulative Reward")
     # plt.title("Total Reward per Episode")
+    plt.title("Trained in Non-Perturbed Env")
     plt.legend()
     plt.grid(True)
 
@@ -246,7 +247,7 @@ def plot_evaluation(data, labels, save=False, base_filename="evaluation_plot", s
     plt.close()
 
     # Plot max costs
-    plt.figure(figsize=(fig_size, fig_size))  # Adjust aspect ratio for square plots
+    plt.figure(figsize=(fig_size+4, fig_size))  # Adjust aspect ratio for square plots
 
     # Determine the maximum y-value among all max_costs
     max_y_value = max(max(dataset['max_costs']) for dataset in data)
@@ -272,6 +273,9 @@ def plot_evaluation(data, labels, save=False, base_filename="evaluation_plot", s
 
     plt.xlabel("Episode")
     plt.ylabel("Peak Cost")
+    ax = plt.gca()  # Get the current axis
+    ax.yaxis.set_label_coords(-0.1, 0.5)  # Adjust the y-axis label position
+    # plt.title("Trained in Non-Perturbed Env")
     plt.legend()
     plt.grid(True)
 
@@ -364,16 +368,23 @@ if __name__ == "__main__":
     # ]
     # labels = ["CartPolePerturbedEnv", "CartPoleCostEnv"]
 
+    # directories = [
+    #     "./models/CartPoleCostEnv/run2/Best_RCAC",
+    #     "./models/CartPoleCostEnv_PD_RCRL/run2/Best_RCAC"
+    # ]
+    # labels = ["Surrogate Objective", "PrimalDual"]
+
     directories = [
-        "./models/CartPolePerturbedEnv/run5/Best_RCAC",
-        "./models/CartPoleCostEnv_PD_RCRL/run3/Best_RCAC"
+        "./models/CartPoleCostEnv/run2/Best_RCAC",
+        "./models/CartPoleCostEnv_PD_RCRL/run2/Best_RCAC",
+        "./models/CartPolePerturbedEnv/run3/Best_RCAC"
     ]
-    labels = ["Ours", "PrimalDual"]
+    labels = ["Surrogate Obj(NP)", "PD(NP)", "Ours(P)"]
 
 
     # Test agents from multiple directories
     results = test_multiple_dirs(args, env, directories, num_episodes=100)
 
     # Plot the evaluation results
-    plot_evaluation(results, labels, save=True, base_filename="plot_inference/comparison_PC", smooth_window=1)
+    plot_evaluation(results, labels, save=True, base_filename="plot_inference/New_comparison", smooth_window=10)
     # plot_evaluation(results, labels, save=True, base_filename="plot_inference/comparison_plot_fixed5", smooth_window=80)
