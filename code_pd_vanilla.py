@@ -875,7 +875,7 @@ if __name__ == '__main__':
     parser.add_argument("--seed", type=int, default=2, help="seed 2, 5, 7, 11, 17") 
     parser.add_argument("--GAMMA", type=str, default='0', help="file name")
     parser.add_argument("--baseline",type=int,default=9,help="baseline")
-    parser.add_argument("--lambda_",type=int,default=0.0,help="lambda")
+    parser.add_argument("--lambda_",type=int,default=25.0,help="lambda")
     parser.add_argument("--beta",type=float,default=1.0,help="beta") 
     parser.add_argument("--run",type=int,default=1,help="run_number") 
     parser.add_argument("--warm_start_flag",type=int,default=0,help="warm_start_flag") 

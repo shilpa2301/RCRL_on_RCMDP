@@ -885,7 +885,7 @@ if __name__ == '__main__':
     parser.add_argument("--run",type=int,default=1,help="run_number") 
     parser.add_argument("--warm_start_flag",type=int,default=0,help="warm_start_flag") 
     parser.add_argument("--warm_start_episode",type=int,default=300,help="warm_start_episode") 
-    parser.add_argument("--lr_lambda",type=int,default=0.0,help="warm_start_episode") 
+    parser.add_argument("--lr_lambda",type=int,default=1e-4 ,help="warm_start_episode") 
 
 
 

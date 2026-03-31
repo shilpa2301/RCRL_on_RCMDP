@@ -84,6 +84,7 @@ def test_agent(agent, env, num_episodes=100, state_norm=None):
                 action = 2 * (action - 0.5) * agent.max_action  # Map [0, 1] to [-max_action, max_action]
 
             # Step in the environment
+            # print("taking step")
             next_state, reward, cost, done, _ = env.step(action)
 
             if args.use_state_norm:
@@ -222,7 +223,7 @@ def plot_evaluation(data, labels, save=False, base_filename="evaluation_plot", s
 
     # Set global font size
     # plt.rcParams.update({'font.size': 25})
-    plt.rcParams.update({'font.size': 85, 'lines.linewidth': 7})
+    plt.rcParams.update({'font.size': 85, 'lines.linewidth': 15})
     fig_size = 28
 
     # Plot total rewards
@@ -234,7 +235,7 @@ def plot_evaluation(data, labels, save=False, base_filename="evaluation_plot", s
 
         # Plot smoothed rewards
         plt.plot(smoothed_x, smoothed_rewards, label=f"{label}")
-    plt.axhline(y=0, color='gray', linestyle='--', linewidth=1)  # Optional: Add a baseline at y=0
+    # plt.axhline(y=0, color='gray', linestyle='--', linewidth=1)  # Optional: Add a baseline at y=0
     plt.xlabel("Episode")
     plt.ylabel("Cumulative Reward")
     # plt.title("Total Reward per Episode")
@@ -269,7 +270,7 @@ def plot_evaluation(data, labels, save=False, base_filename="evaluation_plot", s
         plt.plot(smoothed_x, smoothed_max_costs, label=f"{label}")
 
     # Always plot the threshold line at y=2.0
-    plt.axhline(y=2.0, color='black', linestyle='--', label="Safety Relaxation")
+    plt.axhline(y=2.0, color='black', linestyle='--', label="Baseline")
 
     plt.xlabel("Episode")
     plt.ylabel("Peak Cost")
@@ -376,7 +377,7 @@ if __name__ == "__main__":
 
     directories = [
         "./models/CartPoleCostEnv/run2/Best_RCAC",
-        "./models/CartPoleCostEnv_PD_RCRL/run2/Best_RCAC",
+        "./models/CartPoleCostEnv_PD_RCRL/run3/Best_RCAC",
         "./models/CartPolePerturbedEnv/run3/Best_RCAC"
     ]
     labels = ["Surrogate Obj(NP)", "PD(NP)", "Ours(P)"]
@@ -386,5 +387,5 @@ if __name__ == "__main__":
     results = test_multiple_dirs(args, env, directories, num_episodes=100)
 
     # Plot the evaluation results
-    plot_evaluation(results, labels, save=True, base_filename="plot_inference/New_comparison", smooth_window=10)
+    plot_evaluation(results, labels, save=True, base_filename="plot_inference/New_comparison6", smooth_window=10)
     # plot_evaluation(results, labels, save=True, base_filename="plot_inference/comparison_plot_fixed5", smooth_window=80)

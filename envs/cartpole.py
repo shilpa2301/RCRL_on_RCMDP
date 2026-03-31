@@ -167,7 +167,7 @@ class CartPoleCostEnv(gym.Env):
         return torch.tensor(next_state, dtype=torch.float32)
 
 class CartPolePerturbedEnv(gym.Env):
-    def __init__(self):
+    def __init__(self, gravity_perturbation_std=0.5):
         # Observation: [cart position, cart velocity, pole angle, pole angular velocity]
         self.observation_space = spaces.Box(
             low=-np.inf,
@@ -197,7 +197,8 @@ class CartPolePerturbedEnv(gym.Env):
 
         # Perturbation parameters
         self.theta_perturbation_std = 0.05  # Noise for theta
-        self.gravity_perturbation_std = 0.5 #0.5 #0.5  # Noise for gravity
+        # self.gravity_perturbation_std = 6.0 # #0.5 #0.5  # Noise for gravity
+        self.gravity_perturbation_std = gravity_perturbation_std # #0.5 #0.5  # Noise for gravity
 
         self.state = None
         self.steps = 0
@@ -246,7 +247,8 @@ class CartPolePerturbedEnv(gym.Env):
 
         # Apply dynamic perturbations
         # theta += np.random.normal(0, self.theta_perturbation_std)  # Add noise to theta
-        self.gravity = self.default_gravity + np.random.normal(0, self.gravity_perturbation_std)  # Add noise to gravity
+        self.gravity = self.default_gravity + np.abs(np.random.normal(0, self.gravity_perturbation_std))  # Add noise to gravity
+        # print("perturbed gravity=", self.gravity)
 
         force = float(action)
 
