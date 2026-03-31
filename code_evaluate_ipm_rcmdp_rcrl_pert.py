@@ -152,158 +152,6 @@ def test_multiple_dirs(args, save_paths, gravity_perturbation_stds, num_episodes
     return results
 
 
-
-def plot_evaluation1(data, labels, save=False, base_filename="evaluation_plot", smooth_window=10):
-    """
-    Plot raw and smoothed evaluation metrics from multiple directories.
-
-    Args:
-        data: A list of dictionaries, each containing 'rewards', 'costs', and 'max_costs'.
-        labels: A list of labels corresponding to each dataset.
-        save: Whether to save the plots to files.
-        base_filename: Base file name to save the plots.
-        smooth_window: Window size for smoothing.
-    """
-    assert len(data) == len(labels), "Data and labels must have the same length"
-
-    # Set global font size
-    # plt.rcParams.update({'font.size': 25})
-    plt.rcParams.update({'font.size': 100, 'lines.linewidth': 15})
-    fig_size = 30
-
-    # Plot total rewards
-    plt.figure(figsize=(fig_size, fig_size))  # Adjust aspect ratio for square plots
-    for dataset, label in zip(data, labels):
-        rewards = np.array(dataset['rewards'])
-        smoothed_rewards = smooth(rewards, smooth_window)
-        smoothed_x = range(len(smoothed_rewards))
-
-        # Plot smoothed rewards
-        plt.plot(smoothed_x, smoothed_rewards, label=f"{label}")
-    # plt.axhline(y=0, color='gray', linestyle='--', linewidth=1)  # Optional: Add a baseline at y=0
-    plt.xlabel("Episode")
-    plt.ylabel("Cumulative Reward")
-    # plt.title("Total Reward per Episode")
-    plt.title("Trained in Non-Perturbed Env")
-    plt.legend()
-    plt.grid(True)
-
-    if save:
-        plt.savefig(f"{base_filename}_rewards.png")
-    plt.close()
-
-    # Plot max costs
-    plt.figure(figsize=(fig_size+4, fig_size))  # Adjust aspect ratio for square plots
-
-    # Determine the maximum y-value among all max_costs
-    max_y_value = max(max(dataset['max_costs']) for dataset in data)
-    y_limit = max(2.5, max_y_value * 1.1)  # Ensure y-limit is at least 2.5
-
-    # Set y-axis limits explicitly
-    plt.ylim(-1, y_limit)
-
-    # Add light red background above the threshold and light blue below
-    plt.axhspan(2.0, y_limit, color='red', alpha=0.1)
-    plt.axhspan(-1, 2.0, color='blue', alpha=0.1)
-
-    for dataset, label in zip(data, labels):
-        max_costs = np.array(dataset['max_costs'])
-        smoothed_max_costs = smooth(max_costs, smooth_window)
-        smoothed_x = range(len(smoothed_max_costs))
-
-        # Plot smoothed max costs
-        plt.plot(smoothed_x, smoothed_max_costs, label=f"{label}")
-
-    # Always plot the threshold line at y=2.0
-    plt.axhline(y=2.0, color='black', linestyle='--', label="Baseline")
-
-    plt.xlabel("Episode")
-    plt.ylabel("Peak Cost")
-    ax = plt.gca()  # Get the current axis
-    ax.yaxis.set_label_coords(-0.1, 0.5)  # Adjust the y-axis label position
-    # plt.title("Trained in Non-Perturbed Env")
-    plt.legend()
-    plt.grid(True)
-
-    if save:
-        plt.savefig(f"{base_filename}_max_costs.png")
-    plt.close()
-
-
-    # Plot total costs
-    plt.figure(figsize=(fig_size, fig_size))  # Adjust aspect ratio for square plots
-    for dataset, label in zip(data, labels):
-        costs = np.array(dataset['costs'])
-        smoothed_costs = smooth(costs, smooth_window)
-        smoothed_x = range(len(smoothed_costs))
-
-        # Plot smoothed total costs
-        plt.plot(smoothed_x, smoothed_costs, label=f"{label}")
-    plt.xlabel("Episode")
-    plt.ylabel("Cumulative Cost")
-    # plt.title("Total Cost per Episode")
-    plt.legend()
-    plt.grid(True)
-
-    if save:
-        plt.savefig(f"{base_filename}_total_costs.png")
-    plt.close()
-
-def plot_evaluation2(data, labels, save=False, base_filename="evaluation_plot", smooth_window=10):
-    plt.rcParams.update({'font.size': 85, 'lines.linewidth': 7})
-    fig_size = 28
-
-    # Plot total rewards
-    plt.figure(figsize=(fig_size, fig_size))
-    for dataset, label in zip(data, labels):
-        rewards = np.array(dataset['rewards'])
-        smoothed_rewards = smooth(rewards, smooth_window)
-        smoothed_x = range(len(smoothed_rewards))
-        plt.plot(smoothed_x, smoothed_rewards, label=f"{label}")
-    plt.xlabel("Episode")
-    plt.ylabel("Cumulative Reward")
-    plt.title("Cumulative Reward per Episode")
-    plt.legend()
-    plt.grid(True)
-
-    if save:
-        plt.savefig(f"{base_filename}_rewards.png")
-    plt.close()
-
-    # Plot max costs
-    plt.figure(figsize=(fig_size, fig_size))
-    for dataset, label in zip(data, labels):
-        max_costs = np.array(dataset['max_costs'])
-        smoothed_max_costs = smooth(max_costs, smooth_window)
-        smoothed_x = range(len(smoothed_max_costs))
-        plt.plot(smoothed_x, smoothed_max_costs, label=f"{label}")
-    plt.xlabel("Episode")
-    plt.ylabel("Max Cost")
-    plt.title("Max Cost per Episode")
-    plt.legend()
-    plt.grid(True)
-
-    if save:
-        plt.savefig(f"{base_filename}_max_costs.png")
-    plt.close()
-
-    # Plot total costs
-    plt.figure(figsize=(fig_size, fig_size))
-    for dataset, label in zip(data, labels):
-        costs = np.array(dataset['costs'])
-        smoothed_costs = smooth(costs, smooth_window)
-        smoothed_x = range(len(smoothed_costs))
-        plt.plot(smoothed_x, smoothed_costs, label=f"{label}")
-    plt.xlabel("Episode")
-    plt.ylabel("Cumulative Cost")
-    plt.title("Cumulative Cost per Episode")
-    plt.legend()
-    plt.grid(True)
-
-    if save:
-        plt.savefig(f"{base_filename}_total_costs.png")
-    plt.close()
-
 def plot_evaluation(results, save_paths, gravity_perturbation_stds, labels, save=False, base_filename="evaluation_plot", smooth_window=10):
     """
     Plot evaluation results for multiple models across gravity perturbation std values.
@@ -322,6 +170,7 @@ def plot_evaluation(results, save_paths, gravity_perturbation_stds, labels, save
 
     # Prepare legend elements
     legend_elements = []
+    legend_labels = []
 
     # Plot total rewards
     plt.figure(figsize=(fig_size, fig_size))
@@ -330,12 +179,12 @@ def plot_evaluation(results, save_paths, gravity_perturbation_stds, labels, save
             rewards = np.array(results[save_path][i]['rewards'])
             smoothed_rewards = smooth(rewards, smooth_window)
             smoothed_x = range(len(smoothed_rewards))
-            line, = plt.plot(smoothed_x, smoothed_rewards, label=f"{label} (std={std})")
+            line, = plt.plot(smoothed_x, smoothed_rewards)
             legend_elements.append(line)
+            legend_labels.append(f"{label} (std={std})")
     plt.xlabel("Episode")
     plt.ylabel("Cumulative Reward")
     plt.title("Cumulative Reward per Episode")
-    plt.legend()
     plt.grid(True)
 
     # Adjust y-axis ticks for better readability
@@ -346,8 +195,8 @@ def plot_evaluation(results, save_paths, gravity_perturbation_stds, labels, save
     plt.close()
 
     # Save horizontal and vertical legends for rewards plot
-    save_legend(legend_elements, labels, f"{base_filename}_rewards_legend_horizontal.png", horizontal=True)
-    save_legend(legend_elements, labels, f"{base_filename}_rewards_legend_vertical.png", horizontal=False)
+    save_legend(legend_elements, legend_labels, f"{base_filename}_rewards_legend_horizontal.png", horizontal=True)
+    save_legend(legend_elements, legend_labels, f"{base_filename}_rewards_legend_vertical.png", horizontal=False)
 
     # Plot max costs
     plt.figure(figsize=(fig_size, fig_size))
@@ -356,8 +205,9 @@ def plot_evaluation(results, save_paths, gravity_perturbation_stds, labels, save
             max_costs = np.array(results[save_path][i]['max_costs'])
             smoothed_max_costs = smooth(max_costs, smooth_window)
             smoothed_x = range(len(smoothed_max_costs))
-            line, = plt.plot(smoothed_x, smoothed_max_costs, label=f"{label} (std={std})")
+            line, = plt.plot(smoothed_x, smoothed_max_costs)
             legend_elements.append(line)
+            legend_labels.append(f"{label} (std={std})")
 
     # Add dashed baseline and shaded regions
     y_limit = plt.gca().get_ylim()[1]  # Get current y-axis upper limit
@@ -368,7 +218,6 @@ def plot_evaluation(results, save_paths, gravity_perturbation_stds, labels, save
     plt.xlabel("Episode")
     plt.ylabel("Max Cost")
     plt.title("Max Cost per Episode")
-    plt.legend()
     plt.grid(True)
 
     if save:
@@ -376,8 +225,8 @@ def plot_evaluation(results, save_paths, gravity_perturbation_stds, labels, save
     plt.close()
 
     # Save horizontal and vertical legends for max costs plot
-    save_legend(legend_elements, labels, f"{base_filename}_max_costs_legend_horizontal.png", horizontal=True)
-    save_legend(legend_elements, labels, f"{base_filename}_max_costs_legend_vertical.png", horizontal=False)
+    save_legend(legend_elements, legend_labels, f"{base_filename}_max_costs_legend_horizontal.png", horizontal=True)
+    save_legend(legend_elements, legend_labels, f"{base_filename}_max_costs_legend_vertical.png", horizontal=False)
 
     # Plot total costs
     plt.figure(figsize=(fig_size, fig_size))
@@ -386,12 +235,12 @@ def plot_evaluation(results, save_paths, gravity_perturbation_stds, labels, save
             costs = np.array(results[save_path][i]['costs'])
             smoothed_costs = smooth(costs, smooth_window)
             smoothed_x = range(len(smoothed_costs))
-            line, = plt.plot(smoothed_x, smoothed_costs, label=f"{label} (std={std})")
+            line, = plt.plot(smoothed_x, smoothed_costs)
             legend_elements.append(line)
+            legend_labels.append(f"{label} (std={std})")
     plt.xlabel("Episode")
     plt.ylabel("Cumulative Cost")
     plt.title("Cumulative Cost per Episode")
-    plt.legend()
     plt.grid(True)
 
     if save:
@@ -399,8 +248,8 @@ def plot_evaluation(results, save_paths, gravity_perturbation_stds, labels, save
     plt.close()
 
     # Save horizontal and vertical legends for total costs plot
-    save_legend(legend_elements, labels, f"{base_filename}_total_costs_legend_horizontal.png", horizontal=True)
-    save_legend(legend_elements, labels, f"{base_filename}_total_costs_legend_vertical.png", horizontal=False)
+    save_legend(legend_elements, legend_labels, f"{base_filename}_total_costs_legend_horizontal.png", horizontal=True)
+    save_legend(legend_elements, legend_labels, f"{base_filename}_total_costs_legend_vertical.png", horizontal=False)
 
 
 def save_legend(legend_elements, labels, filename, horizontal=True):
@@ -419,43 +268,6 @@ def save_legend(legend_elements, labels, filename, horizontal=True):
     legend = ax.legend(handles=legend_elements, labels=labels, loc='center', ncol=len(legend_elements) if horizontal else 1, frameon=False)
     plt.savefig(filename, bbox_inches="tight", pad_inches=0)
     plt.close()
-
-
-# Function to run the environment with different gravity perturbation std values
-def run_and_plot_comparison(args, save_path, gravity_perturbation_stds, num_episodes=100):
-    """
-    Run the CartPole environment with different gravity perturbation standard deviations
-    and plot the results for comparison.
-
-    Args:
-        args: Argument parser with required parameters.
-        save_path: Path to the saved agent.
-        gravity_perturbation_stds: List of gravity perturbation std values to test.
-        num_episodes: Number of episodes to test.
-    """
-    results = []
-    labels = []
-
-    for std in gravity_perturbation_stds:
-        print(f"Running simulation with gravity_perturbation_std = {std}")
-        
-        # Create a new environment instance with the specified gravity perturbation std
-        env = CartPolePerturbedEnv(gravity_perturbation_std=std)
-        env.reset(seed=args.seed)
-        env.action_space.seed(args.seed)
-
-        args.max_action = float(env.action_space.high[0])
-        args.state_dim = env.observation_space.shape[0]
-        args.action_dim = env.action_space.shape[0]
-        
-        agent, state_norm, reward_scaling = load_agent(args, save_path)
-        rewards, costs, max_costs = test_agent(agent, env, num_episodes, state_norm)
-        results.append({'rewards': rewards, 'costs': costs, 'max_costs': max_costs})
-        labels.append(f"Gravity Perturbation Std = {std}")
-
-    # Plot the evaluation results
-    plot_evaluation(results, labels, save=True, base_filename="plot_inference/gravity_comparison", smooth_window=10)
-
 
 
 if __name__ == "__main__":
