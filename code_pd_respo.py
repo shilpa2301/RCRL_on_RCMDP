@@ -353,7 +353,7 @@ class PrimalDual:
     self.max_train_steps = args.max_train_steps
     self.lr_a = args.lr_a  # Learning rate of actor
     self.lr_c = args.lr_c  # Learning rate of critic
-    self.lr_p = 0.5*self.lr_c
+    self.lr_p = 0.1*self.lr_c
     self.gamma = args.gamma  # Discount factor
     self.lamda = args.lamda  # GAE parameter
     self.epsilon = args.epsilon  # PPO clip parameter
@@ -486,6 +486,7 @@ class PrimalDual:
             # deltas_c = c + self.gamma * (1 - dw) * V_c_next - V_c_pred
             deltas_c = c + self.gamma * (1 - dw) * V_c_next - V_c_pred
             deltas_p = (1-self.gamma)* p + self.gamma*self.log_sum_exp_fn(p, (1 - dw) * V_p_next) - V_p_pred
+            # deltas_p = max(p, (1 - dw) * V_p_next) - V_p_pred
 
 
             for delta_r, delta_c, delta_p, d in zip(
@@ -939,7 +940,7 @@ if __name__ == '__main__':
     parser.add_argument("--mini_batch_size", type=int, default=64, help="Minibatch size")
     parser.add_argument("--hidden_width", type=int, default=64, help="The number of neurons in hidden layers of the neural network")
     parser.add_argument("--lr_a", type=float, default=3e-4, help="Learning rate of actor")
-    parser.add_argument("--lr_c", type=float, default=3e-4, help="Learning rate of critic")
+    parser.add_argument("--lr_c", type=float, default=1e-3, help="Learning rate of critic")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor 0.99")
 
         # Save the finmma", type=float, default=0.99, help="Discount factor 0.99")
@@ -967,7 +968,7 @@ if __name__ == '__main__':
     parser.add_argument("--run",type=int,default=1,help="run_number") 
     parser.add_argument("--warm_start_flag",type=int,default=0,help="warm_start_flag") 
     parser.add_argument("--warm_start_episode",type=int,default=400,help="warm_start_episode") 
-    parser.add_argument("--lr_lambda",type=int,default=5e-6 ,help="warm_start_episode") 
+    parser.add_argument("--lr_lambda",type=int,default=5e-5 ,help="warm_start_episode") 
 
 
 

@@ -793,7 +793,7 @@ def main(args, run_number):
                 replay_buffer.count = 0
 
         # Evaluate the policy every 'evaluate_freq' steps
-        if total_steps % args.evaluate_freq == 0:
+        if total_steps % args.evaluate_freq == 0 or total_steps>3950:
                 evaluate_num += 1
                 if not args.use_reward_scaling:
                     reward_scaling = None
@@ -814,10 +814,10 @@ def main(args, run_number):
                 np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy', np.array(evaluate_max_cost))
 
                 # Check if the current model satisfies the conditions for being the best
-                if evaluate_reward > best_reward and evaluate_max_cost <= args.persistent_eps:
+                if (evaluate_reward > best_reward and evaluate_max_cost <= args.persistent_eps) or total_steps>3950:
                     best_reward = evaluate_reward
-                    best_model_path = f"{model_dir}/Best_RCAC"
-                    print(f"New best model found! Saving model with reward: {evaluate_reward} and max cost: {evaluate_max_cost}")
+                    best_model_path = f"{model_dir}/RCAC_{total_steps}"
+                    print(f"New model found! Saving model with reward: {evaluate_reward} and max cost: {evaluate_max_cost}")
 
                     # Save the best model
                     if args.use_reward_scaling and args.use_state_norm:

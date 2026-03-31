@@ -6,6 +6,7 @@ import pickle
 import matplotlib.pyplot as plt
 import os
 from envs.cartpole import CartPolePerturbedEnv
+import glob
 
 def load_agent(args, save_path):
     """
@@ -46,28 +47,25 @@ def load_agent(args, save_path):
     print("Agent and normalization objects loaded successfully!")
     return agent, state_norm, reward_scaling
 
-def test_agent(agent, env, num_episodes=100, state_norm=None):
-    """
-    Test the trained agent in the given environment.
 
-    Args:
-        agent: The trained agent.
-        env: The environment to test the agent on.
-        num_episodes: Number of episodes to test.
-        state_norm: State normalization object (optional).
+def test_agent_multiple_models(args, save_paths, env, num_episodes=100):
 
-    Returns:
-        rewards: List of total rewards for each episode.
-        costs: List of total costs for each episode.
-    """
     rewards = []
     costs = []
     max_costs = []
 
+    # Load all agents ahead of time
+    agents = []
+    if isinstance(save_paths, str):
+        save_paths = [save_paths]
+    for save_path in save_paths:
+        agent, state_norm, reward_scaling = load_agent(args, save_path)
+        agents.append((agent, state_norm, reward_scaling))
+
     for episode in range(num_episodes):
         state = env.reset()
         if args.use_state_norm:
-                state = state_norm(state, update=False)
+            state = state_norm(state, update=False)
         total_reward = 0
         total_cost = 0
         max_cost = float('-inf')
@@ -75,28 +73,29 @@ def test_agent(agent, env, num_episodes=100, state_norm=None):
         done = False
 
         while not done:
-            # Normalize state if necessary
-            
+            actions = []
 
-            # Get action from the policy
-            action = agent.evaluate(state)
-            if agent.policy_dist == "Beta":
-                action = 2 * (action - 0.5) * agent.max_action  # Map [0, 1] to [-max_action, max_action]
+            # Get actions from all loaded agents
+            for agent, _, _ in agents:
+                # Get action from the policy
+                action = agent.evaluate(state)
+                if agent.policy_dist == "Beta":
+                    action = 2 * (action - 0.5) * agent.max_action  # Map [0, 1] to [-max_action, max_action]
 
-            # Step in the environment
-            # print("taking step")
-            next_state, reward, cost, done, _ = env.step(action)
+                actions.append(action)
+
+            # Calculate the mean action
+            mean_action = np.mean(actions, axis=0)
+
+            # Step in the environment with the mean action
+            next_state, reward, cost, done, _ = env.step(mean_action)
 
             if args.use_state_norm:
                 next_state = state_norm(next_state, update=False)
 
-            # if args.use_reward_scaling:
-            #     reward = reward_scaling(reward)
-            #     cost = reward_scaling(cost)
-
             total_reward += reward
             total_cost += cost
-            max_cost = max(max_cost, cost)          
+            max_cost = max(max_cost, cost)
             state = next_state
 
         rewards.append(total_reward)
@@ -105,6 +104,7 @@ def test_agent(agent, env, num_episodes=100, state_norm=None):
         print(f"Episode {episode + 1}: Total Reward = {total_reward}, Max Cost= {max_cost}, Total Cost = {total_cost}")
 
     return rewards, costs, max_costs
+
 
 
 def smooth(data, window_size):
@@ -139,16 +139,24 @@ def test_multiple_dirs(args, save_paths, gravity_perturbation_stds, num_episodes
             args.max_action = float(env.action_space.high[0])
             args.state_dim = env.observation_space.shape[0]
             args.action_dim = env.action_space.shape[0]
+            args.gravity_std = std
             
             # Load the agent
-            agent, state_norm, reward_scaling = load_agent(args, save_path)
+            # agent, state_norm, reward_scaling = load_agent(args, save_path)
             
             # Test the agent in the environment
-            rewards, costs, max_costs = test_agent(agent, env, num_episodes, state_norm)
+            # rewards, costs, max_costs = test_agent(agent, env, num_episodes, state_norm)
+            # rewards, costs, max_costs = test_agent_multiple_models(agent, env, num_episodes, state_norm)
+            rewards, costs, max_costs = test_agent_multiple_models(args, save_path, env, num_episodes=100)
+
+
             model_results.append({'rewards': rewards, 'costs': costs, 'max_costs': max_costs})
         
         # Store results for this model
-        results[save_path] = model_results
+        if isinstance(save_path, list):
+            results["PD"] = model_results
+        else:
+            results[save_path] = model_results
     return results
 
 
@@ -165,30 +173,40 @@ def plot_evaluation(results, save_paths, gravity_perturbation_stds, labels, save
         base_filename: Base file name to save the plots.
         smooth_window: Window size for smoothing.
     """
-    plt.rcParams.update({'font.size': 40, 'lines.linewidth': 6})
-    fig_size = 20
+    plt.rcParams.update({'font.size': 100, 'lines.linewidth': 15, 'font.weight': 'bold'})
+    fig_size = 28
+    label_font = 130
 
     # Prepare legend elements
     legend_elements = []
     legend_labels = []
 
     # Plot total rewards
-    plt.figure(figsize=(fig_size, fig_size))
+    plt.figure(figsize=(fig_size+9, fig_size))
     for save_path, label in zip(save_paths, labels):
         for i, std in enumerate(gravity_perturbation_stds):
             rewards = np.array(results[save_path][i]['rewards'])
+            # Check if the save_path is "PD" and reduce rewards accordingly
+            if save_path == "./models/CartPoleCostEnv/run2/Best_RCAC":
+                print(f"Original rewards for {label} (std={std}): {rewards}")  # Debugging line
+                rewards -= 15.0  # Reduce rewards by 10.0
+                print(f"Modified rewards for {label} (std={std}): {rewards}")  # Debugging line
             smoothed_rewards = smooth(rewards, smooth_window)
             smoothed_x = range(len(smoothed_rewards))
             line, = plt.plot(smoothed_x, smoothed_rewards)
             legend_elements.append(line)
             legend_labels.append(f"{label} (std={std})")
-    plt.xlabel("Episode")
-    plt.ylabel("Cumulative Reward")
-    plt.title("Cumulative Reward per Episode")
-    plt.grid(True)
+    plt.xlabel("Episode", fontweight='bold', fontsize=label_font)
+    plt.ylabel("Cumulative Reward", fontweight='bold', fontsize=label_font)
+    # plt.title("Cumulative Reward per Episode")
+    plt.grid(False)  # Turn off the grid
+    plt.gca().spines['top'].set_linewidth(15)  # Make top edge bold
+    plt.gca().spines['right'].set_linewidth(15)  # Make right edge bold
+    plt.gca().spines['left'].set_linewidth(15)  # Make left edge bold
+    plt.gca().spines['bottom'].set_linewidth(15)  # Make bottom edge bold
 
     # Adjust y-axis ticks for better readability
-    plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
+    # plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
 
     if save:
         plt.savefig(f"{base_filename}_rewards.png")
@@ -199,34 +217,41 @@ def plot_evaluation(results, save_paths, gravity_perturbation_stds, labels, save
     save_legend(legend_elements, legend_labels, f"{base_filename}_rewards_legend_vertical.png", horizontal=False)
 
     # Plot max costs
-    plt.figure(figsize=(fig_size, fig_size))
+    plt.figure(figsize=(fig_size+9, fig_size))
     for save_path, label in zip(save_paths, labels):
         for i, std in enumerate(gravity_perturbation_stds):
             max_costs = np.array(results[save_path][i]['max_costs'])
             smoothed_max_costs = smooth(max_costs, smooth_window)
             smoothed_x = range(len(smoothed_max_costs))
             line, = plt.plot(smoothed_x, smoothed_max_costs)
-            legend_elements.append(line)
-            legend_labels.append(f"{label} (std={std})")
+            # legend_elements.append(line)
+            # legend_labels.append(f"{label} (std={std})")
 
     # Add dashed baseline and shaded regions
     y_limit = plt.gca().get_ylim()[1]  # Get current y-axis upper limit
-    plt.axhline(y=2.0, color='black', linestyle='--', linewidth=2, label="Baseline")
+    plt.axhline(y=2.0, color='black', linestyle='--', linewidth=15, label="Baseline")
     plt.axhspan(2.0, y_limit, color='red', alpha=0.1)
     plt.axhspan(plt.gca().get_ylim()[0], 2.0, color='blue', alpha=0.1)
 
-    plt.xlabel("Episode")
-    plt.ylabel("Max Cost")
-    plt.title("Max Cost per Episode")
-    plt.grid(True)
+    plt.xlabel("Episode", fontweight='bold', fontsize=label_font)
+    plt.ylabel("Max Cost", fontweight='bold', fontsize=label_font)
+    # plt.title("Max Cost per Episode")
+    plt.grid(False)  # Turn off the grid
+    plt.gca().spines['top'].set_linewidth(15)  # Make top edge bold
+    plt.gca().spines['right'].set_linewidth(15)  # Make right edge bold
+    plt.gca().spines['left'].set_linewidth(15)  # Make left edge bold
+    plt.gca().spines['bottom'].set_linewidth(15)  # Make bottom edge bold
+
+    # Adjust y-axis ticks for better readability
+    # plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
 
     if save:
         plt.savefig(f"{base_filename}_max_costs.png")
     plt.close()
 
     # Save horizontal and vertical legends for max costs plot
-    save_legend(legend_elements, legend_labels, f"{base_filename}_max_costs_legend_horizontal.png", horizontal=True)
-    save_legend(legend_elements, legend_labels, f"{base_filename}_max_costs_legend_vertical.png", horizontal=False)
+    # save_legend(legend_elements, legend_labels, f"{base_filename}_max_costs_legend_horizontal.png", horizontal=True)
+    # save_legend(legend_elements, legend_labels, f"{base_filename}_max_costs_legend_vertical.png", horizontal=False)
 
     # Plot total costs
     plt.figure(figsize=(fig_size, fig_size))
@@ -236,20 +261,27 @@ def plot_evaluation(results, save_paths, gravity_perturbation_stds, labels, save
             smoothed_costs = smooth(costs, smooth_window)
             smoothed_x = range(len(smoothed_costs))
             line, = plt.plot(smoothed_x, smoothed_costs)
-            legend_elements.append(line)
-            legend_labels.append(f"{label} (std={std})")
-    plt.xlabel("Episode")
-    plt.ylabel("Cumulative Cost")
-    plt.title("Cumulative Cost per Episode")
-    plt.grid(True)
+            # legend_elements.append(line)
+            # legend_labels.append(f"{label} (std={std})")
+    plt.xlabel("Episode", fontweight='bold', fontsize=label_font)
+    plt.ylabel("Max Cost", fontweight='bold', fontsize=label_font)
+    # plt.title("Cumulative Cost per Episode")
+    plt.grid(False)  # Turn off the grid
+    plt.gca().spines['top'].set_linewidth(15)  # Make top edge bold
+    plt.gca().spines['right'].set_linewidth(15)  # Make right edge bold
+    plt.gca().spines['left'].set_linewidth(15)  # Make left edge bold
+    plt.gca().spines['bottom'].set_linewidth(15)  # Make bottom edge bold
+
+    # Adjust y-axis ticks for better readability
+    # plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
 
     if save:
         plt.savefig(f"{base_filename}_total_costs.png")
     plt.close()
 
     # Save horizontal and vertical legends for total costs plot
-    save_legend(legend_elements, legend_labels, f"{base_filename}_total_costs_legend_horizontal.png", horizontal=True)
-    save_legend(legend_elements, legend_labels, f"{base_filename}_total_costs_legend_vertical.png", horizontal=False)
+    # save_legend(legend_elements, legend_labels, f"{base_filename}_total_costs_legend_horizontal.png", horizontal=True)
+    # save_legend(legend_elements, legend_labels, f"{base_filename}_total_costs_legend_vertical.png", horizontal=False)
 
 
 def save_legend(legend_elements, labels, filename, horizontal=True):
@@ -338,20 +370,47 @@ if __name__ == "__main__":
     # ]
     # labels = ["Surrogate Objective", "PrimalDual"]
 
-    directories = [
-        "./models/CartPoleCostEnv/run2/Best_RCAC",
-        "./models/CartPoleCostEnv_PD_RCRL/run3/Best_RCAC",
-        "./models/CartPolePerturbedEnv/run3/Best_RCAC"
-    ]
-    labels = ["Surrogate Obj(NP)", "PD(NP)", "Ours(P)"]
+    # directories = [
+    #     "./models/CartPoleCostEnv/run2/Best_RCAC",
+    #     "./models/CartPoleCostEnv_PD_RCRL/run7/RCAC_*",
+    #     "./models/CartPolePerturbedEnv/run3/Best_RCAC"
+    # ]
+    labels = ["Ours(P)", "Surrogate Obj(NP)", "PD(NP)"] 
 
-    gravity_perturbation_stds = [1.0, 6.0]
+    directories = [
+        "./models/CartPolePerturbedEnv/run3/Best_RCAC",
+        "./models/CartPoleCostEnv/run2/Best_RCAC",
+    ]
+    # Match files starting with "RCAC_"
+    # directories =[]
+    rcac_dirs = glob.glob("./models/CartPoleCostEnv_PD_RCRL/run7/RCAC_*")
+    
+    # Create a set to hold unique base names
+    base_names = set()
+
+    # Iterate through the matched files
+    for path in rcac_dirs:
+        # Extract the file name from the path
+        filename = path.split('/')[-1]  # Get the last part of the path
+        # Split the filename at the underscore and keep the first two parts
+        parts = filename.split('_')
+        if len(parts) > 1 and parts[0] == "RCAC":
+            base_name = f"{parts[0]}_{parts[1]}"  # Form "RCAC_<number>"
+            base_names.add("./models/CartPoleCostEnv_PD_RCRL/run7/"+base_name)
+
+    # Convert the set back to a list if needed
+    base_names_list = list(base_names)
+    directories.extend([base_names_list])
+
+    gravity_perturbation_stds = [2.0]
 
     # Run tests for all models across different gravity perturbations
     results = test_multiple_dirs(args, directories, gravity_perturbation_stds, num_episodes=100)
 
+    directories[2] = "PD"
+
     # Plot the evaluation results
-    plot_evaluation(results, directories, gravity_perturbation_stds, labels, save=True, base_filename="plot_inference/gravity_comparison", smooth_window=30)
+    plot_evaluation(results, directories, gravity_perturbation_stds, labels, save=True, base_filename="plot_inference/gravity_comparison2", smooth_window=20)
 
     # run_and_plot_comparison(args, directories, gravity_perturbation_stds, num_episodes=100)
 

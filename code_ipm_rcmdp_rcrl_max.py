@@ -309,7 +309,7 @@ class ReplayBuffer:
 class Robust_RCAC_NPG:
   def __init__(self,args):
     if args.env == 'CartPolePerturbedEnv':
-        self.env = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
+        self.env = CartPolePerturbedEnv(args.gravity_std) #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
     elif args.env == 'CartPoleCostEnv':
         self.env = CartPoleCostEnv()
     if args.env == 'HopperPerturbedEnv':
@@ -723,7 +723,7 @@ def main(args, run_number):
     os.makedirs(plot_data_dir, exist_ok=True)
 
     if args.env == 'CartPolePerturbedEnv':
-        env = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env = CartPolePerturbedEnv(args.gravity_std) #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
     elif args.env == 'CartPoleCostEnv':
@@ -991,6 +991,8 @@ if __name__ == '__main__':
     parser.add_argument("--run",type=int,default=1,help="run_number") 
     parser.add_argument("--warm_start_flag",type=int,default=0,help="warm_start_flag") 
     parser.add_argument("--warm_start_episode",type=int,default=300,help="warm_start_episode") 
+    parser.add_argument("--gravity_std",type=float,default=0.5,help="gravity perturbation") 
+
 
 
 

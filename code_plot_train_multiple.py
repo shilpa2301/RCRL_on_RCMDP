@@ -21,11 +21,12 @@ def plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=False, ba
     
     assert len(data_dirs) == len(labels) == len(num_runs_list), "data_dirs, labels, and num_runs_list must have the same length"
 
-    plt.rcParams.update({'font.size': 85, 'lines.linewidth': 15})
+    plt.rcParams.update({'font.size': 100, 'lines.linewidth': 15, 'font.weight': 'bold'})
     fig_size = 28
+    label_font = 130
 
     # Plot Rewards
-    plt.figure(figsize=(fig_size, fig_size))  # Square figure
+    plt.figure(figsize=(fig_size+8, fig_size))  # Square figure
     for data_dir, label, num_runs in zip(data_dirs, labels, num_runs_list):
         all_rewards = []
         min_length = float('inf')  # Track the shortest run length
@@ -36,8 +37,6 @@ def plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=False, ba
             all_rewards.append(rewards)
             min_length = min(min_length, len(rewards))  # Update the shortest length
 
-        # Truncate all arrays to the shortest length
-        # all_rewards = np.array([r[:min_length] for r in all_rewards])
         all_rewards = np.array([r[:3700] for r in all_rewards])
 
         # Compute mean and std deviation
@@ -55,30 +54,26 @@ def plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=False, ba
         plt.plot(smoothed_x, smoothed_mean_rewards, label=f"{label}")
         plt.fill_between(smoothed_x, smoothed_mean_rewards - smoothed_std_rewards, smoothed_mean_rewards + smoothed_std_rewards, alpha=0.2)
 
-    # plt.axhline(y=0, color='gray', linestyle='--', linewidth=1)  # Optional: Add a baseline at y=0
-    plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15), ncol=len(labels))  # Legend above the plot
-    plt.grid(True)
+    plt.xlabel("Episode" , fontweight='bold', fontsize=label_font)
+    plt.ylabel("Reward",  fontweight='bold', fontsize=label_font )
+    # plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.25), ncol=len(labels))  # Legend above the plot
+    plt.legend(loc='upper left', bbox_to_anchor=(-0.25, 1.25), ncol=2, frameon=False)  # Adjusted position
+    # plt.tight_layout()  
+
+    # Remove grid
+    # plt.grid(True)
+
+    # Set bold outer boundary
+    for spine in plt.gca().spines.values():
+        spine.set_linewidth(15)
 
     if save:
         plt.savefig(f"{base_filename}_rewards.png", bbox_inches='tight')
     plt.close()
 
     # Plot Max Costs
-    plt.figure(figsize=(fig_size, fig_size))  # Square figure
+    plt.figure(figsize=(fig_size+8, fig_size))  # Square figure
 
-    # Determine the maximum y-value among all max_costs
-    # max_y_value = max(max(dataset['max_costs']) for dataset in data)
-    # y_limit = max(2.5, max_y_value * 1.1)  # Ensure y-limit is at least 2.5
-    # # Set y-axis limits explicitly
-    # plt.ylim(-1, y_limit)
-
-    # Add light red background above the threshold and light blue below
-    # plt.axhspan(2.0, y_limit, color='red', alpha=0.1)
-    # plt.axhspan(-1, 2.0, color='blue', alpha=0.1)
-
-    # Add light red background above the threshold and light blue below
     plt.axhspan(2.0, 12.5, color='red', alpha=0.1)  # Red region above y=2.0
     plt.axhspan(-1, 2.0, color='blue', alpha=0.1)  # Blue region below y=2.0
 
@@ -92,8 +87,6 @@ def plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=False, ba
             all_max_costs.append(max_costs)
             min_length = min(min_length, len(max_costs))  # Update the shortest length
 
-        # Truncate all arrays to the shortest length
-        # all_max_costs = np.array([c[:min_length] for c in all_max_costs])
         all_max_costs = np.array([c[:3700] for c in all_max_costs])
 
         # Compute mean and std deviation
@@ -114,10 +107,17 @@ def plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=False, ba
     # Always plot the threshold line at y=2.0
     plt.axhline(y=2.0, color='black', linestyle='--', label="Baseline")
 
-    plt.xlabel("Episode")
-    plt.ylabel("Max Cost")
-    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.15), ncol=len(labels))  # Legend above the plot
-    plt.grid(True)
+    plt.xlabel("Episode",  fontweight='bold', fontsize=label_font)
+    plt.ylabel("Max Cost", fontweight='bold', fontsize=label_font)
+    # plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.25), ncol=len(labels))  # Legend above the plot
+    plt.legend(loc='upper left', bbox_to_anchor=(-0.25, 1.25), ncol=2, frameon=False)  # Adjusted position
+    # plt.tight_layout()  
+    # Remove grid
+    # plt.grid(True)
+
+    # Set bold outer boundary
+    for spine in plt.gca().spines.values():
+        spine.set_linewidth(15)
 
     if save:
         plt.savefig(f"{base_filename}_max_costs.png", bbox_inches='tight')
@@ -133,21 +133,21 @@ def plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=False, ba
 # labels = ["CartPoleCostEnv", "CartPolePerturbedEnv", "Vanilla_Primal_Dual"]
 # num_runs_list = [2, 2, 3]
 
-# data_dirs = [
-#     "./plot_data/CartPoleCostEnv",
-#     "./plot_data/CartPoleCostEnv_PD_RCRL",
-#     "./plot_data/CartPolePerturbedEnv"
-# ]
-# labels = ["Surrogate Obj", "PD" , "Ours"]
-# num_runs_list = [3, 3, 3]
-
 data_dirs = [
-    # "./plot_data/CartPoleCostEnv",
-    "./plot_data/CartPolePerturbedEnv",
-    # "./plot_data/CartPoleCostEnv_PD_RCRL"
+    "./plot_data/CartPoleCostEnv",
+    "./plot_data/CartPoleCostEnv_PD_RCRL",
+    "./plot_data/CartPolePerturbedEnv"
 ]
-labels = ["Ours"]
-num_runs_list = [3]
+labels = ["Surrogate Obj", "PD" , "Ours"]
+num_runs_list = [3, 3, 3]
+
+# data_dirs = [
+#     # "./plot_data/CartPoleCostEnv",
+#     "./plot_data/CartPolePerturbedEnv",
+#     # "./plot_data/CartPoleCostEnv_PD_RCRL"
+# ]
+# labels = ["Ours"]
+# num_runs_list = [3]
 
 # data_dirs = [
 #     # "./plot_data/CartPoleCostEnv",
@@ -157,7 +157,7 @@ num_runs_list = [3]
 # labels = ["Ours-C2"]
 # num_runs_list = [3]
 
-# plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=True, base_filename="train_plots/New_Ours_C2", smooth_window=80)
-plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=True, base_filename="train_plots/New_PD", smooth_window=80)
+# plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=True, base_filename="train_plots/New_Ours2_C2", smooth_window=80)
+plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=True, base_filename="train_plots/New_PD2", smooth_window=80)
 # plot_mean_std_multiple_dirs(data_dirs, labels, num_runs_list, save=True, base_filename="train_plots/New_Ours", smooth_window=80)
 #
