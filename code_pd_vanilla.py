@@ -22,6 +22,7 @@ from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
 from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
+from envs.pendulum_v1 import PendulumEnv
 
 
 
@@ -312,8 +313,10 @@ class PrimalDual:
         self.env = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
     elif args.env == 'CartPoleCostEnv':
         self.env = CartPoleCostEnv()
-    if args.env == 'HopperPerturbedEnv':
+    elif args.env == 'HopperPerturbedEnv':
         self.env = HopperPerturbedEnv()
+    elif args.env == "PendulumEnv":
+        self.env = PendulumEnv()
     else:
         print("No env selected")
     #self.env.seed(args.seed)
@@ -621,7 +624,10 @@ def main(args, run_number):
         env = HopperPerturbed() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = HopperPerturbed() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = HopperPerturbed() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    
+    elif args.env == 'PendulumEnv':
+        env = PendulumEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env_evaluate = PendulumEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = PendulumEnv()
     # Set random seed
     #env.reset(seed=seed)
     #env.seed(seed)
@@ -840,7 +846,7 @@ def main(args, run_number):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
-    parser.add_argument("--env", type=str, default='CartPoleCostEnv',help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv")
+    parser.add_argument("--env", type=str, default='PendulumEnv',help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv")
     parser.add_argument("--uncer_set", type=str, default='IPM', help="DS/IPM")
     parser.add_argument("--next_steps", type=int, default=2, help="Number of next states")
     parser.add_argument("--random_steps", type=int, default=int(25e3), help="Uniformlly sample action within random steps")

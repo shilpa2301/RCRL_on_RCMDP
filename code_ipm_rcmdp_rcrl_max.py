@@ -991,7 +991,7 @@ if __name__ == '__main__':
     parser.add_argument("--run",type=int,default=1,help="run_number") 
     parser.add_argument("--warm_start_flag",type=int,default=0,help="warm_start_flag") 
     parser.add_argument("--warm_start_episode",type=int,default=300,help="warm_start_episode") 
-    parser.add_argument("--gravity_std",type=float,default=0.5,help="gravity perturbation") 
+    parser.add_argument("--gravity_std",type=float,default=2.0,help="gravity perturbation") 
 
 
 

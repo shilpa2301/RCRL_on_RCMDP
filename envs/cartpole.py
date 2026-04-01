@@ -167,7 +167,7 @@ class CartPoleCostEnv(gym.Env):
         return torch.tensor(next_state, dtype=torch.float32)
 
 class CartPolePerturbedEnv(gym.Env):
-    def __init__(self, gravity_perturbation_std=0.5):
+    def __init__(self, gravity_perturbation_std=2.0):
         # Observation: [cart position, cart velocity, pole angle, pole angular velocity]
         self.observation_space = spaces.Box(
             low=-np.inf,

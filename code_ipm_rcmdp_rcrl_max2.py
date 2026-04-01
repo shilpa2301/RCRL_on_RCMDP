@@ -21,7 +21,7 @@ from gym import utils
 from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
-from envs.cartpole2 import CartPoleCostEnv, CartPolePerturbedEnv
+from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
 
 
 
@@ -218,7 +218,7 @@ class Critic(nn.Module):
         self.fc1 = nn.Linear(args.state_dim, args.hidden_width)
         self.fc2 = nn.Linear(args.hidden_width, args.hidden_width)
         self.fc3 = nn.Linear(args.hidden_width, 1)
-        self.activate_func = [nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
+        self.activate_func = nn.ReLU() #[nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
 
         if args.use_orthogonal_init:
             print("------use_orthogonal_init------")
@@ -309,7 +309,7 @@ class ReplayBuffer:
 class Robust_RCAC_NPG:
   def __init__(self,args):
     if args.env == 'CartPolePerturbedEnv':
-        self.env = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
+        self.env = CartPolePerturbedEnv(args.gravity_std) #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
     elif args.env == 'CartPoleCostEnv':
         self.env = CartPoleCostEnv()
     if args.env == 'HopperPerturbedEnv':
@@ -475,7 +475,7 @@ class Robust_RCAC_NPG:
         v_h_pi_values.append(v_h_pi.item())
         cost_values.append(v_h_pi.item())
 
-    vl_pi = max(cost_values)
+    vl_pi = sum(cost_values)/len(cost_values)
 
     return vl_pi
 
@@ -715,15 +715,15 @@ def main(args, run_number):
     seed, GAMMA = args.seed, args.GAMMA
 
     # Create directories for the current run
-    model_dir = f"./models/{args.env}_Cost2/run{run_number}/"
-    data_train_dir = f"./data_train/{args.env}_Cost2/run{run_number}/"
-    plot_data_dir = f"./plot_data/{args.env}_Cost2/run{run_number}/"
+    model_dir = f"./models/{args.env}/run{run_number}/"
+    data_train_dir = f"./data_train/{args.env}/run{run_number}/"
+    plot_data_dir = f"./plot_data/{args.env}/run{run_number}/"
     os.makedirs(model_dir, exist_ok=True)
     os.makedirs(data_train_dir, exist_ok=True)
     os.makedirs(plot_data_dir, exist_ok=True)
 
     if args.env == 'CartPolePerturbedEnv':
-        env = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env = CartPolePerturbedEnv(args.gravity_std) #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
     elif args.env == 'CartPoleCostEnv':
@@ -990,7 +990,9 @@ if __name__ == '__main__':
     parser.add_argument("--beta",type=float,default=1.0,help="beta") 
     parser.add_argument("--run",type=int,default=1,help="run_number") 
     parser.add_argument("--warm_start_flag",type=int,default=0,help="warm_start_flag") 
-    parser.add_argument("--warm_start_episode",type=int,default=400,help="warm_start_episode") 
+    parser.add_argument("--warm_start_episode",type=int,default=300,help="warm_start_episode") 
+    parser.add_argument("--gravity_std",type=float,default=0.5,help="gravity perturbation") 
+
 
 
 
