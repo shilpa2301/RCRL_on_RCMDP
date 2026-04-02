@@ -566,7 +566,7 @@ class Robust_RCAC_NPG:
                 # vl_pi = self.persistent_safety_function(
                 #     trajectory, self.actor, self.Ccritic, self.gamma
                 # )
-                vl_pi = vcs.mean()
+                vl_pi = vcs.max()
                 # penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
                 penalty_term = vl_pi - torch.tensor(self.persistent_eps)
                 beta_penalty = self.beta * penalty_term
@@ -651,7 +651,8 @@ class Robust_RCAC_NPG:
                     # Calculate n as the step count in the current trajectory
                     n = original_index - trajectory_indices[trajectory_num] + 1  # Step count within the current trajectory
                     # Use n for GAE calculation
-                    gae = (A_max - vcs[trajectory_indices[trajectory_num]]) * self.lamda ** n  
+                    # gae = (A_max - vcs[trajectory_indices[trajectory_num]]) * self.lamda ** n  
+                    gae = (A_max - vc_) * self.lamda ** n  
                     adv.insert(0, gae.item())  # Insert the advantage at the beginning of the list
                 adv = torch.tensor(adv, dtype=torch.float).view(-1, 1)
                 # v_target = adv  # + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
