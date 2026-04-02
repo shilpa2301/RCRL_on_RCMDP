@@ -25,7 +25,7 @@ from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
 from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
-from envs.pendulum_v1 import PendulumEnv
+from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -271,8 +271,8 @@ class CostCritic(nn.Module):
     def forward(self, s):
         s = self.activate_func(self.fc1(s))  # Apply activation to the first layer
         s = self.activate_func(self.fc2(s))  # Apply activation to the second layer
-        # v_s = torch.sigmoid(self.fc3(s))  # Apply sigmoid activation to the last layer
-        v_s = self.fc3(s)
+        v_s = torch.sigmoid(self.fc3(s))  # Apply sigmoid activation to the last layer
+        # v_s = self.fc3(s)
         return v_s
 
     def save(self, filename):
@@ -329,6 +329,10 @@ class Robust_RCAC_NPG:
             self.env = CartPoleCostEnv()
         elif args.env == "PendulumEnv":
             self.env = PendulumEnv()
+        elif args.env == "PendulumCostEnv":
+            self.env = PendulumCostEnv()
+        elif args.env == "PendulumPerturbedEnv":
+            self.env = PendulumPerturbedEnv()
         elif args.env == "HopperPerturbedEnv":
             self.env = HopperPerturbedEnv()
         else:
@@ -454,10 +458,15 @@ class Robust_RCAC_NPG:
         softmax_weighted = (a * exp_a + b * exp_b) / (exp_a + exp_b)
         return softmax_weighted
 
-    def log_sum_exp_fn(self, a, b, eta=0.1):
+    def log_sum_exp_fn(self, a, b, eta=0.001):
         # Compute the Log-Sum-Exp smooth approximation of max(a, b)
         # print("a, b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta))= ", a,b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta)))
         # lse = eta * torch.log(torch.exp(a / eta) + torch.exp(b / eta))
+
+        if not isinstance(a, torch.Tensor):
+            a = torch.tensor(a, dtype=torch.float32)
+        if not isinstance(b, torch.Tensor):
+            b = torch.tensor(b, dtype=torch.float32)
 
         # Find the maximum value between a and b : else exp(10/0.1) becomes infinity
         max_val = torch.max(a, b)
@@ -587,22 +596,76 @@ class Robust_RCAC_NPG:
                     torch.sum(torch.stack(weight_norm))
                     + torch.sum(torch.stack(bias_norm[0:-1]))
                 )
-                deltas = (
-                    (1 - self.gamma) * c
-                    + self.gamma * self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_))
-                    - vcs
-                    - self.alpha * a_logprob.sum(dim=1, keepdim=True)
-                    - self.weight_reg * reg_norm
-                )
-                for delta, d in zip(
-                    reversed(deltas.flatten().numpy()), reversed(done.flatten().numpy())
-                ):
-                    #   gae = max(delta, gae * (1.0 - d))
-                    gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
-                    adv.insert(0, gae)
+                # deltas = (
+                #     (1 - self.gamma) * c
+                #     + self.gamma * self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_))
+                #     - vcs
+                #     - self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                #     - self.weight_reg * reg_norm
+                # )
+                # for delta, d in zip(
+                #     reversed(deltas.flatten().numpy()), reversed(done.flatten().numpy())
+                # ):
+                #     #   gae = max(delta, gae * (1.0 - d))
+                #     gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
+                #     adv.insert(0, gae)
+
+                # Assuming `vs`, `c`, and `done` are all flattened numpy arrays
+                trajectory_indices = []  # To store the starting indices of each trajectory
+                current_index = 0  # To track the current index in the entire flattened array
+                # Identify the trajectories based on the done flags
+                for d in done.flatten().numpy():
+                    if d == 1:
+                        trajectory_indices.append(current_index)  # Store the index where the episode ends
+                    current_index += 1
+                # Now, we can process each trajectory
+                # adv = []  # List to store advantages
+                # Iterate through the reversed values
+                c_max = float('-inf')
+                for index, (vc_, c_, d_) in enumerate(zip(
+                                    reversed(vcs.flatten().numpy()), 
+                                    reversed(c.flatten().numpy()), 
+                                    reversed(done.flatten().numpy())
+                                )):
+                    # Determine the original index in the trajectory
+                    original_index = len(done) - 1 - index  # Calculate the corresponding original index
+                    # Find the trajectory number based on the original index
+                    trajectory_num = next((i for i, idx in enumerate(trajectory_indices) if idx > original_index), len(trajectory_indices) - 1)
+                    # Reset c_max when we reach the end of an episode
+                    if d_ == 1:
+                        c_max = float('-inf')  # Reset c_max if the episode has ended
+                    else:
+                        # Convert c_ to a tensor
+                        # c_ = torch.tensor(c_, dtype=torch.float32)
+
+                        # Clip the values to prevent overflow
+                        # c_max = torch.clamp(c_max, min=-1e10, max=1e10)  # Ensure c_max is a tensor before clamping
+                        # c_ = torch.clamp(c_, min=-1e10, max=1e10)  # Ensure c_ is a tensor before clamping
+                        c_max = self.log_sum_exp_fn(torch.tensor(c_max),torch.tensor(c_))  # Update c_max using the log-sum-exp function
+                        # c_max = torch.max(torch.tensor(c_max),torch.tensor(c_))  # Update c_max using the log-sum-exp function
+
+                    # c_max = torch.clamp(c_max, min=-1e10, max=1e10)
+                    A_max = self.log_sum_exp_fn(torch.tensor(vc_.item()), torch.tensor(c_max) ) # Calculate the advantage using LSE
+                    # A_max = torch.max(torch.tensor(vc_.item()), torch.tensor(c_max) ) # Calculate the advantage using LSE
+
+                    # Calculate n as the step count in the current trajectory
+                    n = original_index - trajectory_indices[trajectory_num] + 1  # Step count within the current trajectory
+                    # Use n for GAE calculation
+                    gae = (A_max - vcs[trajectory_indices[trajectory_num]]) * self.lamda ** n  
+                    adv.insert(0, gae.item())  # Insert the advantage at the beginning of the list
                 adv = torch.tensor(adv, dtype=torch.float).view(-1, 1)
                 # v_target = adv  # + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
-                v_target = adv + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
+
+                deltas = (
+                    # (1 - self.gamma) * c
+                    # + self.gamma * self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_))
+                    self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_))
+                    - vcs
+                    - self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                    # - self.weight_reg * reg_norm
+                )
+                
+                v_target = deltas + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True) #adv + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
                 if self.use_adv_norm:  # Trick 1:advantage normalization
                     adv = (adv - adv.mean()) / (adv.std() + 1e-5)
                 # shilpa
@@ -682,6 +745,7 @@ class Robust_RCAC_NPG:
                 else:
                     v_cs = self.Ccritic(s[index])
                     Ccritic_loss = F.mse_loss(v_target[index], v_cs)
+                    print("critic loss=", Ccritic_loss.item())
                     # Update Cost critic
                     self.optimizer_Ccritic.zero_grad()
                     Ccritic_loss.backward()
@@ -862,6 +926,23 @@ def main(args, run_number):
             PendulumEnv()
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = PendulumEnv()
+
+    elif args.env == "PendulumCostEnv":
+        env = (
+            PendulumCostEnv()
+        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env_evaluate = (
+            PendulumCostEnv()
+        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = PendulumCostEnv()
+    elif args.env == "PendulumPerturbedEnv":
+        env = (
+            PendulumPerturbedEnv()
+        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env_evaluate = (
+            PendulumPerturbedEnv()
+        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = PendulumPerturbedEnv()
 
     # Set random seed
     # env.reset(seed=seed)
@@ -1139,7 +1220,7 @@ if __name__ == "__main__":
         "--env",
         type=str,
         # default="CartPolePerturbedEnv",
-        default="PendulumEnv",
+        default="PendulumCostEnv",
         help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv",
     )
     parser.add_argument("--uncer_set", type=str, default="IPM", help="DS/IPM")
@@ -1197,8 +1278,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--persistent_eps",
         type=float,
-        default=2.0,
-        help="Persistent Safety Perturbation",
+        default=0.3,
+        help="Persistent Safety Perturbation 0.17",
     )
     parser.add_argument("--K_epochs", type=int, default=10, help="PPO parameter")
     parser.add_argument(
@@ -1262,13 +1343,13 @@ if __name__ == "__main__":
     parser.add_argument("--GAMMA", type=str, default="0", help="file name")
     parser.add_argument("--baseline", type=int, default=9, help="baseline")
     parser.add_argument("--lambda_", type=int, default=50, help="lambda")
-    parser.add_argument("--beta", type=float, default=1.0, help="beta")
-    parser.add_argument("--run", type=int, default=1, help="run_number")
+    parser.add_argument("--beta", type=float, default=1e5, help="beta 600")
+    parser.add_argument("--run", type=int, default=5, help="run_number")
     parser.add_argument(
         "--warm_start_flag", type=int, default=0, help="warm_start_flag"
     )
     parser.add_argument(
-        "--warm_start_episode", type=int, default=500, help="warm_start_episode"
+        "--warm_start_episode", type=int, default=900, help="warm_start_episode"
     )
     parser.add_argument(
         "--gravity_std", type=float, default=0.5, help="gravity perturbation"

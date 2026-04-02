@@ -16,9 +16,9 @@
 
                 
             // ],
-            "program": "/project/ag2682/sm3934/RCRL_on_RMDP/code_pd_vanilla_pendulum.py",
+            "program": "/project/ag2682/sm3934/RCRL_on_RMDP/code_ipm_rcmdp_rcrl_max_pendulum2.py",
             "args": [
-                
+                "--warm_start_episode", "0"
             ],
             "cwd": "/project/ag2682/sm3934/RCRL_on_RMDP", //${workspaceFolder}",
             "env": {

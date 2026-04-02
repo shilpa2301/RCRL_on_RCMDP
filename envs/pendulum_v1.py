@@ -136,6 +136,8 @@ class PendulumEnv(gym.Env):
         newthdot = np.clip(newthdot, -self.max_speed, self.max_speed)
         newth = th + newthdot * dt
 
+        newth = angle_normalize(newth)
+
         self.state = np.array([newth, newthdot])
 
         # Increment the step counter
@@ -410,6 +412,8 @@ class PendulumPerturbedEnv(gym.Env):
         newthdot = thdot + (3 * g / (2 * l) * np.sin(th) + 3.0 / (m * l**2) * u) * dt
         newthdot = np.clip(newthdot, -self.max_speed, self.max_speed)
         newth = th + newthdot * dt
+
+        newth = angle_normalize(newth)
 
         self.state = np.array([newth, newthdot])
 
@@ -689,6 +693,8 @@ class PendulumCostEnv(gym.Env):
         newthdot = np.clip(newthdot, -self.max_speed, self.max_speed)
         newth = th + newthdot * dt
 
+        # newth = angle_normalize(newth)
+
         self.state = np.array([newth, newthdot])
 
         # Increment the step counter
@@ -701,7 +707,7 @@ class PendulumCostEnv(gym.Env):
         #     self.render()
         actual_cost = 0.0
         if abs(newth)>0.8:
-            actual_cost += abs(newth)-0.8
+            actual_cost += abs(angle_normalize(newth))-0.8
         # Normalize the actual cost
         max_theta = np.pi  # Assuming the maximum possible angle is pi radians
         max_cost = max_theta - 0.8
