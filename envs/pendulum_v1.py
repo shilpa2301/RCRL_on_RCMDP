@@ -705,14 +705,29 @@ class PendulumCostEnv(gym.Env):
 
         # if self.render_mode == "human":
         #     self.render()
+        # actual_cost = 0.0
+        # if abs(newth)>0.8:
+        #     actual_cost += abs(angle_normalize(newth))-0.8
+        # # Normalize the actual cost
+        # max_theta = np.pi  # Assuming the maximum possible angle is pi radians
+        # max_cost = max_theta - 0.8
+        # normalized_cost = actual_cost / max_cost
+        # # print("normalized_cost, maxpi=", normalized_cost, max_theta)
+
+        # Cost calculation with a safe zone
+        safe_zone = 3.0  # No cost for velocities up to this value
+        max_velocity = self.max_speed  # Maximum speed
         actual_cost = 0.0
-        if abs(newth)>0.8:
-            actual_cost += abs(angle_normalize(newth))-0.8
+
+        if abs(newthdot) > safe_zone:
+            # Linear cost increase beyond the safe zone
+            excess_velocity = abs(newthdot) - safe_zone
+            actual_cost = min(excess_velocity, max_velocity - safe_zone)  # Cap the cost at max_velocity
+
         # Normalize the actual cost
-        max_theta = np.pi  # Assuming the maximum possible angle is pi radians
-        max_cost = max_theta - 0.8
-        normalized_cost = actual_cost / max_cost
-        # print("normalized_cost, maxpi=", normalized_cost, max_theta)
+        normalized_cost = actual_cost / (max_velocity - safe_zone) if max_velocity > safe_zone else 0.0
+        # normalized_cost = 0.0
+
         return self._get_obs(), -costs, normalized_cost, done, False, {}
 
     def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):

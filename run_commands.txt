@@ -11,3 +11,11 @@ python code_ipm_rcmdp_rcrl_max.py --run 13 --seed 1 --env CartPoleCostEnv --pers
 python code_ipm_rcmdp_rcrl_max.py --run 23 --seed 1 --env CartPolePerturbedEnv --persistent_eps 5.0 --beta 25.0 --max_train_steps 6000
 
 python code_ipm_rcmdp_rcrl_max_pendulum3.py --run 2 --persistent_eps 0.17 --beta 600
+
+
+python code_ipm_rcmdp_rcrl_max_cartpole.py --run 9 --persistent_eps 0.3 --beta 400
+python code_ipm_rcmdp_rcrl_max_pendulum2.py --run 2 --persistent_eps 0.17 --beta 5000
+
+python code_ipm_rcmdp_rcrl_max_pendulum2.py --run 2 --persistent_eps 0.25 --beta 5000 --K_epochs 5 --max_train_steps 12000
+
+ 

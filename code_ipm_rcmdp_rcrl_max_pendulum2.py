@@ -126,6 +126,9 @@ class Actor_Gaussian(nn.Module):
         log_std = self.log_std.expand(
             mean.shape[0], -1
         )  # Expand log_std to match the shape of mean
+        
+        # log_std = torch.clamp(log_std, min=-20, max=2)
+
         # print(f"log_std shape after expand: {log_std.shape}")  # Debugging: Print the shape of expanded log_std
         std = torch.exp(log_std)
         dist = Normal(mean, std)
@@ -345,6 +348,7 @@ class Robust_RCAC_NPG:
         self.max_train_steps = args.max_train_steps
         self.lr_a = args.lr_a  # Learning rate of actor
         self.lr_c = args.lr_c  # Learning rate of critic
+        self.lr_cost = args.lr_cost  # Learning rate of cost critic
         self.gamma = args.gamma  # Discount factor
         self.lamda = args.lamda  # GAE parameter
         self.epsilon = args.epsilon  # PPO clip parameter
@@ -376,6 +380,14 @@ class Robust_RCAC_NPG:
         self.Rcritic = Critic(args)
         self.Ccritic = CostCritic(args)
 
+        #SAC
+        # Initialize target critics
+        # self.target_Rcritic = Critic(args)  # Target reward critic
+        # self.target_Ccritic = CostCritic(args)  # Target cost critic        
+        # # Copy initial weights from critics to target critics
+        # self.target_Rcritic.load_state_dict(self.Rcritic.state_dict())
+        # self.target_Ccritic.load_state_dict(self.Ccritic.state_dict())
+
         self.beta = args.beta
         # self.persistent_eps = 0.0
         self.warm_start_flag = args.warm_start_flag
@@ -388,7 +400,7 @@ class Robust_RCAC_NPG:
                 self.Rcritic.parameters(), lr=self.lr_c, eps=1e-5
             )
             self.optimizer_Ccritic = torch.optim.Adam(
-                self.Ccritic.parameters(), lr=self.lr_c, eps=1e-5
+                self.Ccritic.parameters(), lr=self.lr_cost, eps=1e-5
             )
         else:
             self.optimizer_actor = torch.optim.Adam(
@@ -398,7 +410,7 @@ class Robust_RCAC_NPG:
                 self.Rcritic.parameters(), lr=self.lr_c
             )
             self.optimizer_Ccritic = torch.optim.Adam(
-                self.Ccritic.parameters(), lr=self.lr_c
+                self.Ccritic.parameters(), lr=self.lr_cost
             )
 
     def evaluate(
@@ -445,12 +457,14 @@ class Robust_RCAC_NPG:
     def lr_decay(self, total_steps):
         lr_a_now = self.lr_a * (1 - total_steps / self.max_train_steps)
         lr_c_now = self.lr_c * (1 - total_steps / self.max_train_steps)
+        lr_cost_now = self.lr_cost * (1 - total_steps / self.max_train_steps)
+
         for p in self.optimizer_actor.param_groups:
             p["lr"] = lr_a_now
         for p in self.optimizer_Rcritic.param_groups:
             p["lr"] = lr_c_now
         for p in self.optimizer_Ccritic.param_groups:
-            p["lr"] = lr_c_now
+            p["lr"] = lr_cost_now
 
     def softmax_fn(self, a, b, temperature=0.1):
         exp_a = torch.exp(a / temperature)
@@ -553,6 +567,12 @@ class Robust_RCAC_NPG:
             vs_ = self.Rcritic(s_)
             vcs = self.Ccritic(s)
             vcs_ = self.Ccritic(s_)
+
+            # Calculate target values using target critics
+            # with torch.no_grad():
+            #     target_vs_ = self.target_Rcritic(s_)
+            #     target_vcs_ = self.target_Ccritic(s_)
+
             # IPM uncertainty set
             # print("VS shape:",vs.shape)
             # print("VCS shape:",vcs.shape)
@@ -596,20 +616,7 @@ class Robust_RCAC_NPG:
                     torch.sum(torch.stack(weight_norm))
                     + torch.sum(torch.stack(bias_norm[0:-1]))
                 )
-                # deltas = (
-                #     (1 - self.gamma) * c
-                #     + self.gamma * self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_))
-                #     - vcs
-                #     - self.alpha * a_logprob.sum(dim=1, keepdim=True)
-                #     - self.weight_reg * reg_norm
-                # )
-                # for delta, d in zip(
-                #     reversed(deltas.flatten().numpy()), reversed(done.flatten().numpy())
-                # ):
-                #     #   gae = max(delta, gae * (1.0 - d))
-                #     gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
-                #     adv.insert(0, gae)
-
+                
                 # Assuming `vs`, `c`, and `done` are all flattened numpy arrays
                 trajectory_indices = []  # To store the starting indices of each trajectory
                 current_index = 0  # To track the current index in the entire flattened array
@@ -622,41 +629,51 @@ class Robust_RCAC_NPG:
                 # adv = []  # List to store advantages
                 # Iterate through the reversed values
                 c_max = float('-inf')
-                for index, (vc_, c_, d_) in enumerate(zip(
-                                    reversed(vcs.flatten().numpy()), 
-                                    reversed(c.flatten().numpy()), 
-                                    reversed(done.flatten().numpy())
-                                )):
-                    # Determine the original index in the trajectory
-                    original_index = len(done) - 1 - index  # Calculate the corresponding original index
-                    # Find the trajectory number based on the original index
-                    trajectory_num = next((i for i, idx in enumerate(trajectory_indices) if idx > original_index), len(trajectory_indices) - 1)
-                    # Reset c_max when we reach the end of an episode
-                    if d_ == 1:
-                        c_max = float('-inf')  # Reset c_max if the episode has ended
-                    else:
-                        # Convert c_ to a tensor
-                        # c_ = torch.tensor(c_, dtype=torch.float32)
-
-                        # Clip the values to prevent overflow
-                        # c_max = torch.clamp(c_max, min=-1e10, max=1e10)  # Ensure c_max is a tensor before clamping
-                        # c_ = torch.clamp(c_, min=-1e10, max=1e10)  # Ensure c_ is a tensor before clamping
-                        c_max = self.log_sum_exp_fn(torch.tensor(c_max),torch.tensor(c_))  # Update c_max using the log-sum-exp function
-                        # c_max = torch.max(torch.tensor(c_max),torch.tensor(c_))  # Update c_max using the log-sum-exp function
+                for index, (vc_, vcnext_, c_, d_) in enumerate(zip(
+                                                        reversed(vcs.flatten().numpy()), 
+                                                        reversed(vcs_.flatten().numpy()), 
+                                                        reversed(c.flatten().numpy()), 
+                                                        reversed(done.flatten().numpy())
+                                                    )):
+                    # # Determine the original index in the trajectory
+                    # original_index = len(done) - 1 - index  # Calculate the corresponding original index
+                    # # Find the trajectory number based on the original index
+                    # trajectory_num = next((i for i, idx in enumerate(trajectory_indices) if idx > original_index), len(trajectory_indices) - 1)
+                    # # Reset c_max when we reach the end of an episode
+                    # if d_ == 1:
+                    #     c_max = float('-inf')  # Reset c_max if the episode has ended
+                    # else:
+                    #     # Convert c_ to a tensor
+                    #     # Clip the values to prevent overflow
+                    #     c_max = self.log_sum_exp_fn(torch.tensor(c_max),torch.tensor(c_))  # Update c_max using the log-sum-exp function
 
                     # c_max = torch.clamp(c_max, min=-1e10, max=1e10)
-                    A_max = self.log_sum_exp_fn(torch.tensor(vc_.item()), torch.tensor(c_max) ) # Calculate the advantage using LSE
-                    # A_max = torch.max(torch.tensor(vc_.item()), torch.tensor(c_max) ) # Calculate the advantage using LSE
+                    # A_max = self.log_sum_exp_fn(torch.tensor(vcnext_.item()), torch.tensor(c_max) ) # Calculate the advantage using LSE
+                    A_max = (1-self.gamma)*c_ + self.gamma* self.log_sum_exp_fn(torch.tensor(vcnext_.item()), torch.tensor(c_) ) # Calculate the advantage using LSE
 
-                    # Calculate n as the step count in the current trajectory
-                    n = original_index - trajectory_indices[trajectory_num] + 1  # Step count within the current trajectory
-                    # Use n for GAE calculation
-                    # gae = (A_max - vcs[trajectory_indices[trajectory_num]]) * self.lamda ** n  
-                    gae = (A_max - vc_) * self.lamda ** n  
-                    adv.insert(0, gae.item())  # Insert the advantage at the beginning of the list
+                    # A_max = self.log_sum_exp_fn(torch.tensor(vc_.item()), torch.tensor(c_max) )
+                  
+                    # If we are at the end of a trajectory, handle the last value
+                    if d_ == 1:
+                        gae = c_ * (self.lamda ** 0)  # First value for GAE calculation
+                        adv.insert(0, gae.item())  # Insert the advantage at the beginning of the list
+                        continue  # Skip to the next iteration
+
+                    # Initialize GAE for this step
+                    gae = (A_max - vc_) * (self.lamda ** 0)  # Current step contribution
+
+                    # Accumulate contributions from previous steps within the same trajectory
+                    # for i in range(len(adv)):
+                    #     # Stop considering advantages if we reach a corresponding trajectory end
+                    #     if trajectory_num != next((j for j, idx in enumerate(trajectory_indices) if idx > (original_index + (i + 1))), len(trajectory_indices) - 1):
+                    #         break  # Stop if we reach the end of the current trajectory
+                    #     gae += adv[i] * (self.lamda ** (i + 1))  # Include previous advantages
+
+                    # Insert the calculated GAE
+                    adv.insert(0, gae.item()) 
                 adv = torch.tensor(adv, dtype=torch.float).view(-1, 1)
-                # v_target = adv  # + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
 
+                #ppo
                 deltas = (
                     # (1 - self.gamma) * c
                     # + self.gamma * self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_))
@@ -665,7 +682,8 @@ class Robust_RCAC_NPG:
                     - self.alpha * a_logprob.sum(dim=1, keepdim=True)
                     # - self.weight_reg * reg_norm
                 )
-                
+
+                  
                 v_target = deltas + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True) #adv + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
                 if self.use_adv_norm:  # Trick 1:advantage normalization
                     adv = (adv - adv.mean()) / (adv.std() + 1e-5)
@@ -682,6 +700,7 @@ class Robust_RCAC_NPG:
                     torch.sum(torch.stack(weight_norm))
                     + torch.sum(torch.stack(bias_norm[0:-1]))
                 )
+                #ppo
                 deltas = (
                     r
                     + self.gamma * (1.0 - dw) * vs_
@@ -689,6 +708,8 @@ class Robust_RCAC_NPG:
                     - self.alpha * a_logprob.sum(dim=1, keepdim=True)
                     - self.weight_reg * reg_norm
                 )
+
+                
                 for delta, d in zip(
                     reversed(deltas.flatten().numpy()), reversed(done.flatten().numpy())
                 ):
@@ -710,6 +731,10 @@ class Robust_RCAC_NPG:
                     1, keepdim=True
                 )  # shape(mini_batch_size X 1)
                 a_logprob_now = dist_now.log_prob(a[index])
+                # print("a_logprob_now shape:", a_logprob_now.shape)  # Debugging: Print the shape of a_logprob_now
+                # print("a_logprob shape:", a_logprob[index].shape)  # Debugging: Print the shape of a_logprob
+
+
                 # a/b=exp(log(a)-log(b))  In multi-dimensional continuous action space，we need to sum up the log_prob
                 ratios = torch.exp(
                     a_logprob_now.sum(1, keepdim=True)
@@ -725,6 +750,12 @@ class Robust_RCAC_NPG:
                 actor_loss = (
                     -torch.min(surr1, surr2) - self.entropy_coef * dist_entropy
                 )  # Trick 5: policy entropy
+                
+                #policy gradient
+                # actor_loss = - (a_logprob_now * adv[index])
+                # actor_loss = (-a_logprob_now  * adv[index] - self.entropy_coef * dist_entropy)
+
+
                 # Update actor
                 self.optimizer_actor.zero_grad()
                 actor_loss.mean().backward()
@@ -746,7 +777,9 @@ class Robust_RCAC_NPG:
                 else:
                     v_cs = self.Ccritic(s[index])
                     Ccritic_loss = F.mse_loss(v_target[index], v_cs)
-                    print("critic loss=", Ccritic_loss.item())
+                    # print("critic loss=", Ccritic_loss.item())
+                    with open('critic_loss.txt', 'a') as f:
+                        f.write(f'{Ccritic_loss.item()}\n')
                     # Update Cost critic
                     self.optimizer_Ccritic.zero_grad()
                     Ccritic_loss.backward()
@@ -754,8 +787,13 @@ class Robust_RCAC_NPG:
                         torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.5)
                     self.optimizer_Ccritic.step()
 
+               
         if self.use_lr_decay:  # Trick 6:learning rate Decay
             self.lr_decay(total_steps)
+
+        #SAC
+        # Soft update target networks
+        # self.soft_update_target_networks()
 
         if self.adaptive_alpha:
             alpha_loss = -(
@@ -767,6 +805,13 @@ class Robust_RCAC_NPG:
             self.alpha_optimzier.step()
             self.alpha = self.log_alpha.exp()
 
+    #SAC
+    def soft_update_target_networks(self, tau=0.005):
+        for target_param, param in zip(self.target_Rcritic.parameters(), self.Rcritic.parameters()):
+            target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
+
+        for target_param, param in zip(self.target_Ccritic.parameters(), self.Ccritic.parameters()):
+            target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
 
 def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     times = 3
@@ -842,7 +887,7 @@ def plot_metrics(
         save: Whether to save the plot to a file.
         filename: File name to save the plot.
     """
-    plt.ion()  # Turn on interactive mode
+    # plt.ion()  # Turn on interactive mode
     plt.figure(figsize=(10, 6))
     plt.clf()  # Clear the current figure to avoid overlapping plots
     # plt.figure(figsize=(10, 6))
@@ -874,7 +919,7 @@ def plot_metrics(
     plt.tight_layout()
     if save:
         plt.savefig(filename)
-    plt.show()
+    # plt.show()
     plt.close()
 
 
@@ -1270,6 +1315,9 @@ if __name__ == "__main__":
         "--lr_c", type=float, default=1e-3, help="Learning rate of critic"
     )
     parser.add_argument(
+        "--lr_cost", type=float, default=1e-3, help="Learning rate of critic"
+    )
+    parser.add_argument(
         "--gamma", type=float, default=0.99, help="Discount factor 0.99"
     )
 
@@ -1350,7 +1398,7 @@ if __name__ == "__main__":
         "--warm_start_flag", type=int, default=0, help="warm_start_flag"
     )
     parser.add_argument(
-        "--warm_start_episode", type=int, default=900, help="warm_start_episode"
+        "--warm_start_episode", type=int, default=1300, help="warm_start_episode"
     )
     parser.add_argument(
         "--gravity_std", type=float, default=0.5, help="gravity perturbation"

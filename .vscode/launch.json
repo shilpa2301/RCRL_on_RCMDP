@@ -16,15 +16,18 @@
 
                 
             // ],
-            "program": "/project/ag2682/sm3934/RCRL_on_RMDP/code_ipm_rcmdp_rcrl_max_pendulum2.py",
+            "program": "C:/Shilpa/Work/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_pendulum2.py",
             "args": [
-                "--warm_start_episode", "0"
+                "--warm_start_episode", "3",
+                "--run", "1",
+                "--persistent_eps", "0.17",
+                "--beta", "5000"
             ],
-            "cwd": "/project/ag2682/sm3934/RCRL_on_RMDP", //${workspaceFolder}",
+            "cwd": "C:/Shilpa/Work/RCRL_on_RCMDP", //${workspaceFolder}",
             "env": {
-                " PYTHONPATH": "/project/ag2682/sm3934/RCRL_on_RMDP"
+                " PYTHONPATH": "C:/Shilpa/Work/RCRL_on_RCMDP"
             },
-            "python": "/home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python",
+            "python": "C:/Users/rinki/miniconda3/envs/ipm_rcrl_env/python.exe",
             "console": "integratedTerminal",
             "justMyCode": false,
             "xdebugSettings": {
