@@ -16,12 +16,13 @@
 
                 
             // ],
-            "program": "C:/Shilpa/Work/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_pendulum2.py",
+            "program": "C:/Shilpa/Work/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_quadrotor.py",
             "args": [
-                "--warm_start_episode", "3",
+                // "--warm_start_episode", "3",
                 "--run", "1",
-                "--persistent_eps", "0.17",
-                "--beta", "5000"
+                "--persistent_eps", "0.25",
+                "--beta", "5000",
+                "--quad_task", "track"
             ],
             "cwd": "C:/Shilpa/Work/RCRL_on_RCMDP", //${workspaceFolder}",
             "env": {

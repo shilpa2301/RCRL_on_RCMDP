@@ -649,7 +649,9 @@ class PendulumCostEnv(gym.Env):
         "render_fps": 30,
     }
 
-    def __init__(self, render_mode: Optional[str] = None, g=10.0):
+    # def __init__(self, render_mode: Optional[str] = "none", g=10.0):
+    def __init__(self, render_mode: Optional[str] = "human", g=10.0):
+
         self.max_speed = 8
         self.max_torque = 2.0
         self.dt = 0.05
@@ -705,30 +707,116 @@ class PendulumCostEnv(gym.Env):
 
         # if self.render_mode == "human":
         #     self.render()
-        # actual_cost = 0.0
-        # if abs(newth)>0.8:
-        #     actual_cost += abs(angle_normalize(newth))-0.8
-        # # Normalize the actual cost
-        # max_theta = np.pi  # Assuming the maximum possible angle is pi radians
-        # max_cost = max_theta - 0.8
-        # normalized_cost = actual_cost / max_cost
-        # # print("normalized_cost, maxpi=", normalized_cost, max_theta)
+               
+        # normalized_cost = self.compute_cost(newthdot)
+        # normalized_cost = self.compute_cost2(newth)
+        normalized_cost = self.compute_cost3(newth, safe_degrees=30.0)
+        # normalized_cost = self.compute_cost4(newth, safe_degrees=30.0)
 
-        # Cost calculation with a safe zone
+
+        # normalized_cost = 0.0
+
+        return self._get_obs(), -costs, normalized_cost, done, False, {}
+    
+    def compute_cost(self, newthdot):
+        """
+        Compute normalized cost based on angular velocity with a safe zone.
+
+        Args:
+            newthdot (float): Current angular velocity.
+            max_velocity (float): Maximum allowed velocity.
+            safe_zone (float): No cost is applied for |velocity| <= safe_zone.
+
+        Returns:
+            tuple: (actual_cost, normalized_cost)
+        """
         safe_zone = 3.0  # No cost for velocities up to this value
         max_velocity = self.max_speed  # Maximum speed
         actual_cost = 0.0
 
         if abs(newthdot) > safe_zone:
-            # Linear cost increase beyond the safe zone
             excess_velocity = abs(newthdot) - safe_zone
-            actual_cost = min(excess_velocity, max_velocity - safe_zone)  # Cap the cost at max_velocity
+            actual_cost = min(excess_velocity, max_velocity - safe_zone)
 
-        # Normalize the actual cost
-        normalized_cost = actual_cost / (max_velocity - safe_zone) if max_velocity > safe_zone else 0.0
-        # normalized_cost = 0.0
+        normalized_cost = (
+            actual_cost / (max_velocity - safe_zone)
+            if max_velocity > safe_zone else 0.0
+        )
 
-        return self._get_obs(), -costs, normalized_cost, done, False, {}
+        return actual_cost, normalized_cost
+    
+    def compute_cost2(self, newth, threshold=0.8, max_theta=np.pi):
+        """
+        Compute normalized angle cost with a no-cost threshold.
+
+        Args:
+            newth (float): Current angle.
+            threshold (float): No cost if |angle_normalize(newth)| <= threshold.
+            max_theta (float): Maximum possible angle magnitude.
+
+        Returns:
+            tuple: (actual_cost, normalized_cost)
+        """
+        actual_cost = 0.0
+    
+        normalized_angle = abs(angle_normalize(newth))
+
+        if normalized_angle > threshold:
+            actual_cost = normalized_angle - threshold
+
+        max_cost = max_theta - threshold
+        normalized_cost = actual_cost / max_cost if max_cost > 0 else 0.0
+
+        return actual_cost, normalized_cost
+    
+    def compute_cost3(self, theta, safe_degrees=90.0):
+        """
+        Angle-based normalized cost:
+        - zero cost within +/- safe_degrees
+        - linearly increases up to pi radians
+        - normalized to [0, 1]
+        """
+        safe_theta = np.deg2rad(safe_degrees)   # 30 degrees -> pi/6
+        max_theta = np.pi
+
+        theta_abs = abs(angle_normalize(theta))
+
+        if theta_abs >= safe_theta:
+            actual_cost = 0.0
+        else:
+            actual_cost = -(theta_abs - safe_theta)
+
+        max_cost = safe_theta # max_theta - safe_theta
+        normalized_cost = actual_cost / max_cost if max_cost > 0 else 0.0
+
+        return normalized_cost
+    
+    def compute_cost4(self, theta, safe_degrees=30.0):
+        """
+        Potential-energy-based cost.
+
+        - Potential energy is minimum at bottom and maximum at top
+        - Within `safe_degrees` from bottom => cost = 0
+        - Above that potential-energy threshold => cost increases linearly
+        - Output normalized to [0, 1]
+        """
+        # Normalized PE: bottom=0, top=1
+        pe_norm =  (1 + np.cos(theta))
+
+        # Safe-zone boundary: 30 deg from bottom
+        safe_theta = np.pi - np.deg2rad(safe_degrees)
+
+        # Normalized PE at safe boundary
+        pe_safe =  (1 + np.cos(safe_theta))
+
+        if pe_norm <= pe_safe:
+            return 0.0
+
+        normalized_cost = (pe_norm - pe_safe) / (1.0 - pe_safe)
+        return normalized_cost
+
+
+
 
     def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
         super().reset(seed=seed)
@@ -818,23 +906,29 @@ class PendulumCostEnv(gym.Env):
             self.surf, rod_end[0], rod_end[1], int(rod_width / 2), (204, 77, 77)
         )
 
-        fname = path.join(path.dirname(__file__), "assets/clockwise.png")
-        img = pygame.image.load(fname)
-        if self.last_u is not None:
-            scale_img = pygame.transform.smoothscale(
-                img,
-                (scale * np.abs(self.last_u) / 2, scale * np.abs(self.last_u) / 2),
-            )
-            is_flip = bool(self.last_u > 0)
-            scale_img = pygame.transform.flip(scale_img, is_flip, True)
-            self.surf.blit(
-                scale_img,
-                (
-                    offset - scale_img.get_rect().centerx,
-                    offset - scale_img.get_rect().centery,
-                ),
-            )
+        try:
+            fname = path.join(path.dirname(__file__), "assets/clockwise.png")
+            img = pygame.image.load(fname)
+            if self.last_u is not None:
+                scale_img = pygame.transform.smoothscale(
+                    img,
+                    (scale * np.abs(self.last_u) / 2, scale * np.abs(self.last_u) / 2),
+                )
+                is_flip = bool(self.last_u > 0)
+                scale_img = pygame.transform.flip(scale_img, is_flip, True)
+                self.surf.blit(
+                    scale_img,
+                    (
+                        offset - scale_img.get_rect().centerx,
+                        offset - scale_img.get_rect().centery,
+                    ),
+                )
+        except FileNotFoundError:
+            pass
+        except pygame.error:
+            pass
 
+        
         # drawing axle
         gfxdraw.aacircle(self.surf, offset, offset, int(0.05 * scale), (0, 0, 0))
         gfxdraw.filled_circle(self.surf, offset, offset, int(0.05 * scale), (0, 0, 0))

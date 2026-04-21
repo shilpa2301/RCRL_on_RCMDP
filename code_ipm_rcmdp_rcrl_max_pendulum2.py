@@ -1315,7 +1315,7 @@ if __name__ == "__main__":
         "--lr_c", type=float, default=1e-3, help="Learning rate of critic"
     )
     parser.add_argument(
-        "--lr_cost", type=float, default=1e-3, help="Learning rate of critic"
+        "--lr_cost", type=float, default=5e-4, help="Learning rate of critic"
     )
     parser.add_argument(
         "--gamma", type=float, default=0.99, help="Discount factor 0.99"
@@ -1411,6 +1411,6 @@ if __name__ == "__main__":
     if not os.path.exists("./data_train"):
         os.makedirs("./data_train")
 
-    print("run=", args.run, "seed=", args.seed, "env=", args.env)
+    print("run=", args.run, "seed=", args.seed, "env=", args.env,  "k_epochs", args.K_epochs)
 
     main(args, run_number=args.run)

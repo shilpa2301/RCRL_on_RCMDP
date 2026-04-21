@@ -24,8 +24,11 @@ from gym import utils
 from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
-from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
-from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
+# from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
+# from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
+from safe_control_gym.envs.benchmark_env import Task
+from safe_control_gym.utils.registration import make
+
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -34,6 +37,23 @@ DEFAULT_CAMERA_CONFIG = {
     "lookat": np.array((0.0, 0.0, 1.15)),
     "elevation": -20.0,
 }
+
+#quadrotor
+def make_quadrotor_env(gui=False, seed=None, quad_type=2, task=Task.STABILIZATION):
+    env = make(
+        "quadrotor",
+        task=task,
+        quad_type=quad_type,
+        gui=gui,
+    )
+    if seed is not None:
+        env.reset(seed=seed)
+        try:
+            env.action_space.seed(seed)
+        except Exception:
+            pass
+    return env
+
 
 
 # Trick 8: orthogonal initialization
@@ -126,17 +146,9 @@ class Actor_Gaussian(nn.Module):
         log_std = self.log_std.expand(
             mean.shape[0], -1
         )  # Expand log_std to match the shape of mean
+        
+        # log_std = torch.clamp(log_std, min=-20, max=2)
 
-        log_std = torch.clamp(log_std, min=-20, max=2)
-        # print(f"log_std after clamp: min={log_std.min()}, max={log_std.max()}")  # Debugging: Print the range of log_std after clamping
-        if torch.isnan(log_std).any() or torch.isnan(mean).any():
-            print(f"Warning: NaN detected!")
-            print(f"  mean: min={mean.min()}, max={mean.max()}")
-            print(f"  log_std: min={log_std.min()}, max={log_std.max()}")
-            print(f"  std: min={std.min()}, max={std.max()}")
-            # Fallback to safe values
-            std = torch.ones_like(std) * 0.5
-            mean = torch.clamp(mean, -10, 10)
         # print(f"log_std shape after expand: {log_std.shape}")  # Debugging: Print the shape of expanded log_std
         std = torch.exp(log_std)
         dist = Normal(mean, std)
@@ -332,22 +344,23 @@ class ReplayBuffer:
 
 class Robust_RCAC_NPG:
     def __init__(self, args):
-        if args.env == "CartPolePerturbedEnv":
-            self.env = CartPolePerturbedEnv(
-                args.gravity_std
-            )  # CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
-        elif args.env == "CartPoleCostEnv":
-            self.env = CartPoleCostEnv()
-        elif args.env == "PendulumEnv":
-            self.env = PendulumEnv()
-        elif args.env == "PendulumCostEnv":
-            self.env = PendulumCostEnv()
-        elif args.env == "PendulumPerturbedEnv":
-            self.env = PendulumPerturbedEnv()
-        elif args.env == "HopperPerturbedEnv":
-            self.env = HopperPerturbedEnv()
-        else:
-            print("No env selected")
+        # if args.env == "CartPolePerturbedEnv":
+        #     self.env = CartPolePerturbedEnv(
+        #         args.gravity_std
+        #     )  # CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
+        # elif args.env == "CartPoleCostEnv":
+        #     self.env = CartPoleCostEnv()
+        # elif args.env == "PendulumEnv":
+        #     self.env = PendulumEnv()
+        # elif args.env == "PendulumCostEnv":
+        #     self.env = PendulumCostEnv()
+        # elif args.env == "PendulumPerturbedEnv":
+        #     self.env = PendulumPerturbedEnv()
+        # elif args.env == "HopperPerturbedEnv":
+        #     self.env = HopperPerturbedEnv()
+        # else:
+        #     print("No env selected")
+        self.env = args.env
         # self.env.seed(args.seed)
         self.policy_dist = args.policy_dist
         self.max_action = args.max_action
@@ -356,6 +369,7 @@ class Robust_RCAC_NPG:
         self.max_train_steps = args.max_train_steps
         self.lr_a = args.lr_a  # Learning rate of actor
         self.lr_c = args.lr_c  # Learning rate of critic
+        self.lr_cost = args.lr_cost  # Learning rate of cost critic
         self.gamma = args.gamma  # Discount factor
         self.lamda = args.lamda  # GAE parameter
         self.epsilon = args.epsilon  # PPO clip parameter
@@ -407,7 +421,7 @@ class Robust_RCAC_NPG:
                 self.Rcritic.parameters(), lr=self.lr_c, eps=1e-5
             )
             self.optimizer_Ccritic = torch.optim.Adam(
-                self.Ccritic.parameters(), lr=self.lr_c, eps=1e-5
+                self.Ccritic.parameters(), lr=self.lr_cost, eps=1e-5
             )
         else:
             self.optimizer_actor = torch.optim.Adam(
@@ -417,7 +431,7 @@ class Robust_RCAC_NPG:
                 self.Rcritic.parameters(), lr=self.lr_c
             )
             self.optimizer_Ccritic = torch.optim.Adam(
-                self.Ccritic.parameters(), lr=self.lr_c
+                self.Ccritic.parameters(), lr=self.lr_cost
             )
 
     def evaluate(
@@ -464,12 +478,14 @@ class Robust_RCAC_NPG:
     def lr_decay(self, total_steps):
         lr_a_now = self.lr_a * (1 - total_steps / self.max_train_steps)
         lr_c_now = self.lr_c * (1 - total_steps / self.max_train_steps)
+        lr_cost_now = self.lr_cost * (1 - total_steps / self.max_train_steps)
+
         for p in self.optimizer_actor.param_groups:
             p["lr"] = lr_a_now
         for p in self.optimizer_Rcritic.param_groups:
             p["lr"] = lr_c_now
         for p in self.optimizer_Ccritic.param_groups:
-            p["lr"] = lr_c_now
+            p["lr"] = lr_cost_now
 
     def softmax_fn(self, a, b, temperature=0.1):
         exp_a = torch.exp(a / temperature)
@@ -736,6 +752,9 @@ class Robust_RCAC_NPG:
                     1, keepdim=True
                 )  # shape(mini_batch_size X 1)
                 a_logprob_now = dist_now.log_prob(a[index])
+                # print("a_logprob_now shape:", a_logprob_now.shape)  # Debugging: Print the shape of a_logprob_now
+                # print("a_logprob shape:", a_logprob[index].shape)  # Debugging: Print the shape of a_logprob
+
 
                 # a/b=exp(log(a)-log(b))  In multi-dimensional continuous action space，we need to sum up the log_prob
                 ratios = torch.exp(
@@ -743,19 +762,19 @@ class Robust_RCAC_NPG:
                     - a_logprob[index].sum(1, keepdim=True)
                 )  # shape(mini_batch_size X 1)
 
-                # surr1 = (
-                #     ratios * adv[index]
-                # )  # Only calculate the gradient of 'a_logprob_now' in ratios
-                # surr2 = (
-                #     torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * adv[index]
-                # )
-                # actor_loss = (
-                #     -torch.min(surr1, surr2) - self.entropy_coef * dist_entropy
-                # )  # Trick 5: policy entropy
+                surr1 = (
+                    ratios * adv[index]
+                )  # Only calculate the gradient of 'a_logprob_now' in ratios
+                surr2 = (
+                    torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * adv[index]
+                )
+                actor_loss = (
+                    -torch.min(surr1, surr2) - self.entropy_coef * dist_entropy
+                )  # Trick 5: policy entropy
                 
                 #policy gradient
                 # actor_loss = - (a_logprob_now * adv[index])
-                actor_loss = (-a_logprob_now.sum(1, keepdim=True)  * adv[index] - self.entropy_coef * dist_entropy)
+                # actor_loss = (-a_logprob_now  * adv[index] - self.entropy_coef * dist_entropy)
 
 
                 # Update actor
@@ -780,6 +799,8 @@ class Robust_RCAC_NPG:
                     v_cs = self.Ccritic(s[index])
                     Ccritic_loss = F.mse_loss(v_target[index], v_cs)
                     # print("critic loss=", Ccritic_loss.item())
+                    with open('critic_loss.txt', 'a') as f:
+                        f.write(f'{Ccritic_loss.item()}\n')
                     # Update Cost critic
                     self.optimizer_Ccritic.zero_grad()
                     Ccritic_loss.backward()
@@ -819,7 +840,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     evaluate_cost = 0
     evaluate_max_cost = float("-inf")
     for _ in range(times):
-        s = env.reset()[0]
+        s, _ = env.reset()
         if args.use_state_norm:
             s = state_norm(s, update=False)  # During the evaluating,update=False
         done = False
@@ -834,8 +855,15 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
                 action = 2 * (a - 0.5) * args.max_action  # [0,1]->[-max,max]
             else:
                 action = a
-            s_, r, c, truncated, terminated, info = env.step(action)
-            done = truncated or terminated
+            #pendulum
+            # s_, r, c, truncated, terminated, info = env.step(action)
+            # done = truncated or terminated
+            #quadrotor
+            s_, r, done, info = env.step(action)
+            # c = info.get("cost", 0.0)
+            # c = info.get("cost", info.get("constraint_violation", 0.0))  
+            c = float(info.get("constraint_violation", 0.0))
+            # done = terminated or truncated
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
 
@@ -927,15 +955,15 @@ def main(args, run_number):
     seed, GAMMA = args.seed, args.GAMMA
 
     # Create directories for the current run
-    model_dir = f"./models/{args.env}/run{run_number}/"
-    data_train_dir = f"./data_train/{args.env}/run{run_number}/"
-    plot_data_dir = f"./plot_data/{args.env}/run{run_number}/"
+    model_dir = f"./models/{args.env_name}/run{run_number}/"
+    data_train_dir = f"./data_train/{args.env_name}/run{run_number}/"
+    plot_data_dir = f"./plot_data/{args.env_name}/run{run_number}/"
     os.makedirs(model_dir, exist_ok=True)
     os.makedirs(data_train_dir, exist_ok=True)
     os.makedirs(plot_data_dir, exist_ok=True)
 
-    if args.env == "CartPolePerturbedEnv":
-        env = CartPolePerturbedEnv(
+    if args.env_name == "CartPolePerturbedEnv":
+        args.env = CartPolePerturbedEnv(
             args.gravity_std
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
@@ -944,8 +972,8 @@ def main(args, run_number):
         env_reset = (
             CartPolePerturbedEnv()
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == "CartPoleCostEnv":
-        env = (
+    elif args.env_name == "CartPoleCostEnv":
+        args.env = (
             CartPoleCostEnv()
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
@@ -954,8 +982,8 @@ def main(args, run_number):
         env_reset = (
             CartPoleCostEnv()
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == "HopperPerturbed":
-        env = (
+    elif args.env_name == "HopperPerturbed":
+        args.env = (
             HopperPerturbed()
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
@@ -964,8 +992,8 @@ def main(args, run_number):
         env_reset = (
             HopperPerturbed()
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == "PendulumEnv":
-        env = (
+    elif args.env_name == "PendulumEnv":
+        args.env = (
             PendulumEnv()
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
@@ -973,28 +1001,50 @@ def main(args, run_number):
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = PendulumEnv()
 
-    elif args.env == "PendulumCostEnv":
-        env = (
+    elif args.env_name == "PendulumCostEnv":
+        args.env = (
             PendulumCostEnv()
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
             PendulumCostEnv()
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = PendulumCostEnv()
-    elif args.env == "PendulumPerturbedEnv":
-        env = (
+    elif args.env_name == "PendulumPerturbedEnv":
+        args.env = (
             PendulumPerturbedEnv()
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
             PendulumPerturbedEnv()
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = PendulumPerturbedEnv()
+    elif args.env_name == "quadrotor":
+        task = Task.STABILIZATION if args.quad_task == "stabilization" else Task.TRAJ_TRACKING
+
+        args.env = make_quadrotor_env(
+            gui=args.gui,
+            seed=seed,
+            quad_type=args.quad_type, #2 for 2d, 3 for 3d
+            task=task
+        )
+        env_evaluate = make_quadrotor_env(
+            gui=False,
+            seed=seed + 100,
+            quad_type=args.quad_type,
+            task=task
+        )
+        env_reset =  make_quadrotor_env(
+            gui=False,
+            seed=seed+200,
+            quad_type=args.quad_type, #2 for 2d, 3 for 3d
+            task=task)
+    else:
+        raise ValueError(f"Unsupported env: {args.env}")
 
     # Set random seed
     # env.reset(seed=seed)
     # env.seed(seed)
-    env.reset(seed=seed)
-    env.action_space.seed(seed)
+    args.env.reset(seed=seed)
+    args.env.action_space.seed(seed)
 
     env_evaluate.reset(seed=seed)
     env_evaluate.action_space.seed(seed)
@@ -1007,10 +1057,24 @@ def main(args, run_number):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    args.state_dim = env.observation_space.shape[0]
-    args.action_dim = env.action_space.shape[0]
-    args.max_action = float(env.action_space.high[0])
-    args.max_episode_steps = env.max_steps  # Must match environment's truncation limit
+    #pendulum and cartpole
+    # args.state_dim = env.observation_space.shape[0]
+    # args.action_dim = env.action_space.shape[0]
+    # args.max_action = float(env.action_space.high[0])
+    # args.max_episode_steps = env.max_steps  # Must match environment's truncation limit
+    
+    #quadrotor
+    args.state_dim = args.env.observation_space.shape[0]
+    args.action_dim = args.env.action_space.shape[0]
+    args.max_action = float(args.env.action_space.high[0])
+
+    if hasattr(args.env, "max_steps"):
+        args.max_episode_steps = args.env.max_steps
+    elif hasattr(args.env, "CTRL_FREQ") and hasattr(args.env, "EPISODE_LEN_SEC"):
+        args.max_episode_steps = int(args.env.CTRL_FREQ * args.env.EPISODE_LEN_SEC)
+    else:
+        args.max_episode_steps = 500
+    
     lambda_ = args.lambda_
     b = args.baseline
     print("env={}".format(args.env))
@@ -1031,7 +1095,7 @@ def main(args, run_number):
 
     # Build a tensorboard
     writer = SummaryWriter(
-        log_dir=f"runs/RNAC/env_{args.env}_{args.policy_dist}_run{run_number}_seed_{seed}_GAMMA_{GAMMA}"
+        log_dir=f"runs/RNAC/env_{args.env_name}_{args.policy_dist}_run{run_number}_seed_{seed}_GAMMA_{GAMMA}"
     )
 
     state_norm = Normalization(shape=args.state_dim)  # Trick 2:state normalization
@@ -1051,11 +1115,11 @@ def main(args, run_number):
     best_reward = float("-inf")  # Start with the minimum possible reward
     best_model_path = None
 
-    reward_offset = 17
+    reward_offset = 0 #17
     for total_steps in tqdm(range(args.max_train_steps)):
         # if total_steps > args.max_train_steps // 2:
         #    agent.gamma = 0.999
-        s = env.reset()[0]
+        s, _ = args.env.reset()
         # s_org = copy.deepcopy(s)
         if args.use_state_norm:
             s = state_norm(s)
@@ -1133,8 +1197,17 @@ def main(args, run_number):
                 total_reward += r
                 total_cost += c
             else:
-                s_, r, c, truncated, terminated, info = env.step(action)
-                done = truncated or terminated
+                #pendulum
+                # s_, r, c, truncated, terminated, info = env.step(action)
+                # done = truncated or terminated
+                #quadrotor
+                s_, r, done, info = args.env.step(action)
+                # c = info.get("cost", 0.0)
+                # c = info.get("cost", info.get("constraint_violation", 0.0))
+                c = float(info.get("constraint_violation", 0.0))
+
+                # done = terminated or truncated
+
                 total_reward += r
                 total_cost += c
                 max_cost = max(max_cost, c)
@@ -1203,15 +1276,15 @@ def main(args, run_number):
             # Save the rewards
             # if evaluate_num % args.save_freq == 0:
             np.save(
-                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_rewards.npy",
+                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env_name}_seed_{seed}_GAMMA_{GAMMA}_rewards.npy",
                 np.array(evaluate_rewards),
             )
             np.save(
-                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy",
+                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env_name}_seed_{seed}_GAMMA_{GAMMA}_costs.npy",
                 np.array(evaluate_costs),
             )
             np.save(
-                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy",
+                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env_name}_seed_{seed}_GAMMA_{GAMMA}_costs.npy",
                 np.array(evaluate_max_cost),
             )
 
@@ -1263,11 +1336,11 @@ def main(args, run_number):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
     parser.add_argument(
-        "--env",
+        "--env_name",
         type=str,
         # default="CartPolePerturbedEnv",
-        default="PendulumCostEnv",
-        help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv",
+        default="quadrotor",
+        help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv/quadrotor",
     )
     parser.add_argument("--uncer_set", type=str, default="IPM", help="DS/IPM")
     parser.add_argument(
@@ -1282,7 +1355,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max_train_steps",
         type=int,
-        default=int(10e3),
+        default=int(4.5e3),
         help="Maximum number of training steps",
     )
     parser.add_argument(
@@ -1309,10 +1382,13 @@ if __name__ == "__main__":
         help="The number of neurons in hidden layers of the neural network",
     )
     parser.add_argument(
-        "--lr_a", type=float, default=3e-4, help="Learning rate of actor"
+        "--lr_a", type=float, default=1e-3, help="Learning rate of actor"
     )
     parser.add_argument(
-        "--lr_c", type=float, default=3e-4, help="Learning rate of critic"
+        "--lr_c", type=float, default=1e-3, help="Learning rate of critic"
+    )
+    parser.add_argument(
+        "--lr_cost", type=float, default=1e-3, help="Learning rate of critic"
     )
     parser.add_argument(
         "--gamma", type=float, default=0.99, help="Discount factor 0.99"
@@ -1395,11 +1471,23 @@ if __name__ == "__main__":
         "--warm_start_flag", type=int, default=0, help="warm_start_flag"
     )
     parser.add_argument(
-        "--warm_start_episode", type=int, default=900, help="warm_start_episode"
+        "--warm_start_episode", type=int, default=1300, help="warm_start_episode"
     )
     parser.add_argument(
         "--gravity_std", type=float, default=0.5, help="gravity perturbation"
     )
+
+    parser.add_argument(
+        "--quad_task", type=str, default="stabilization", help="stabilization/TRAJ_TRACKING = track"
+    )
+    parser.add_argument(
+        "--gui", type=bool, default=True, help="True/False"
+    )
+
+    parser.add_argument(
+        "--quad_type", type=int, default=2, help="2 for 2d / 3 for 3d")
+
+    
 
     args = parser.parse_args()
     # make folders to dump results
@@ -1408,6 +1496,6 @@ if __name__ == "__main__":
     if not os.path.exists("./data_train"):
         os.makedirs("./data_train")
 
-    print("run=", args.run, "seed=", args.seed, "env=", args.env)
+    print("run=", args.run, "seed=", args.seed, "env=", args.env_name, "quad_task=", args.quad_task, "uncer_set=", args.uncer_set, "next_steps=", args.next_steps)
 
     main(args, run_number=args.run)

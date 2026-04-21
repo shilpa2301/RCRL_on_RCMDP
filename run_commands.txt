@@ -17,5 +17,8 @@ python code_ipm_rcmdp_rcrl_max_cartpole.py --run 9 --persistent_eps 0.3 --beta 4
 python code_ipm_rcmdp_rcrl_max_pendulum2.py --run 2 --persistent_eps 0.17 --beta 5000
 
 python code_ipm_rcmdp_rcrl_max_pendulum2.py --run 2 --persistent_eps 0.25 --beta 5000 --K_epochs 5 --max_train_steps 12000
+python code_ipm_rcmdp_rcrl_max_pendulum2.py --run 3 --persistent_eps 0.25 --beta 5000 --K_epochs 5 --max_train_steps 8000
 
+
+ python code_ipm_rcmdp_rcrl_max_quadrotor.py --run 1 --persistent_eps 0.25 --beta 0 --K_epochs 5 --max_train_steps 5000 --entropy_coef 0.01    
  
