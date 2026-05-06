@@ -472,7 +472,7 @@ class Robust_RCAC_NPG:
         softmax_weighted = (a * exp_a + b * exp_b) / (exp_a + exp_b)
         return softmax_weighted
 
-    def log_sum_exp_fn(self, a, b, eta=0.001):
+    def log_sum_exp_fn(self, a, b, eta=0.01):
         # Compute the Log-Sum-Exp smooth approximation of max(a, b)
         # print("a, b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta))= ", a,b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta)))
         # lse = eta * torch.log(torch.exp(a / eta) + torch.exp(b / eta))
