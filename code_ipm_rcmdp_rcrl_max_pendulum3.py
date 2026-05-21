@@ -92,21 +92,26 @@ class Actor_Gaussian(nn.Module):
         self.max_action = args.max_action
         self.fc1 = nn.Linear(args.state_dim, args.hidden_width)
         self.fc2 = nn.Linear(args.hidden_width, args.hidden_width)
+        self.fc3 = nn.Linear(args.hidden_width, args.hidden_width)
         self.mean_layer = nn.Linear(args.hidden_width, args.action_dim)
         self.log_std = nn.Parameter(
             torch.zeros(1, args.action_dim)
         )  # We use 'nn.Parameter' to train log_std automatically
-        self.activate_func = [nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
+        # self.log_std = nn.Parameter(torch.full((1, args.action_dim), -2.0))
+
+        self.activate_func = [nn.ReLU(), nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
 
         if args.use_orthogonal_init:
             print("------use_orthogonal_init------")
             orthogonal_init(self.fc1)
             orthogonal_init(self.fc2)
+            orthogonal_init(self.fc3)
             orthogonal_init(self.mean_layer, gain=0.01)
 
     def forward(self, s):
         s = self.activate_func(self.fc1(s))
         s = self.activate_func(self.fc2(s))
+        s = self.activate_func(self.fc3(s))
         mean = self.max_action * torch.tanh(
             self.mean_layer(s)
         )  # [-1,1]->[-max_action,max_action]
@@ -127,7 +132,7 @@ class Actor_Gaussian(nn.Module):
             mean.shape[0], -1
         )  # Expand log_std to match the shape of mean
         
-        # log_std = torch.clamp(log_std, min=-20, max=2)
+        # log_std = torch.clamp(log_std, min=-4.0, max=-1.0)
 
         # print(f"log_std shape after expand: {log_std.shape}")  # Debugging: Print the shape of expanded log_std
         std = torch.exp(log_std)
@@ -232,19 +237,23 @@ class Critic(nn.Module):
         super(Critic, self).__init__()
         self.fc1 = nn.Linear(args.state_dim, args.hidden_width)
         self.fc2 = nn.Linear(args.hidden_width, args.hidden_width)
-        self.fc3 = nn.Linear(args.hidden_width, 1)
-        self.activate_func = [nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
+        self.fc3 = nn.Linear(args.hidden_width, args.hidden_width)
+        self.fc4 = nn.Linear(args.hidden_width, 1)
+        self.activate_func = [nn.ReLU(), nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
 
         if args.use_orthogonal_init:
             print("------use_orthogonal_init------")
             orthogonal_init(self.fc1)
             orthogonal_init(self.fc2)
             orthogonal_init(self.fc3)
+            orthogonal_init(self.fc4)
+
 
     def forward(self, s):
         s = self.activate_func(self.fc1(s))
         s = self.activate_func(self.fc2(s))
-        v_s = self.fc3(s)
+        s = self.activate_func(self.fc3(s))
+        v_s = self.fc4(s)
         # v_s = torch.sigmoid(self.fc3(s))
         return v_s
 
@@ -261,7 +270,8 @@ class CostCritic(nn.Module):
         super(CostCritic, self).__init__()
         self.fc1 = nn.Linear(args.state_dim, args.hidden_width)
         self.fc2 = nn.Linear(args.hidden_width, args.hidden_width)
-        self.fc3 = nn.Linear(args.hidden_width, 1)
+        self.fc3 = nn.Linear(args.hidden_width, args.hidden_width)
+        self.fc4 = nn.Linear(args.hidden_width, 1)
         # self.activate_func = [nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
         self.activate_func = nn.ReLU()
 
@@ -270,12 +280,14 @@ class CostCritic(nn.Module):
             orthogonal_init(self.fc1)
             orthogonal_init(self.fc2)
             orthogonal_init(self.fc3)
+            orthogonal_init(self.fc4)
 
     def forward(self, s):
         s = self.activate_func(self.fc1(s))  # Apply activation to the first layer
         s = self.activate_func(self.fc2(s))  # Apply activation to the second layer
-        v_s = torch.sigmoid(self.fc3(s))  # Apply sigmoid activation to the last layer
-        # v_s = self.fc3(s)
+        s = self.activate_func(self.fc3(s))
+        # v_s = torch.sigmoid(self.fc3(s))  # Apply sigmoid activation to the last layer
+        v_s = self.fc4(s)
         return v_s
 
     def save(self, filename):
@@ -320,154 +332,6 @@ class ReplayBuffer:
         done = torch.tensor(self.done, dtype=torch.float)
 
         return s, a, a_logprob, r, c, s_, dw, done
-
-class PrioritizedReplayBuffer:
-    def __init__(self, args):
-        self.capacity = args.batch_size   # minimal-change version: same size as current rollout
-        self.state_dim = args.state_dim
-        self.action_dim = args.action_dim
-
-        self.s = np.zeros((self.capacity, self.state_dim), dtype=np.float32)
-        self.a = np.zeros((self.capacity, self.action_dim), dtype=np.float32)
-        self.a_logprob = np.zeros((self.capacity, self.action_dim), dtype=np.float32)
-        self.r = np.zeros((self.capacity, 1), dtype=np.float32)
-        self.c = np.zeros((self.capacity, 1), dtype=np.float32)
-        self.s_ = np.zeros((self.capacity, self.state_dim), dtype=np.float32)
-        self.dw = np.zeros((self.capacity, 1), dtype=np.float32)
-        self.done = np.zeros((self.capacity, 1), dtype=np.float32)
-
-        # PER params
-        self.alpha = args.per_alpha              # prioritization exponent
-        self.beta_start = args.per_beta_start    # initial IS correction exponent
-        self.beta_frames = args.per_beta_frames  # annealing schedule
-        self.per_eps = args.per_eps              # small constant to avoid zero priority
-
-        self.priority_clip = getattr(args, "priority_clip", 5.0)
-        self.uniform_mix = getattr(args, "per_uniform_mix", 0.1)
-
-        self.priorities = np.zeros((self.capacity,), dtype=np.float32)
-
-        self.count = 0
-        self.size = 0
-        self.max_priority = 1.0
-
-    def beta_by_frame(self, frame_idx):
-        return min(1.0, self.beta_start + frame_idx * (1.0 - self.beta_start) / self.beta_frames)
-
-    def store(self, s, a, a_logprob, r, c, s_, dw, done):
-        idx = self.count
-
-        self.s[idx] = s
-        self.a[idx] = a
-        self.a_logprob[idx] = a_logprob
-        self.r[idx] = r
-        self.c[idx] = c
-        self.s_[idx] = s_
-        self.dw[idx] = dw
-        self.done[idx] = done
-
-        # new samples get max priority so they are sampled at least once
-        self.priorities[idx] = self.max_priority
-
-        self.count = (self.count + 1) % self.capacity
-        self.size = min(self.size + 1, self.capacity)
-
-    # def sample(self, batch_size, total_steps):
-    #     if self.size == 0:
-    #         raise ValueError("Cannot sample from an empty buffer.")
-
-    #     priorities = self.priorities[:self.size]
-    #     probs = priorities ** self.alpha
-    #     probs /= probs.sum()
-
-    #     indices = np.random.choice(self.size, batch_size, p=probs, replace=False)
-
-    #     beta = self.beta_by_frame(total_steps)
-    #     weights = (self.size * probs[indices]) ** (-beta)
-    #     weights /= weights.max()
-    #     weights = np.array(weights, dtype=np.float32).reshape(-1, 1)
-
-    #     batch = {
-    #         "s": torch.tensor(self.s[indices], dtype=torch.float32),
-    #         "a": torch.tensor(self.a[indices], dtype=torch.float32),
-    #         "a_logprob": torch.tensor(self.a_logprob[indices], dtype=torch.float32),
-    #         "r": torch.tensor(self.r[indices], dtype=torch.float32),
-    #         "c": torch.tensor(self.c[indices], dtype=torch.float32),
-    #         "s_": torch.tensor(self.s_[indices], dtype=torch.float32),
-    #         "dw": torch.tensor(self.dw[indices], dtype=torch.float32),
-    #         "done": torch.tensor(self.done[indices], dtype=torch.float32),
-    #         "indices": indices,
-    #         "weights": torch.tensor(weights, dtype=torch.float32),
-    #     }
-    #     return batch
-
-    def sample(self, batch_size, total_steps):
-        if self.size == 0:
-            raise ValueError("Cannot sample from an empty buffer.")
-
-        priorities = self.priorities[:self.size]
-        scaled = priorities ** self.alpha
-        scaled_sum = scaled.sum()
-
-        if scaled_sum <= 0 or not np.isfinite(scaled_sum):
-            probs = np.ones(self.size, dtype=np.float32) / self.size
-        else:
-            probs = scaled / scaled_sum
-
-        if self.uniform_mix > 0.0:
-            uniform_probs = np.ones(self.size, dtype=np.float32) / self.size
-            probs = (1.0 - self.uniform_mix) * probs + self.uniform_mix * uniform_probs
-            probs = probs / probs.sum()
-
-        indices = np.random.choice(self.size, batch_size, p=probs, replace=False)
-
-        beta = self.beta_by_frame(total_steps)
-        weights = (self.size * probs[indices]) ** (-beta)
-        weights /= (weights.max() + 1e-8)
-        weights = weights.astype(np.float32).reshape(-1, 1)
-
-        batch = {
-            "s": torch.tensor(self.s[indices], dtype=torch.float32),
-            "a": torch.tensor(self.a[indices], dtype=torch.float32),
-            "a_logprob": torch.tensor(self.a_logprob[indices], dtype=torch.float32),
-            "r": torch.tensor(self.r[indices], dtype=torch.float32),
-            "c": torch.tensor(self.c[indices], dtype=torch.float32),
-            "s_": torch.tensor(self.s_[indices], dtype=torch.float32),
-            "dw": torch.tensor(self.dw[indices], dtype=torch.float32),
-            "done": torch.tensor(self.done[indices], dtype=torch.float32),
-            "indices": indices,
-            "weights": torch.tensor(weights, dtype=torch.float32),
-        }
-        return batch
-
-    # def update_priorities(self, indices, td_errors):
-    #     td_errors = td_errors.detach().cpu().numpy().flatten()
-    #     new_priorities = np.abs(td_errors) + self.per_eps
-    #     new_priorities = np.clip(new_priorities, self.per_eps, 10.0)
-    #     self.priorities[indices] = new_priorities
-    #     self.max_priority = max(self.max_priority, new_priorities.max())
-
-    def update_priorities(self, indices, td_errors):
-        td_errors = td_errors.detach().cpu().numpy().flatten()
-        td_errors = np.abs(td_errors)
-
-        # optional normalization for stability
-        td_errors = td_errors / (td_errors.mean() + 1e-6)
-
-        new_priorities = td_errors + self.per_eps
-        new_priorities = np.clip(new_priorities, self.per_eps, self.priority_clip)
-
-        self.priorities[indices] = new_priorities
-        self.max_priority = max(self.max_priority, float(new_priorities.max()))
-
-    def is_full(self):
-        return self.size == self.capacity
-
-    def reset(self):
-        self.count = 0
-        self.size = 0
-        self.max_priority = 1.0
-        self.priorities.fill(0.0)
 
 
 class Robust_RCAC_NPG:
@@ -528,11 +392,11 @@ class Robust_RCAC_NPG:
         self.Rcritic = Critic(args)
         self.Ccritic = CostCritic(args)
 
-        #SAC
+        #shilpa target critic
         # Initialize target critics
         # self.target_Rcritic = Critic(args)  # Target reward critic
         # self.target_Ccritic = CostCritic(args)  # Target cost critic        
-        # # Copy initial weights from critics to target critics
+        # # # Copy initial weights from critics to target critics
         # self.target_Rcritic.load_state_dict(self.Rcritic.state_dict())
         # self.target_Ccritic.load_state_dict(self.Ccritic.state_dict())
 
@@ -560,6 +424,22 @@ class Robust_RCAC_NPG:
             self.optimizer_Ccritic = torch.optim.Adam(
                 self.Ccritic.parameters(), lr=self.lr_cost
             )
+
+        #shilpa target critic 
+        # Target networks are not optimized directly
+        # self.target_Rcritic.eval()
+        # self.target_Ccritic.eval()
+        # for p in self.target_Rcritic.parameters():
+        #     p.requires_grad = False
+        # for p in self.target_Ccritic.parameters():
+        #     p.requires_grad = False
+        # self.tau = getattr(args, "tau", 0.005)
+
+        # In __init__, add:
+        # self.ch = 0                        # current mode: 0=reward, 1=cost
+        # self.enter_cost_threshold  = self.persistent_eps          # enter cost mode if max > this
+        # self.exit_cost_threshold   = self.persistent_eps * 0.8   # exit cost mode only if max < this (more lenient)
+
 
     def evaluate(
         self, s
@@ -620,7 +500,7 @@ class Robust_RCAC_NPG:
         softmax_weighted = (a * exp_a + b * exp_b) / (exp_a + exp_b)
         return softmax_weighted
 
-    def log_sum_exp_fn(self, a, b, eta=0.001):
+    def log_sum_exp_fn(self, a, b, eta=0.01): #prev 0.001
         # Compute the Log-Sum-Exp smooth approximation of max(a, b)
         # print("a, b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta))= ", a,b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta)))
         # lse = eta * torch.log(torch.exp(a / eta) + torch.exp(b / eta))
@@ -638,213 +518,204 @@ class Robust_RCAC_NPG:
         )
         return lse
 
-    def persistent_safety_function(self, trajectory, actor, cost_critic, gamma):
-        states = trajectory["states"]
-        actions = trajectory["actions"]
-        next_states = trajectory["next_states"]
-        costs = trajectory["costs"]
-
-        v_h_pi_values = []
-        cost_values = []
-
-        for i in range(len(states)):
-            state = states[i]
-            action = actions[i]
-            next_state = next_states[i]
-            h_s = costs[i]
-            dist = actor.get_dist(state)
-
-            # Sample multiple actions from the distribution
-            sampled_actions = dist.sample(
-                (50,)
-            )  # Sample 50 actions for Monte Carlo approximation
-            log_probs = dist.log_prob(
-                sampled_actions
-            )  # Get log probabilities of sampled actions
-
-            # Compute Q_h(s, a) for each sampled action
-            q_values = []
-            for sampled_action in sampled_actions:
-                if torch.allclose(sampled_action, action, atol=1e-4):
-                    current_cost = h_s
-                else:
-                    x_position = state[0].item()
-                    theta = state[2].item()
-                    current_cost = self.env.compute_cost(x_position, theta)
-
-                simulated_next_state = self.env.simulate_next_state(
-                    state, sampled_action
-                )
-                next_value = cost_critic(simulated_next_state).item()
-
-                # Compute Q_h(s, a)
-                # temperature = 1.0  # Tuning parameter for softmax sharpness
-                current_cost = torch.tensor(current_cost, dtype=torch.float32)
-                next_value = torch.tensor(next_value).detach().clone()
-                q_value = (1 - gamma) * current_cost + gamma * self.log_sum_exp_fn(
-                    current_cost, next_value
-                )
-                # q_value = (1-gamma)*current_cost + gamma * max(current_cost, next_value)
-                # q_value = current_cost + gamma * max(current_cost, next_value)
-                # q_value = max(current_cost, next_value)
-                q_values.append(q_value)
-
-            # Compute V_h(s) using a weighted average of Q_h(s, a) with the probabilities
-            q_values = torch.tensor(q_values)
-            v_h_pi = torch.mean(q_values)
-            v_h_pi_values.append(v_h_pi.item())
-            cost_values.append(v_h_pi.item())
-
-        vl_pi = max(cost_values)
-
-        return vl_pi
+  
 
     def update(self, replay_buffer, total_steps):
-        # s, a, a_logprob, r, c, s_, dw, done = (
-        #     replay_buffer.numpy_to_tensor()
-        # )  # Get training data
-        
-        # Use full current buffer once for advantage / target computation
-        s = torch.tensor(replay_buffer.s[:replay_buffer.size], dtype=torch.float32)
-        a = torch.tensor(replay_buffer.a[:replay_buffer.size], dtype=torch.float32)
-        a_logprob = torch.tensor(replay_buffer.a_logprob[:replay_buffer.size], dtype=torch.float32)
-        r = torch.tensor(replay_buffer.r[:replay_buffer.size], dtype=torch.float32)
-        c = torch.tensor(replay_buffer.c[:replay_buffer.size], dtype=torch.float32)
-        s_ = torch.tensor(replay_buffer.s_[:replay_buffer.size], dtype=torch.float32)
-        dw = torch.tensor(replay_buffer.dw[:replay_buffer.size], dtype=torch.float32)
-        done = torch.tensor(replay_buffer.done[:replay_buffer.size], dtype=torch.float32)
-
-        buffer_size = replay_buffer.size
-
+        s, a, a_logprob, r, c, s_, dw, done = (
+            replay_buffer.numpy_to_tensor()
+        )  # Get training data
+        """
+            Calculate the advantage using GAE
+            'dw=True' means dead or win, there is no next state s'
+            'done=True' represents the terminal of an episode(dead or win or reaching the max_episode_steps). When calculating the adv, if done=True, gae=0
+        """
         adv = []
         gae = 0
         with torch.no_grad():  # adv and v_target have no gradient
+            # shilpa target critic
             vs = self.Rcritic(s)
             vs_ = self.Rcritic(s_)
             vcs = self.Ccritic(s)
             vcs_ = self.Ccritic(s_)
+            # vs = self.Rcritic(s)
+            # vcs = self.Ccritic(s)
+            # vs_ = self.target_Rcritic(s_)
+            # vcs_ = self.target_Ccritic(s_)
 
-            # Calculate target values using target critics
-            # with torch.no_grad():
-            #     target_vs_ = self.target_Rcritic(s_)
-            #     target_vcs_ = self.target_Ccritic(s_)
 
-            # IPM uncertainty set
-            # print("VS shape:",vs.shape)
-            # print("VCS shape:",vcs.shape)
-            # shilpa rcrl
             # Construct trajectory dynamically from replay buffer
 
             trajectory = {"states": s, "actions": a, "next_states": s_, "costs": c}
 
-            with torch.no_grad():
+            # with torch.no_grad():
                 # Compute robust value function and V_L^pi
-                # vl_pi = self.persistent_safety_function(
-                #     trajectory, self.actor, self.Ccritic, self.gamma
+               
+                # vl_pi = vcs.max()
+                # # penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
+                # penalty_term = vl_pi - torch.tensor(self.persistent_eps)
+                # beta_penalty = self.beta * penalty_term
+                # vs_mean = vs.mean().item()
+                # if self.warm_start_flag == 1:
+                #     ch = np.argmax([vs_mean, beta_penalty])
+                # else:
+                #     ch = 0
+                # print(
+                #     "ch, vs_mean, vl_pi, beta penalty=",
+                #     ch,
+                #     vs_mean,
+                #     vl_pi,
+                #     beta_penalty,
                 # )
-                vl_pi = vcs.max()
-                # penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
-                penalty_term = vl_pi - torch.tensor(self.persistent_eps)
-                beta_penalty = self.beta * penalty_term
-                vs_mean = vs.mean().item()
-                if self.warm_start_flag == 1:
-                    ch = np.argmax([vs_mean, beta_penalty])
-                else:
-                    ch = 0
-                print(
-                    "ch, vs_mean, vl_pi, beta penalty=",
-                    ch,
-                    vs_mean,
-                    vl_pi,
-                    beta_penalty,
-                )
+
+            reward_min = -1600.0   # known lower bound for PendulumCostEnv
+            reward_max = 0.0
+            # # In __init__, add:
+            # self.ema_violation = 0.0
+            # self.ema_alpha = 0.05
+
+            # # In update(), replace the ch block:
+            # current_violation = (vcs.mean() - self.persistent_eps).item()
+            # self.ema_violation = (1 - self.ema_alpha) * self.ema_violation + self.ema_alpha * current_violation
+            # ch = 0 if self.ema_violation < 0 else 1
+
+            vs_mean_normalized = (vs.mean().item() - reward_min) / (reward_max - reward_min + 1e-8)
+            penalty_normalized = vcs.max() - torch.tensor(self.persistent_eps)
+            if self.warm_start_flag == 1:
+                # ch = 0 if (vs_mean_normalized > 0.5 and penalty_normalized < 0) else (
+                #             1 if penalty_normalized > 0 else 0
+                #         )
+                ch = 0 if penalty_normalized < 0 else 1
+            else:
+                ch = 0
+            print(
+                "ch, vs_mean, vl_pi=",
+                ch,
+                vs_mean_normalized,
+                penalty_normalized
+            )
+
+            # vcs_max = vcs.max().item()
+
+            # if self.warm_start_flag == 1:
+            #     if self.ch == 0:
+            #         # currently in reward mode → switch to cost only if clearly violated
+            #         self.ch = 1 if vcs_max > self.enter_cost_threshold else 0
+            #     else:
+            #         # currently in cost mode → exit only if clearly safe (hysteresis)
+            #         self.ch = 0 if vcs_max < self.exit_cost_threshold else 1
+            # else:
+            #     self.ch = 0
+
+            # ch = self.ch
+            # print("ch, vcs_max, threshold=", ch, vcs_max, self.persistent_eps)
+
+
+            
             reg_norm, weight_norm, bias_norm = 0, [], []
 
-            if ch == 1:
-                # print("Cost chosen")
-                for layer in self.Ccritic.children():
-                    if isinstance(layer, nn.Linear):
-                        weight_norm.append(
-                            torch.norm(layer.state_dict()["weight"]) ** 2
-                        )
-                        bias_norm.append(torch.norm(layer.state_dict()["bias"]) ** 2)
-                reg_norm = torch.sqrt(
-                    torch.sum(torch.stack(weight_norm))
-                    + torch.sum(torch.stack(bias_norm[0:-1]))
-                )
+            # if ch == 1:
+            #     # print("Cost chosen")
+            #     # for layer in self.Ccritic.children():
+            #     #     if isinstance(layer, nn.Linear):
+            #     #         weight_norm.append(
+            #     #             torch.norm(layer.state_dict()["weight"]) ** 2
+            #     #         )
+            #     #         bias_norm.append(torch.norm(layer.state_dict()["bias"]) ** 2)
+            #     # reg_norm = torch.sqrt(
+            #     #     torch.sum(torch.stack(weight_norm))
+            #     #     + torch.sum(torch.stack(bias_norm[0:-1]))
+            #     # )
+
+            #     linear_layers = [layer for layer in self.Ccritic.children() if isinstance(layer, nn.Linear)]
+            #     if len(linear_layers) == 0:
+            #         raise ValueError("Ccritic has no nn.Linear layer")
+
+            #     last_linear = linear_layers[-1]
+            #     reg_norm = torch.norm(last_linear.weight, p=2)
                 
-                # Assuming `vs`, `c`, and `done` are all flattened numpy arrays
-                trajectory_indices = []  # To store the starting indices of each trajectory
-                current_index = 0  # To track the current index in the entire flattened array
-                # Identify the trajectories based on the done flags
-                for d in done.flatten().numpy():
-                    if d == 1:
-                        trajectory_indices.append(current_index)  # Store the index where the episode ends
-                    current_index += 1
-                # Now, we can process each trajectory
-                # adv = []  # List to store advantages
-                # Iterate through the reversed values
-                c_max = float('-inf')
-                for index, (vc_, vcnext_, c_, d_) in enumerate(zip(
-                                                        reversed(vcs.flatten().numpy()), 
-                                                        reversed(vcs_.flatten().numpy()), 
-                                                        reversed(c.flatten().numpy()), 
-                                                        reversed(done.flatten().numpy())
-                                                    )):
-                    # # Determine the original index in the trajectory
-                    # original_index = len(done) - 1 - index  # Calculate the corresponding original index
-                    # # Find the trajectory number based on the original index
-                    # trajectory_num = next((i for i, idx in enumerate(trajectory_indices) if idx > original_index), len(trajectory_indices) - 1)
-                    # # Reset c_max when we reach the end of an episode
-                    # if d_ == 1:
-                    #     c_max = float('-inf')  # Reset c_max if the episode has ended
-                    # else:
-                    #     # Convert c_ to a tensor
-                    #     # Clip the values to prevent overflow
-                    #     c_max = self.log_sum_exp_fn(torch.tensor(c_max),torch.tensor(c_))  # Update c_max using the log-sum-exp function
+            #     # # Assuming `vs`, `c`, and `done` are all flattened numpy arrays
+            #     # trajectory_indices = []  # To store the starting indices of each trajectory
+            #     # current_index = 0  # To track the current index in the entire flattened array
+            #     # # Identify the trajectories based on the done flags
+            #     # for d in done.flatten().numpy():
+            #     #     if d == 1:
+            #     #          trajectory_indices.append(current_index)  # Store the index where the episode ends
+            #     #     current_index += 1
 
-                    # c_max = torch.clamp(c_max, min=-1e10, max=1e10)
-                    # A_max = self.log_sum_exp_fn(torch.tensor(vcnext_.item()), torch.tensor(c_max) ) # Calculate the advantage using LSE
-                    A_max = (1-self.gamma)*c_ + self.gamma* self.log_sum_exp_fn(torch.tensor(vcnext_.item()), torch.tensor(c_) ) # Calculate the advantage using LSE
+            #     for index, (vc_, vcnext_, c_, d_) in enumerate(zip(
+            #                                             reversed(vcs.flatten().numpy()), 
+            #                                             reversed(vcs_.flatten().numpy()), 
+            #                                             reversed(c.flatten().numpy()), 
+            #                                             reversed(dw.flatten().numpy())
+            #                                         )):
+                   
+            #         A_max = (1-self.gamma)*c_ + self.gamma* self.log_sum_exp_fn(torch.tensor(vcnext_.item()), torch.tensor(c_) ) # Calculate the advantage using LSE
 
-                    # A_max = self.log_sum_exp_fn(torch.tensor(vc_.item()), torch.tensor(c_max) )
                   
-                    # If we are at the end of a trajectory, handle the last value
-                    if d_ == 1:
-                        gae = c_ * (self.lamda ** 0)  # First value for GAE calculation
-                        adv.insert(0, gae.item())  # Insert the advantage at the beginning of the list
-                        continue  # Skip to the next iteration
+            #         # If we are at the end of a trajectory, handle the last value
+            #         # if d_ == 1:
+            #         #     gae = c_ * (self.lamda ** 0)  # First value for GAE calculation
+            #         #     adv.insert(0, gae.item())  # Insert the advantage at the beginning of the list
+            #         #     continue  # Skip to the next iteration
+            #         if d_ == 1:
+            #             # dw=1 means dead/win → no next state → V_c(s') = 0
+            #             # TD error = (1-γ)*c_ + γ*LSE(c_, 0) - V_c(s_terminal)
+            #             gae = (1 - self.gamma) * c_ + self.gamma * self.log_sum_exp_fn(
+            #                 torch.tensor(c_), torch.tensor(0.0)
+            #             ) - vc_
+            #             adv.insert(0, gae.item())
+            #             continue
 
-                    # Initialize GAE for this step
-                    gae = (A_max - vc_) * (self.lamda ** 0)  # Current step contribution
+            #         # Initialize GAE for this step
+            #         gae = (A_max - vc_) * (self.lamda ** 0)  # Current step contribution
 
-                    # Accumulate contributions from previous steps within the same trajectory
-                    # for i in range(len(adv)):
-                    #     # Stop considering advantages if we reach a corresponding trajectory end
-                    #     if trajectory_num != next((j for j, idx in enumerate(trajectory_indices) if idx > (original_index + (i + 1))), len(trajectory_indices) - 1):
-                    #         break  # Stop if we reach the end of the current trajectory
-                    #     gae += adv[i] * (self.lamda ** (i + 1))  # Include previous advantages
+            #         # Insert the calculated GAE
+            #         adv.insert(0, gae.item()) 
+            #     adv = torch.tensor(adv, dtype=torch.float).view(-1, 1)
 
-                    # Insert the calculated GAE
-                    adv.insert(0, gae.item()) 
-                adv = torch.tensor(adv, dtype=torch.float).view(-1, 1)
+            #     #ppo
+            #     deltas = (
+            #         (1 - self.gamma) * c
+            #         + self.gamma * self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_))
+            #         # self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_))
+            #         - vcs
+            #         - self.alpha * a_logprob.sum(dim=1, keepdim=True)
+            #         # - self.weight_reg * reg_norm
+            #     )
 
-                #ppo
-                deltas = (
-                    # (1 - self.gamma) * c
-                    # + self.gamma * self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_))
-                    self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_))
+                  
+            #     v_target = deltas + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True) #adv + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
+            #     if self.use_adv_norm:  # Trick 1:advantage normalization
+            #         adv = (adv - adv.mean()) / (adv.std() + 1e-5)
+            #     # shilpa
+            #     adv = -adv #-0.2 *adv
+            if ch == 1:
+                linear_layers = [l for l in self.Ccritic.children() if isinstance(l, nn.Linear)]
+                if len(linear_layers) == 0:
+                    raise ValueError("Ccritic has no nn.Linear layer")
+                reg_norm = torch.norm(linear_layers[-1].weight, p=2)
+
+                # ── 1-step TD error using LSE Bellman (correct for max-cost) ────────
+                # At terminal (dw=1): next state value = 0, so (1-dw)*vcs_ = 0
+                # At truncation (done=1, dw=0): next state exists, vcs_ is valid
+                cost_deltas = (
+                    (1 - self.gamma) * c
+                    + self.gamma * self.log_sum_exp_fn(c, (1.0 - dw) * vcs_)
                     - vcs
-                    - self.alpha * a_logprob.sum(dim=1, keepdim=True)
-                    # - self.weight_reg * reg_norm
-                )
+                    # - self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                )  # shape: (batch_size, 1)  — this IS your 1-step advantage
 
-                  
-                v_target = deltas + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True) #adv + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
-                if self.use_adv_norm:  # Trick 1:advantage normalization
+                # ── adv = 1-step cost TD error (no multi-step needed for max-cost) ──
+                adv = cost_deltas  # already correct
+
+                # ── v_target for cost critic ─────────────────────────────────────────
+                v_target = adv + vcs #+ self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                # = (1-γ)*c + γ*LSE(c, (1-dw)*vcs_)  ← the LSE Bellman target
+
+                # ── Normalize then negate for actor ─────────────────────────────────
+                if self.use_adv_norm:
                     adv = (adv - adv.mean()) / (adv.std() + 1e-5)
-                # shilpa
-                adv = -adv
+                adv = -adv  # minimize cost = maximize negative cost advantage
             else:
                 for layer in self.Rcritic.children():
                     if isinstance(layer, nn.Linear):
@@ -856,12 +727,18 @@ class Robust_RCAC_NPG:
                     torch.sum(torch.stack(weight_norm))
                     + torch.sum(torch.stack(bias_norm[0:-1]))
                 )
+                # linear_layers = [layer for layer in self.Rcritic.children() if isinstance(layer, nn.Linear)]
+                # if len(linear_layers) == 0:
+                #     raise ValueError("Rcritic has no nn.Linear layer")
+
+                # last_linear = linear_layers[-1]
+                # reg_norm = torch.norm(last_linear.weight, p=2)
                 #ppo
                 deltas = (
                     r
                     + self.gamma * (1.0 - dw) * vs_
                     - vs
-                    - self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                    # - self.alpha * a_logprob.sum(dim=1, keepdim=True)
                     - self.weight_reg * reg_norm
                 )
 
@@ -872,175 +749,92 @@ class Robust_RCAC_NPG:
                     gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
                     adv.insert(0, gae)
                 adv = torch.tensor(adv, dtype=torch.float).view(-1, 1)
-                v_target = adv + vs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                v_target = adv + vs #+ self.alpha * a_logprob.sum(dim=1, keepdim=True)
                 if self.use_adv_norm:  # Trick 1:advantage normalization
-                    adv = (adv - adv.mean()) / (adv.std() + 1e-5)
+                    adv =  (adv - adv.mean()) / (adv.std() + 1e-5)
 
-        # # Optimize policy for K epochs:
-        # for _ in range(self.K_epochs):
-        #     # Random sampling and no repetition. 'False' indicates that training will continue even if the number of samples in the last time is less than mini_batch_size
-        #     for index in BatchSampler(
-        #         SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False
-        #     ):
-        #         dist_now = self.actor.get_dist(s[index])
-        #         dist_entropy = dist_now.entropy().sum(
-        #             1, keepdim=True
-        #         )  # shape(mini_batch_size X 1)
-        #         a_logprob_now = dist_now.log_prob(a[index])
-        #         # print("a_logprob_now shape:", a_logprob_now.shape)  # Debugging: Print the shape of a_logprob_now
-        #         # print("a_logprob shape:", a_logprob[index].shape)  # Debugging: Print the shape of a_logprob
-
-
-        #         # a/b=exp(log(a)-log(b))  In multi-dimensional continuous action space，we need to sum up the log_prob
-        #         ratios = torch.exp(
-        #             a_logprob_now.sum(1, keepdim=True)
-        #             - a_logprob[index].sum(1, keepdim=True)
-        #         )  # shape(mini_batch_size X 1)
-
-        #         surr1 = (
-        #             ratios * adv[index]
-        #         )  # Only calculate the gradient of 'a_logprob_now' in ratios
-        #         surr2 = (
-        #             torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * adv[index]
-        #         )
-        #         actor_loss = (
-        #             -torch.min(surr1, surr2) - self.entropy_coef * dist_entropy
-        #         )  # Trick 5: policy entropy
-                
-        #         #policy gradient
-        #         # actor_loss = - (a_logprob_now * adv[index])
-        #         # actor_loss = (-a_logprob_now  * adv[index] - self.entropy_coef * dist_entropy)
-
-
-        #         # Update actor
-        #         self.optimizer_actor.zero_grad()
-        #         actor_loss.mean().backward()
-        #         if self.use_grad_clip:  # Trick 7: Gradient clip
-        #             torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
-        #         self.optimizer_actor.step()
-
-        #         if ch == 0:
-        #             v_s = self.Rcritic(s[index])
-        #             # Calculate the loss of critic
-        #             Rcritic_loss = F.mse_loss(v_target[index], v_s)
-        #             # Update Reward critic
-        #             self.optimizer_Rcritic.zero_grad()
-        #             Rcritic_loss.backward()
-        #             if self.use_grad_clip:  # Trick 7: Gradient clip
-        #                 torch.nn.utils.clip_grad_norm_(self.Rcritic.parameters(), 0.5)
-        #             self.optimizer_Rcritic.step()
-
-        #         else:
-        #             v_cs = self.Ccritic(s[index])
-        #             Ccritic_loss = F.mse_loss(v_target[index], v_cs)
-        #             # print("critic loss=", Ccritic_loss.item())
-        #             with open('critic_loss.txt', 'a') as f:
-        #                 f.write(f'{Ccritic_loss.item()}\n')
-        #             # Update Cost critic
-        #             self.optimizer_Ccritic.zero_grad()
-        #             Ccritic_loss.backward()
-        #             if self.use_grad_clip:  # Trick 7: Gradient clip
-        #                 torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.5)
-        #             self.optimizer_Ccritic.step()
-
-        priority_updates = {}
+        # Optimize policy for K epochs:
         for _ in range(self.K_epochs):
-            # -------- Actor update: use uniform sampling --------
+            # Random sampling and no repetition. 'False' indicates that training will continue even if the number of samples in the last time is less than mini_batch_size
             for index in BatchSampler(
-                SubsetRandomSampler(range(buffer_size)),
-                self.mini_batch_size,
-                False
+                SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False
             ):
-                s_b = s[index]
-                a_b = a[index]
-                a_logprob_b = a_logprob[index]
-                adv_b = adv[index]
+                dist_now = self.actor.get_dist(s[index])
+                dist_entropy = dist_now.entropy().sum(
+                    1, keepdim=True
+                )  # shape(mini_batch_size X 1)
+                a_logprob_now = dist_now.log_prob(a[index])
+                # print("a_logprob_now shape:", a_logprob_now.shape)  # Debugging: Print the shape of a_logprob_now
+                # print("a_logprob shape:", a_logprob[index].shape)  # Debugging: Print the shape of a_logprob
 
-                dist_now = self.actor.get_dist(s_b)
-                dist_entropy = dist_now.entropy().sum(1, keepdim=True)
-                a_logprob_now = dist_now.log_prob(a_b)
 
+                # a/b=exp(log(a)-log(b))  In multi-dimensional continuous action space，we need to sum up the log_prob
                 ratios = torch.exp(
-                    a_logprob_now.sum(1, keepdim=True) - a_logprob_b.sum(1, keepdim=True)
+                    a_logprob_now.sum(1, keepdim=True)
+                    - a_logprob[index].sum(1, keepdim=True)
+                )  # shape(mini_batch_size X 1)
+
+                surr1 = (
+                    ratios * adv[index]
+                )  # Only calculate the gradient of 'a_logprob_now' in ratios
+                surr2 = (
+                    torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * adv[index]
                 )
+                
+                actor_loss = (
+                    -torch.min(surr1, surr2) - self.entropy_coef * dist_entropy
+                )  # Trick 5: policy entropy
+                
+                #policy gradient
+                # actor_loss = - (a_logprob_now * adv[index])
+                # actor_loss = (-a_logprob_now  * adv[index] - self.entropy_coef * dist_entropy)
 
-                surr1 = ratios * adv_b
-                surr2 = torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * adv_b
 
-                actor_loss = (-torch.min(surr1, surr2) - self.entropy_coef * dist_entropy).mean()
-
+                # Update actor
                 self.optimizer_actor.zero_grad()
-                actor_loss.backward()
-                if self.use_grad_clip:
+                actor_loss.mean().backward()
+                if self.use_grad_clip:  # Trick 7: Gradient clip
                     torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
                 self.optimizer_actor.step()
 
-            # -------- Critic update: use prioritized sampling --------
-            num_updates = math.ceil(buffer_size / self.mini_batch_size)
-            
-            if ch == 0:
-                with torch.no_grad():
-                    td_all = torch.abs(v_target - self.Rcritic(s)).squeeze(-1)
-            else:
-                with torch.no_grad():
-                    td_all = torch.abs(v_target - self.Ccritic(s)).squeeze(-1)
+                # if ch == 0:
+                v_s = self.Rcritic(s[index])
+                # Calculate the loss of critic
+                Rcritic_loss = F.mse_loss(v_target[index], v_s)
+                # Update Reward critic
+                self.optimizer_Rcritic.zero_grad()
+                Rcritic_loss.backward()
+                if self.use_grad_clip:  # Trick 7: Gradient clip
+                    torch.nn.utils.clip_grad_norm_(self.Rcritic.parameters(), 0.5)
+                self.optimizer_Rcritic.step()
+                # else:
+                v_cs = self.Ccritic(s[index])
+                # Ccritic_loss = F.mse_loss(v_target[index], v_cs)
+                
+                critic_loss_each = F.mse_loss(v_cs, v_target[index], reduction="none")
+                low_cost_weight = torch.where(v_target[index] < 0.49, 3.0, 1.0)
+                Ccritic_loss = (low_cost_weight * critic_loss_each).mean()
+                
+                # critic_loss_each = F.smooth_l1_loss(v_cs, v_target[index], reduction="none")
+                # low_cost_weight = torch.where(v_target[index] < 0.45, 2.0, 1.0)
+                # Ccritic_loss = (low_cost_weight * critic_loss_each).mean()
+                # print("critic loss=", Ccritic_loss.item())
+                # with open('critic_loss.txt', 'a') as f:
+                #     f.write(f'{Ccritic_loss.item()}\n')
+                # Update Cost critic
+                self.optimizer_Ccritic.zero_grad()
+                Ccritic_loss.backward()
+                if self.use_grad_clip:  # Trick 7: Gradient clip
+                    torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.5)
+                self.optimizer_Ccritic.step()
 
-            replay_buffer.update_priorities(np.arange(buffer_size), td_all)
-
-
-            for _ in range(num_updates):
-                batch = replay_buffer.sample(self.mini_batch_size, total_steps)
-                index = batch["indices"]
-                is_weights = batch["weights"]
-
-                s_b = s[index]
-                v_target_b = v_target[index]
-
-                if ch == 0:
-                    v_s = self.Rcritic(s_b)
-
-                    td_errors = v_target_b.detach() - v_s.detach()
-                    critic_loss_each = F.mse_loss(v_s, v_target_b, reduction="none")
-                    Rcritic_loss = (is_weights * critic_loss_each).mean()
-
-                    self.optimizer_Rcritic.zero_grad()
-                    Rcritic_loss.backward()
-                    if self.use_grad_clip:
-                        torch.nn.utils.clip_grad_norm_(self.Rcritic.parameters(), 0.5)
-                    self.optimizer_Rcritic.step()
-
-                    # replay_buffer.update_priorities(index, td_errors)
-
-                else:
-                    v_cs = self.Ccritic(s_b)
-
-                    td_errors = v_target_b.detach() - v_cs.detach()
-                    critic_loss_each = F.mse_loss(v_cs, v_target_b, reduction="none")
-                    Ccritic_loss = (is_weights * critic_loss_each).mean()
-
-                    self.optimizer_Ccritic.zero_grad()
-                    Ccritic_loss.backward()
-                    if self.use_grad_clip:
-                        torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.5)
-                    self.optimizer_Ccritic.step()
-
-                    # replay_buffer.update_priorities(index, td_errors)
-
-        #         for i, idx in enumerate(index):
-        #             priority_updates[int(idx)] = float(td_errors[i])
-
-        # # apply once at end
-        # if len(priority_updates) > 0:
-        #     final_indices = np.array(list(priority_updates.keys()))
-        #     final_td_errors = torch.tensor(list(priority_updates.values()), dtype=torch.float32)
-        #     replay_buffer.update_priorities(final_indices, final_td_errors)
                
         if self.use_lr_decay:  # Trick 6:learning rate Decay
             self.lr_decay(total_steps)
 
-        #SAC
+        #shilpa target critic
         # Soft update target networks
-        # self.soft_update_target_networks()
+        # self.soft_update_target_networks(self.tau)
 
         if self.adaptive_alpha:
             alpha_loss = -(
@@ -1052,8 +846,11 @@ class Robust_RCAC_NPG:
             self.alpha_optimzier.step()
             self.alpha = self.log_alpha.exp()
 
-    #SAC
-    def soft_update_target_networks(self, tau=0.005):
+    #shilpa target critic
+    def soft_update_target_networks(self, tau=None):
+        if tau is None:
+            tau = self.tau
+
         for target_param, param in zip(self.target_Rcritic.parameters(), self.Rcritic.parameters()):
             target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
 
@@ -1273,8 +1070,7 @@ def main(args, run_number):
     max_value = -np.inf
     evaluate_max_costs = []
 
-    # replay_buffer = ReplayBuffer(args)
-    replay_buffer = PrioritizedReplayBuffer(args)
+    replay_buffer = ReplayBuffer(args)
     agent = Robust_RCAC_NPG(args)
 
     # Build a tensorboard
@@ -1299,10 +1095,12 @@ def main(args, run_number):
     best_reward = float("-inf")  # Start with the minimum possible reward
     best_model_path = None
 
-    reward_offset = 17
+    reward_offset = 0 # 40 #17
     for total_steps in tqdm(range(args.max_train_steps)):
         # if total_steps > args.max_train_steps // 2:
         #    agent.gamma = 0.999
+        # if total_steps > args.warm_start_episode:
+        #             agent.entropy_coef = 0.0
         s = env.reset()[0]
         # s_org = copy.deepcopy(s)
         if args.use_state_norm:
@@ -1415,13 +1213,9 @@ def main(args, run_number):
             # s_org = copy.deepcopy(state_norm.denormal(s_, update=False))
 
             # When the number of transitions in buffer reaches batch_size,then update
-            # if replay_buffer.count == args.batch_size:
-            #     agent.update(replay_buffer, total_steps)
-            #     replay_buffer.count = 0
-            if replay_buffer.is_full():
+            if replay_buffer.count == args.batch_size:
                 agent.update(replay_buffer, total_steps)
-                replay_buffer.reset()
-
+                replay_buffer.count = 0
 
         # Evaluate the policy every 'evaluate_freq' steps
         if total_steps % args.evaluate_freq == 0:
@@ -1550,7 +1344,7 @@ if __name__ == "__main__":
         default="Gaussian",
         help="Beta or Gaussian or Discrete",
     )
-    parser.add_argument("--batch_size", type=int, default=4096, help="Batch size")
+    parser.add_argument("--batch_size", type=int, default=2048, help="Batch size")
     parser.add_argument(
         "--mini_batch_size", type=int, default=64, help="Minibatch size"
     )
@@ -1655,11 +1449,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--gravity_std", type=float, default=0.5, help="gravity perturbation"
     )
-    parser.add_argument("--per_alpha", type=float, default=0.2, help="PER prioritization exponent")
-    parser.add_argument("--per_beta_start", type=float, default=0.4, help="Initial IS bias correction exponent")
-    parser.add_argument("--per_beta_frames", type=int, default=int(4.5e3), help="Steps over which beta anneals to 1.0")
-    parser.add_argument("--per_eps", type=float, default=1e-6, help="Small constant for PER priority")
-
 
     args = parser.parse_args()
     # make folders to dump results

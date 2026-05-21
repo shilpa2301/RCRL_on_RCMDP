@@ -94,10 +94,10 @@ class Actor_Gaussian(nn.Module):
         self.fc2 = nn.Linear(args.hidden_width, args.hidden_width)
         self.fc3 = nn.Linear(args.hidden_width, args.hidden_width)
         self.mean_layer = nn.Linear(args.hidden_width, args.action_dim)
-        # self.log_std = nn.Parameter(
-        #     torch.zeros(1, args.action_dim)
-        # )  # We use 'nn.Parameter' to train log_std automatically
-        self.log_std = nn.Parameter(torch.full((1, args.action_dim), -2.0))
+        self.log_std = nn.Parameter(
+            torch.zeros(1, args.action_dim)
+        )  # We use 'nn.Parameter' to train log_std automatically
+        # self.log_std = nn.Parameter(torch.full((1, args.action_dim), -2.0))
 
         self.activate_func = [nn.ReLU(), nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
 
@@ -132,7 +132,7 @@ class Actor_Gaussian(nn.Module):
             mean.shape[0], -1
         )  # Expand log_std to match the shape of mean
         
-        log_std = torch.clamp(log_std, min=-4.0, max=-1.0)
+        # log_std = torch.clamp(log_std, min=-4.0, max=-1.0)
 
         # print(f"log_std shape after expand: {log_std.shape}")  # Debugging: Print the shape of expanded log_std
         std = torch.exp(log_std)
@@ -392,13 +392,13 @@ class Robust_RCAC_NPG:
         self.Rcritic = Critic(args)
         self.Ccritic = CostCritic(args)
 
-        #SAC
+        #shilpa target critic
         # Initialize target critics
-        # self.target_Rcritic = Critic(args)  # Target reward critic
-        # self.target_Ccritic = CostCritic(args)  # Target cost critic        
+        self.target_Rcritic = Critic(args)  # Target reward critic
+        self.target_Ccritic = CostCritic(args)  # Target cost critic        
         # # Copy initial weights from critics to target critics
-        # self.target_Rcritic.load_state_dict(self.Rcritic.state_dict())
-        # self.target_Ccritic.load_state_dict(self.Ccritic.state_dict())
+        self.target_Rcritic.load_state_dict(self.Rcritic.state_dict())
+        self.target_Ccritic.load_state_dict(self.Ccritic.state_dict())
 
         self.beta = args.beta
         # self.persistent_eps = 0.0
@@ -424,6 +424,22 @@ class Robust_RCAC_NPG:
             self.optimizer_Ccritic = torch.optim.Adam(
                 self.Ccritic.parameters(), lr=self.lr_cost
             )
+
+        #shilpa target critic 
+        # Target networks are not optimized directly
+        self.target_Rcritic.eval()
+        self.target_Ccritic.eval()
+        for p in self.target_Rcritic.parameters():
+            p.requires_grad = False
+        for p in self.target_Ccritic.parameters():
+            p.requires_grad = False
+        self.tau = getattr(args, "tau", 0.05)
+
+        # In __init__, add:
+        # self.ch = 0                        # current mode: 0=reward, 1=cost
+        # self.enter_cost_threshold  = self.persistent_eps          # enter cost mode if max > this
+        # self.exit_cost_threshold   = self.persistent_eps * 0.8   # exit cost mode only if max < this (more lenient)
+
 
     def evaluate(
         self, s
@@ -502,66 +518,7 @@ class Robust_RCAC_NPG:
         )
         return lse
 
-    def persistent_safety_function(self, trajectory, actor, cost_critic, gamma):
-        states = trajectory["states"]
-        actions = trajectory["actions"]
-        next_states = trajectory["next_states"]
-        costs = trajectory["costs"]
-
-        v_h_pi_values = []
-        cost_values = []
-
-        for i in range(len(states)):
-            state = states[i]
-            action = actions[i]
-            next_state = next_states[i]
-            h_s = costs[i]
-            dist = actor.get_dist(state)
-
-            # Sample multiple actions from the distribution
-            sampled_actions = dist.sample(
-                (50,)
-            )  # Sample 50 actions for Monte Carlo approximation
-            log_probs = dist.log_prob(
-                sampled_actions
-            )  # Get log probabilities of sampled actions
-
-            # Compute Q_h(s, a) for each sampled action
-            q_values = []
-            for sampled_action in sampled_actions:
-                if torch.allclose(sampled_action, action, atol=1e-4):
-                    current_cost = h_s
-                else:
-                    x_position = state[0].item()
-                    theta = state[2].item()
-                    current_cost = self.env.compute_cost(x_position, theta)
-
-                simulated_next_state = self.env.simulate_next_state(
-                    state, sampled_action
-                )
-                next_value = cost_critic(simulated_next_state).item()
-
-                # Compute Q_h(s, a)
-                # temperature = 1.0  # Tuning parameter for softmax sharpness
-                current_cost = torch.tensor(current_cost, dtype=torch.float32)
-                next_value = torch.tensor(next_value).detach().clone()
-                q_value = (1 - gamma) * current_cost + gamma * self.log_sum_exp_fn(
-                    current_cost, next_value
-                )
-                # q_value = (1-gamma)*current_cost + gamma * max(current_cost, next_value)
-                # q_value = current_cost + gamma * max(current_cost, next_value)
-                # q_value = max(current_cost, next_value)
-                q_values.append(q_value)
-
-            # Compute V_h(s) using a weighted average of Q_h(s, a) with the probabilities
-            q_values = torch.tensor(q_values)
-            v_h_pi = torch.mean(q_values)
-            v_h_pi_values.append(v_h_pi.item())
-            cost_values.append(v_h_pi.item())
-
-        vl_pi = max(cost_values)
-
-        return vl_pi
+  
 
     def update(self, replay_buffer, total_steps):
         s, a, a_logprob, r, c, s_, dw, done = (
@@ -572,163 +529,170 @@ class Robust_RCAC_NPG:
             'dw=True' means dead or win, there is no next state s'
             'done=True' represents the terminal of an episode(dead or win or reaching the max_episode_steps). When calculating the adv, if done=True, gae=0
         """
-        adv = []
-        gae = 0
+        adv_r, adv_c = [], []
+        gae_r, gae_c = 0, 0
         with torch.no_grad():  # adv and v_target have no gradient
+            #shilpa target critic
+            # vs = self.Rcritic(s)
+            # vs_ = self.Rcritic(s_)
+            # vcs = self.Ccritic(s)
+            # vcs_ = self.Ccritic(s_)
             vs = self.Rcritic(s)
-            vs_ = self.Rcritic(s_)
             vcs = self.Ccritic(s)
-            vcs_ = self.Ccritic(s_)
+            vs_ = self.target_Rcritic(s_)
+            vcs_ = self.target_Ccritic(s_)
 
-            # Calculate target values using target critics
-            # with torch.no_grad():
-            #     target_vs_ = self.target_Rcritic(s_)
-            #     target_vcs_ = self.target_Ccritic(s_)
 
-            # IPM uncertainty set
-            # print("VS shape:",vs.shape)
-            # print("VCS shape:",vcs.shape)
-            # shilpa rcrl
             # Construct trajectory dynamically from replay buffer
 
             trajectory = {"states": s, "actions": a, "next_states": s_, "costs": c}
 
-            with torch.no_grad():
+            # with torch.no_grad():
                 # Compute robust value function and V_L^pi
-                # vl_pi = self.persistent_safety_function(
-                #     trajectory, self.actor, self.Ccritic, self.gamma
+               
+                # vl_pi = vcs.max()
+                # # penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
+                # penalty_term = vl_pi - torch.tensor(self.persistent_eps)
+                # beta_penalty = self.beta * penalty_term
+                # vs_mean = vs.mean().item()
+                # if self.warm_start_flag == 1:
+                #     ch = np.argmax([vs_mean, beta_penalty])
+                # else:
+                #     ch = 0
+                # print(
+                #     "ch, vs_mean, vl_pi, beta penalty=",
+                #     ch,
+                #     vs_mean,
+                #     vl_pi,
+                #     beta_penalty,
                 # )
-                vl_pi = vcs.max()
-                # penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
-                penalty_term = vl_pi - torch.tensor(self.persistent_eps)
-                beta_penalty = self.beta * penalty_term
-                vs_mean = vs.mean().item()
-                if self.warm_start_flag == 1:
-                    ch = np.argmax([vs_mean, beta_penalty])
-                else:
-                    ch = 0
-                print(
-                    "ch, vs_mean, vl_pi, beta penalty=",
-                    ch,
-                    vs_mean,
-                    vl_pi,
-                    beta_penalty,
-                )
-            reg_norm, weight_norm, bias_norm = 0, [], []
+
+            reward_min = -1600.0   # known lower bound for PendulumCostEnv
+            reward_max = 0.0
+            # # # In __init__, add:
+            # # self.ema_violation = 0.0
+            # # self.ema_alpha = 0.05
+
+            # # # In update(), replace the ch block:
+            # # current_violation = (vcs.mean() - self.persistent_eps).item()
+            # # self.ema_violation = (1 - self.ema_alpha) * self.ema_violation + self.ema_alpha * current_violation
+            # # ch = 0 if self.ema_violation < 0 else 1
+
+            vs_mean_normalized = (vs.mean().item() - reward_min) / (reward_max - reward_min + 1e-8)
+            penalty_normalized = vcs.max() - torch.tensor(self.persistent_eps)
+            if self.warm_start_flag == 1:
+                # ch = 0 if (vs_mean_normalized > 0.5 and penalty_normalized < 0) else (
+                #             1 if penalty_normalized > 0 else 0
+                #         )
+                ch = 0 if penalty_normalized < 0 else 1
+            else:
+                ch = 0
+            print(
+                "ch, vs_mean, vl_pi=",
+                ch,
+                vs_mean_normalized,
+                penalty_normalized
+            )
+
+            
+            
+            
+            reg_norm_r, weight_norm_r, bias_norm_r = 0, [], []
+            reg_norm_c, weight_norm_c, bias_norm_c = 0, [], []
+
+            # for layer in self.Rcritic.children():
+            #         if isinstance(layer, nn.Linear):
+            #             weight_norm_r.append(
+            #                 torch.norm(layer.state_dict()["weight"]) ** 2
+            #             )
+            #             bias_norm_r.append(torch.norm(layer.state_dict()["bias"]) ** 2)
+            # reg_norm_c = torch.sqrt(
+            #     torch.sum(torch.stack(weight_norm_r))
+            #     + torch.sum(torch.stack(bias_norm_r[0:-1]))
+            # )
+            linear_layers = [layer for layer in self.Rcritic.children() if isinstance(layer, nn.Linear)]
+            if len(linear_layers) == 0:
+                raise ValueError("Rcritic has no nn.Linear layer")
+            last_linear = linear_layers[-1]
+            reg_norm_r = torch.norm(last_linear.weight, p=2)
+            #ppo
+            deltas_r = (
+                r
+                + self.gamma * (1.0 - dw) * vs_
+                - vs
+                # - self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                - self.weight_reg * reg_norm_r
+            )
+            
+            for delta, d in zip(
+                reversed(deltas_r.flatten().numpy()), reversed(done.flatten().numpy())
+            ):
+                gae_r = delta + self.gamma * self.lamda * gae_r * (1.0 - d)
+                adv_r.insert(0, gae_r)
+            adv_r = torch.tensor(adv_r, dtype=torch.float).view(-1, 1)
+            v_target_r = adv_r + vs #+ self.alpha * a_logprob.sum(dim=1, keepdim=True)
+
+            linear_layers = [l for l in self.Ccritic.children() if isinstance(l, nn.Linear)]
+            if len(linear_layers) == 0:
+                    raise ValueError("Ccritic has no nn.Linear layer")
+            reg_norm_c = torch.norm(linear_layers[-1].weight, p=2)
+            # ── 1-step TD error using LSE Bellman (correct for max-cost) ────────
+            # At terminal (dw=1): next state value = 0, so (1-dw)*vcs_ = 0
+            # At truncation (done=1, dw=0): next state exists, vcs_ is valid
+            cost_deltas = (
+                (1 - self.gamma) * c
+                + self.gamma * self.log_sum_exp_fn(c, (1.0 - dw) * vcs_)
+                - vcs
+                # - self.alpha * a_logprob.sum(dim=1, keepdim=True)
+            )  # shape: (batch_size, 1)  — this IS your 1-step advantage
+            # ── adv = 1-step cost TD error (no multi-step needed for max-cost) ──
+            adv_c = vcs #(vcs - vcs.mean() ) #cost_deltas  # already correct
+            v_target_c = cost_deltas + vcs #+ self.alpha * a_logprob.sum(dim=1, keepdim=True)
+            # = (1-γ)*c + γ*LSE(c, (1-dw)*vcs_)  ← the LSE Bellman target
+            # Measure how well Ccritic is trained
+            # ccritic_error = (vcs - v_target_c).abs().mean().item()
+            # ccritic_is_ready = ccritic_error < 0.05   # critic is accurate enough
+
+            # penalty_normalized = vcs.max() - torch.tensor(self.persistent_eps)
+
+            # if self.warm_start_flag == 1 and ccritic_is_ready:
+            #     ch = 0 if penalty_normalized < 0 else 1
+            # else:
+            #     ch = 0   # stay in reward mode until critic is ready
+
+            # print("ch, ccritic_error, penalty=", ch, ccritic_error, penalty_normalized.item())
 
             if ch == 1:
-                # print("Cost chosen")
-                for layer in self.Ccritic.children():
-                    if isinstance(layer, nn.Linear):
-                        weight_norm.append(
-                            torch.norm(layer.state_dict()["weight"]) ** 2
-                        )
-                        bias_norm.append(torch.norm(layer.state_dict()["bias"]) ** 2)
-                reg_norm = torch.sqrt(
-                    torch.sum(torch.stack(weight_norm))
-                    + torch.sum(torch.stack(bias_norm[0:-1]))
-                )
                 
-                # Assuming `vs`, `c`, and `done` are all flattened numpy arrays
-                trajectory_indices = []  # To store the starting indices of each trajectory
-                current_index = 0  # To track the current index in the entire flattened array
-                # Identify the trajectories based on the done flags
-                for d in done.flatten().numpy():
-                    if d == 1:
-                        trajectory_indices.append(current_index)  # Store the index where the episode ends
-                    current_index += 1
-                # Now, we can process each trajectory
-                # adv = []  # List to store advantages
-                # Iterate through the reversed values
-                c_max = float('-inf')
-                for index, (vc_, vcnext_, c_, d_) in enumerate(zip(
-                                                        reversed(vcs.flatten().numpy()), 
-                                                        reversed(vcs_.flatten().numpy()), 
-                                                        reversed(c.flatten().numpy()), 
-                                                        reversed(done.flatten().numpy())
-                                                    )):
-                    # # Determine the original index in the trajectory
-                    # original_index = len(done) - 1 - index  # Calculate the corresponding original index
-                    # # Find the trajectory number based on the original index
-                    # trajectory_num = next((i for i, idx in enumerate(trajectory_indices) if idx > original_index), len(trajectory_indices) - 1)
-                    # # Reset c_max when we reach the end of an episode
-                    # if d_ == 1:
-                    #     c_max = float('-inf')  # Reset c_max if the episode has ended
-                    # else:
-                    #     # Convert c_ to a tensor
-                    #     # Clip the values to prevent overflow
-                    #     c_max = self.log_sum_exp_fn(torch.tensor(c_max),torch.tensor(c_))  # Update c_max using the log-sum-exp function
+                # adv = adv_c
+                # ── v_target for cost critic ─────────────────────────────────────────
+                
 
-                    # c_max = torch.clamp(c_max, min=-1e10, max=1e10)
-                    # A_max = self.log_sum_exp_fn(torch.tensor(vcnext_.item()), torch.tensor(c_max) ) # Calculate the advantage using LSE
-                    A_max = (1-self.gamma)*c_ + self.gamma* self.log_sum_exp_fn(torch.tensor(vcnext_.item()), torch.tensor(c_) ) # Calculate the advantage using LSE
+                # ── Normalize then negate for actor ─────────────────────────────────
+                # if self.use_adv_norm:
+                #     adv_std = adv.std()
+                #     if adv_std > 1e-3:   # only normalize if there's meaningful variance
+                #         adv = (adv - adv.mean()) / (adv_std + 1e-5)
+                #     else:
+                #         adv = adv - adv.mean()
+                    # adv = (adv - adv.mean()) / (adv.std() + 1e-5)
+                adv = cost_deltas.clone()    # ← back to cost_deltas, NOT vcs
 
-                    # A_max = self.log_sum_exp_fn(torch.tensor(vc_.item()), torch.tensor(c_max) )
-                  
-                    # If we are at the end of a trajectory, handle the last value
-                    if d_ == 1:
-                        gae = c_ * (self.lamda ** 0)  # First value for GAE calculation
-                        adv.insert(0, gae.item())  # Insert the advantage at the beginning of the list
-                        continue  # Skip to the next iteration
-
-                    # Initialize GAE for this step
-                    gae = (A_max - vc_) * (self.lamda ** 0)  # Current step contribution
-
-                    # Accumulate contributions from previous steps within the same trajectory
-                    # for i in range(len(adv)):
-                    #     # Stop considering advantages if we reach a corresponding trajectory end
-                    #     if trajectory_num != next((j for j, idx in enumerate(trajectory_indices) if idx > (original_index + (i + 1))), len(trajectory_indices) - 1):
-                    #         break  # Stop if we reach the end of the current trajectory
-                    #     gae += adv[i] * (self.lamda ** (i + 1))  # Include previous advantages
-
-                    # Insert the calculated GAE
-                    adv.insert(0, gae.item()) 
-                adv = torch.tensor(adv, dtype=torch.float).view(-1, 1)
-
-                #ppo
-                deltas = (
-                    # (1 - self.gamma) * c
-                    # + self.gamma * self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_))
-                    self.log_sum_exp_fn(c, ((1.0 - dw) * vcs_))
-                    - vcs
-                    - self.alpha * a_logprob.sum(dim=1, keepdim=True)
-                    # - self.weight_reg * reg_norm
-                )
-
-                  
-                v_target = deltas + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True) #adv + vcs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
-                if self.use_adv_norm:  # Trick 1:advantage normalization
-                    adv = (adv - adv.mean()) / (adv.std() + 1e-5)
-                # shilpa
-                adv = -0.2 *adv
+                # if self.use_adv_norm:
+                #     adv_mean = adv.mean()
+                #     adv_std  = adv.std()
+                #     # KEY FIX: only normalize if std is meaningful
+                #     # if std is tiny, the signal is near-zero → just zero it out
+                #     if adv_std > 1e-2:
+                #         adv = (adv - adv_mean) / (adv_std + 1e-5)
+                #     else:
+                #         adv = torch.zeros_like(adv)   # no signal → no update → stable
+                adv = torch.clamp(adv, -5.0, 5.0)
+                
+                adv = -adv  # minimize cost = maximize negative cost advantage
             else:
-                for layer in self.Rcritic.children():
-                    if isinstance(layer, nn.Linear):
-                        weight_norm.append(
-                            torch.norm(layer.state_dict()["weight"]) ** 2
-                        )
-                        bias_norm.append(torch.norm(layer.state_dict()["bias"]) ** 2)
-                reg_norm = torch.sqrt(
-                    torch.sum(torch.stack(weight_norm))
-                    + torch.sum(torch.stack(bias_norm[0:-1]))
-                )
-                #ppo
-                deltas = (
-                    r
-                    + self.gamma * (1.0 - dw) * vs_
-                    - vs
-                    - self.alpha * a_logprob.sum(dim=1, keepdim=True)
-                    - self.weight_reg * reg_norm
-                )
-
                 
-                for delta, d in zip(
-                    reversed(deltas.flatten().numpy()), reversed(done.flatten().numpy())
-                ):
-                    gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
-                    adv.insert(0, gae)
-                adv = torch.tensor(adv, dtype=torch.float).view(-1, 1)
-                v_target = adv + vs + self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                adv = adv_r
                 if self.use_adv_norm:  # Trick 1:advantage normalization
                     adv =  (adv - adv.mean()) / (adv.std() + 1e-5)
 
@@ -776,44 +740,44 @@ class Robust_RCAC_NPG:
                     torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
                 self.optimizer_actor.step()
 
-                if ch == 0:
-                    v_s = self.Rcritic(s[index])
-                    # Calculate the loss of critic
-                    Rcritic_loss = F.mse_loss(v_target[index], v_s)
-                    # Update Reward critic
-                    self.optimizer_Rcritic.zero_grad()
-                    Rcritic_loss.backward()
-                    if self.use_grad_clip:  # Trick 7: Gradient clip
-                        torch.nn.utils.clip_grad_norm_(self.Rcritic.parameters(), 0.5)
-                    self.optimizer_Rcritic.step()
-                else:
-                    v_cs = self.Ccritic(s[index])
-                    # Ccritic_loss = F.mse_loss(v_target[index], v_cs)
-                    
-                    critic_loss_each = F.mse_loss(v_cs, v_target[index], reduction="none")
-                    low_cost_weight = torch.where(v_target[index] < 0.49, 3.0, 1.0)
-                    Ccritic_loss = (low_cost_weight * critic_loss_each).mean()
-                    
-                    # critic_loss_each = F.smooth_l1_loss(v_cs, v_target[index], reduction="none")
-                    # low_cost_weight = torch.where(v_target[index] < 0.45, 2.0, 1.0)
-                    # Ccritic_loss = (low_cost_weight * critic_loss_each).mean()
-                    # print("critic loss=", Ccritic_loss.item())
-                    with open('critic_loss.txt', 'a') as f:
-                        f.write(f'{Ccritic_loss.item()}\n')
-                    # Update Cost critic
-                    self.optimizer_Ccritic.zero_grad()
-                    Ccritic_loss.backward()
-                    if self.use_grad_clip:  # Trick 7: Gradient clip
-                        torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.5)
-                    self.optimizer_Ccritic.step()
+                # if ch == 0:
+                v_s = self.Rcritic(s[index])
+                # Calculate the loss of critic
+                Rcritic_loss = F.mse_loss(v_target_r[index], v_s)
+                # Update Reward critic
+                self.optimizer_Rcritic.zero_grad()
+                Rcritic_loss.backward()
+                if self.use_grad_clip:  # Trick 7: Gradient clip
+                    torch.nn.utils.clip_grad_norm_(self.Rcritic.parameters(), 0.5)
+                self.optimizer_Rcritic.step()
+                # else:
+                v_cs = self.Ccritic(s[index])
+                # Ccritic_loss = F.mse_loss(v_target[index], v_cs)
+                
+                critic_loss_each = F.mse_loss(v_cs, v_target_c[index], reduction="none")
+                low_cost_weight = torch.where(v_target_c[index] < 0.49, 1.0, 1.0)
+                Ccritic_loss = (low_cost_weight * critic_loss_each).mean()
+                
+                # critic_loss_each = F.smooth_l1_loss(v_cs, v_target[index], reduction="none")
+                # low_cost_weight = torch.where(v_target[index] < 0.45, 2.0, 1.0)
+                # Ccritic_loss = (low_cost_weight * critic_loss_each).mean()
+                # print("critic loss=", Ccritic_loss.item())
+                # with open('critic_loss.txt', 'a') as f:
+                #     f.write(f'{Ccritic_loss.item()}\n')
+                # Update Cost critic
+                self.optimizer_Ccritic.zero_grad()
+                Ccritic_loss.backward()
+                if self.use_grad_clip:  # Trick 7: Gradient clip
+                    torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.5)
+                self.optimizer_Ccritic.step()
 
                
         if self.use_lr_decay:  # Trick 6:learning rate Decay
             self.lr_decay(total_steps)
 
-        #SAC
+        #shilpa target critic
         # Soft update target networks
-        # self.soft_update_target_networks()
+        self.soft_update_target_networks(self.tau)
 
         if self.adaptive_alpha:
             alpha_loss = -(
@@ -825,8 +789,11 @@ class Robust_RCAC_NPG:
             self.alpha_optimzier.step()
             self.alpha = self.log_alpha.exp()
 
-    #SAC
-    def soft_update_target_networks(self, tau=0.005):
+    #shilpa target critic
+    def soft_update_target_networks(self, tau=None):
+        if tau is None:
+            tau = self.tau
+
         for target_param, param in zip(self.target_Rcritic.parameters(), self.Rcritic.parameters()):
             target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
 
@@ -1071,12 +1038,12 @@ def main(args, run_number):
     best_reward = float("-inf")  # Start with the minimum possible reward
     best_model_path = None
 
-    reward_offset = 17
+    reward_offset = 0 # 40 #17
     for total_steps in tqdm(range(args.max_train_steps)):
         # if total_steps > args.max_train_steps // 2:
         #    agent.gamma = 0.999
-        if total_steps > args.warm_start_episode:
-                    agent.entropy_coef = 0.0
+        # if total_steps > args.warm_start_episode:
+        #             agent.entropy_coef = 0.0
         s = env.reset()[0]
         # s_org = copy.deepcopy(s)
         if args.use_state_norm:

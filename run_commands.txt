@@ -26,5 +26,5 @@ python code_ipm_rcmdp_rcrl_max_pendulum3.py --run 10 --persistent_eps 0.25 --bet
  
 
  python code_ipm_rcmdp_rcrl_max_pendulum4.py --run 12 --persistent_eps 0.001 --beta 200000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 700 --lr_cost 5e-5 --entropy_coef 0.001
-Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
-Please upgrade to Gymnasium, the maintained drop-in r
+
+python code_ipm_rcmdp_rcrl_max_hc.py --run 5 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001
