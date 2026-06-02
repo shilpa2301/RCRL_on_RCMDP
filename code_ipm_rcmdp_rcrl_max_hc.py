@@ -1434,6 +1434,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--gravity_std", type=float, default=0.5, help="gravity perturbation"
     )
+    parser.add_argument(
+        "--sigma_viscosity", type=float, default=0.0, help="viscosity perturbation"
+    )
+
+
 
     args = parser.parse_args()
     # make folders to dump results

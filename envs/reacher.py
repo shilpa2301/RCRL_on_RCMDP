@@ -140,7 +140,8 @@ class ReacherWithCost(ReacherEnv):
         # entirely and jumps straight to MuJocoPyEnv, bypassing reset_model()
         # so the goal is never re-sampled. Use super().reset() instead so the
         # MRO goes ReacherWithCost → ReacherEnv → MuJocoPyEnv → reset_model().
-        obs = super().reset()
+        # obs = super().reset()
+        obs = super().reset(seed=seed, **kwargs)
 
         self._elapsed_steps = 0
         # Restore nominal gravity at episode start
