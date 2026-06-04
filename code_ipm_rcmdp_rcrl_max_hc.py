@@ -26,7 +26,7 @@ from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
 from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
 from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
-from envs.half_cheetah import HalfCheetahWithPos
+from envs.half_cheetah import HalfCheetahWithPos, HalfCheetahWithPosPerturbed
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -353,6 +353,8 @@ class Robust_RCAC_NPG:
             self.env = HopperPerturbedEnv()
         elif args.env == "HalfCheetahWithPos":
             self.env = HalfCheetahWithPos()
+        elif args.env == "HalfCheetahWithPosPerturbed":
+            self.env = HalfCheetahWithPosPerturbed()
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -1004,6 +1006,15 @@ def main(args, run_number):
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = HalfCheetahWithPos()
 
+    elif args.env == "HalfCheetahWithPosPerturbed":
+        env = (
+            HalfCheetahWithPosPerturbed()
+        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env_evaluate = (
+            HalfCheetahWithPosPerturbed() #HalfCheetahWithPostest()
+        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = HalfCheetahWithPosPerturbed()
+
 
     # Set random seed
     # env.reset(seed=seed)
@@ -1298,7 +1309,7 @@ if __name__ == "__main__":
         type=str,
         # default="CartPolePerturbedEnv",
         default="HalfCheetahWithPos",
-        help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv/PendulumCostEnv/HalfCheetahWithPos",
+        help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv/PendulumCostEnv/HalfCheetahWithPos/HalfCheetahWithPosPerturbed",
     )
     parser.add_argument("--uncer_set", type=str, default="IPM", help="DS/IPM")
     parser.add_argument(
