@@ -302,7 +302,7 @@ class HalfCheetahWithPosPerturbed(HalfCheetahEnv):
 
     def step(self, action):
         # Perturb gravity each step (or each episode in reset)
-        self.model.opt.gravity[2] = -9.81 + np.random.normal(0, 0.05)
+        self.model.opt.gravity[2] = -9.81 + np.random.normal(0, 2.0)
         xposbefore = self.sim.data.qpos[0]
         self.do_simulation(action, self.frame_skip)
         xposafter  = self.sim.data.qpos[0]

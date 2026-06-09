@@ -388,13 +388,12 @@ if __name__ == "__main__":
     #     "./models/CartPolePerturbedEnv/run3/Best_RCAC",
     #     "./models/CartPoleCostEnv/run2/Best_RCAC",
     # ]
-    labels = ["Surrogate Obj(NP)","Ours(P+R)","Ours(NP+R)"] 
+    labels = ["Surrogate Obj(NP)","Ours(P+R)"] 
 
 
     directories = [
-        "./models/SwimmerWithPos/run3/Best_RCAC",
         "./models/SwimmerWithPos/run2/Best_RCAC",
-        "./models/SwimmerWithPos/run1/Best_RCAC"
+        "./models/SwimmerWithPosPerturbed/run2/Best_RCAC",
     ]
     # Match files starting with "RCAC_"
     # directories =[]
@@ -425,7 +424,7 @@ if __name__ == "__main__":
     # directories[2] = "PD"
 
     # Plot the evaluation results
-    plot_evaluation(args, results, directories, perturbation_stds, labels, save=True, base_filename="plot_inference/swimmer", smooth_window=20)
+    plot_evaluation(args, results, directories, perturbation_stds, labels, save=True, base_filename="plot_inference/swimmer_inference", smooth_window=20)
 
     # run_and_plot_comparison(args, directories, perturbation_stds, num_episodes=100)
 

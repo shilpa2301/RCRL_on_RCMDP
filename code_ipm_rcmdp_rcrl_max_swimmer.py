@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt  # Import for plotting
 from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
 from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
 from envs.half_cheetah import HalfCheetahWithPos
-from envs.swimmer import SwimmerWithPos
+from envs.swimmer import SwimmerWithPos, SwimmerWithPosPerturbed
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -355,7 +355,10 @@ class Robust_RCAC_NPG:
         elif args.env == "HalfCheetahWithPos":
             self.env = HalfCheetahWithPos()
         elif args.env == "SwimmerWithPos":
-            self.env = SwimmerWithPos(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
+            self.env = SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
+        elif args.env == "SwimmerWithPosPerturbed":
+            self.env = SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
+
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -768,7 +771,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     evaluate_cost = 0
     evaluate_max_cost = float("-inf")
     for _ in range(times):
-        s = env.reset()[0][0]
+        s = env.reset(seed=args.seed)[0][0]
         if args.use_state_norm:
             s = state_norm(s, update=False)  # During the evaluating,update=False
         done = False
@@ -1008,13 +1011,20 @@ def main(args, run_number):
         env_reset = HalfCheetahWithPos()
     elif args.env == "SwimmerWithPos":
         env = (
-            SwimmerWithPos(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
+            SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
-            SwimmerWithPos(sigma_viscosity=args.sigma_viscosity, max_steps=1000) #SwimmerWithPostest()
+            SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000) #SwimmerWithPostest()
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = SwimmerWithPos(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
-
+        env_reset = SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
+    elif args.env == "SwimmerWithPosPerturbed":
+        env = (
+            SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
+        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env_evaluate = (
+            SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000) #SwimmerWithPostest()
+        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
 
     # Set random seed
     # env.reset(seed=seed)

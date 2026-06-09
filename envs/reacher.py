@@ -151,10 +151,10 @@ class ReacherWithCost(ReacherEnv):
     # ── step ──────────────────────────────────────────────────────────────────
     def step(self, a):
         # ── 1. Optional gravity perturbation ─────────────────────────────────
-        if self.sigma_gravity > 0.0:
-            self.model.opt.gravity[self._grav_axis] = (
-                self._base_grav + np.random.normal(0.0, self.sigma_gravity)
-            )
+        # if self.sigma_gravity > 0.0:
+        #     self.model.opt.gravity[self._grav_axis] = (
+        #         self._base_grav + np.random.normal(0.0, self.sigma_gravity)
+        #     )
 
         # ── 2. Reward (computed before simulation, matches original ordering) ─
         vec         = self.get_body_com("fingertip") - self.get_body_com("target")
@@ -223,3 +223,107 @@ class ReacherWithCostTest(ReacherWithCost):
             reward     = 0.0
 
         return ob, reward, cost, truncated, terminated, info
+    
+class ReacherWithCostPerturbed(ReacherEnv):
+    """
+    Extends ReacherEnv with:
+
+    1. **Cost signal** — continuous excess-torque cost, mirroring HalfCheetahWithPos:
+            cost = max(max|action| - ACTION_TORQUE_THRESHOLD, 0)
+       Zero when every joint torque is within the safe range; grows linearly
+       with the worst-case violation.
+
+    2. **Gravity perturbation** — optional zero-mean Gaussian noise added to
+       gravity every step (sigma_gravity > 0 to enable).
+       NOTE: standard reacher.xml has gravity disabled (all zeros). Set
+       sigma_gravity=0.0 (default) unless you have a custom XML with gravity.
+
+    3. **Return signature** — 6-tuple
+            (obs, reward, cost, truncated, terminated, info)
+       matching HalfCheetahWithPos / the RCRL training loop.
+
+    Parameters
+    ----------
+    sigma_gravity : float
+        Std-dev of per-step Gaussian gravity perturbation (m/s²). Default 0.0.
+    max_steps : int
+        Episode length before truncation. Default 50 (standard Reacher).
+    """
+
+    OBS_DIM   = 11
+    max_steps = 50
+
+    def __init__(self, sigma_gravity: float = 0.0, max_steps: int = 50, **kwargs):
+        super().__init__(**kwargs)
+        self.sigma_gravity  = sigma_gravity
+        self.max_steps      = max_steps
+        self._elapsed_steps = 0
+
+        # FIX 3: reacher.xml gravity is all-zero (planar arm, no gravity).
+        # np.argmin on an all-zero vector returns 0 arbitrarily — wrong.
+        # Hardcode axis=2 (Z) as the perturbation axis; store whatever
+        # base value is in the XML (likely 0.0) so perturbation is relative.
+        self._grav_axis = 2
+        self._base_grav = float(self.model.opt.gravity[self._grav_axis])
+
+    # ── reset ─────────────────────────────────────────────────────────────────
+    def reset(self, seed=None, **kwargs):
+        """Return (obs, info) tuple expected by the RCRL training loop."""
+        if seed is not None:
+            # FIX 4: was utils.seeding.np_random — AttributeError at runtime.
+            # Must be gym.utils.seeding.np_random (requires gym import above).
+            self.np_random, _ = gym.utils.seeding.np_random(seed)
+
+        # FIX 5: was super(ReacherEnv, self).reset() which skips ReacherEnv
+        # entirely and jumps straight to MuJocoPyEnv, bypassing reset_model()
+        # so the goal is never re-sampled. Use super().reset() instead so the
+        # MRO goes ReacherWithCost → ReacherEnv → MuJocoPyEnv → reset_model().
+        # obs = super().reset()
+        obs = super().reset(seed=seed, **kwargs)
+
+        self._elapsed_steps = 0
+        # Restore nominal gravity at episode start
+        self.model.opt.gravity[self._grav_axis] = self._base_grav
+        return obs, {}
+
+    # ── step ──────────────────────────────────────────────────────────────────
+    def step(self, a):
+        # ── 1. Optional gravity perturbation ─────────────────────────────────
+        if self.sigma_gravity > 0.0:
+            self.model.opt.gravity[self._grav_axis] = (
+                self._base_grav + np.random.normal(0.0, self.sigma_gravity)
+            )
+
+        # ── 2. Reward (computed before simulation, matches original ordering) ─
+        vec         = self.get_body_com("fingertip") - self.get_body_com("target")
+        reward_dist = -np.linalg.norm(vec)
+        reward_ctrl = -np.square(a).sum()
+        reward      = reward_dist + reward_ctrl
+
+        # ── 3. Simulate ───────────────────────────────────────────────────────
+        self.do_simulation(a, self.frame_skip)
+        if getattr(self, "render_mode", None) == "human":  # FIX 2 (same guard as base)
+            self.render()
+
+        ob = self._get_obs()
+        self._elapsed_steps += 1
+
+        # ── 4. Cost — continuous excess-torque penalty ────────────────────────
+        cost = float(
+            np.maximum(np.max(np.abs(a)) - ACTION_TORQUE_THRESHOLD, 0.0)
+        )
+
+        # ── 5. Termination / truncation ───────────────────────────────────────
+        truncated  = self._elapsed_steps >= self.max_steps
+        terminated = False
+
+        info = dict(
+            reward_dist=reward_dist,
+            reward_ctrl=reward_ctrl,
+            cost=cost,
+            dist_to_target=float(np.linalg.norm(vec)),
+        )
+
+        # ── 6-tuple: obs, reward, cost, truncated, terminated, info ──────────
+        return ob, reward, cost, truncated, terminated, info
+

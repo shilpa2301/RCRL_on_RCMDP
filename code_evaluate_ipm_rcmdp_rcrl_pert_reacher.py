@@ -8,7 +8,7 @@ import os
 from envs.cartpole import CartPolePerturbedEnv
 import glob
 from envs.half_cheetah import HalfCheetahWithPos
-from envs.reacher import ReacherWithCost
+from envs.reacher import ReacherWithCostPerturbed
 
 def load_agent(args, save_path):
     """
@@ -137,7 +137,7 @@ def test_multiple_dirs(args, save_paths, gravity_perturbation_stds, num_episodes
             
             # Create a new environment instance with the specified gravity perturbation std
             # env = CartPolePerturbedEnv(gravity_perturbation_std=std)
-            env = ReacherWithCost(sigma_gravity=std, max_steps=50)
+            env = ReacherWithCostPerturbed(sigma_gravity=std, max_steps=50)
             env.reset(seed=args.seed)
             env.action_space.seed(args.seed)
             args.max_action = float(env.action_space.high[0])
@@ -387,12 +387,12 @@ if __name__ == "__main__":
     #     "./models/CartPolePerturbedEnv/run3/Best_RCAC",
     #     "./models/CartPoleCostEnv/run2/Best_RCAC",
     # ]
-    labels = ["Surrogate Obj(NP)","Ours(P)"] 
+    labels = ["Surrogate Obj(NP)","Ours(P+R)"] 
 
 
     directories = [
         "./models/ReacherWithCost/run1/Best_RCAC",
-        "./models/ReacherWithCost/run2/Best_RCAC",
+        "./models/ReacherWithCostPerturbed/run2/Best_RCAC",
     ]
     # Match files starting with "RCAC_"
     # directories =[]
@@ -423,7 +423,7 @@ if __name__ == "__main__":
     # directories[2] = "PD"
 
     # Plot the evaluation results
-    plot_evaluation(args, results, directories, gravity_perturbation_stds, labels, save=True, base_filename="plot_inference/reacher", smooth_window=20)
+    plot_evaluation(args, results, directories, gravity_perturbation_stds, labels, save=True, base_filename="plot_inference/reacher_inference", smooth_window=20)
 
     # run_and_plot_comparison(args, directories, gravity_perturbation_stds, num_episodes=100)
 

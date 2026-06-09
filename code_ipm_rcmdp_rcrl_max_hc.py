@@ -1324,7 +1324,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max_train_steps",
         type=int,
-        default=int(4.5e3),
+        default=int(16e3),
         help="Maximum number of training steps",
     )
     parser.add_argument(
@@ -1354,10 +1354,10 @@ if __name__ == "__main__":
         "--lr_a", type=float, default=1e-3, help="Learning rate of actor"
     )
     parser.add_argument(
-        "--lr_c", type=float, default=1e-3, help="Learning rate of critic"
+        "--lr_c", type=float, default=5e-3, help="Learning rate of critic"
     )
     parser.add_argument(
-        "--lr_cost", type=float, default=5e-4, help="Learning rate of critic"
+        "--lr_cost", type=float, default=1e-3, help="Learning rate of critic"
     )
     parser.add_argument(
         "--gamma", type=float, default=0.99, help="Discount factor 0.99"
@@ -1369,10 +1369,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--persistent_eps",
         type=float,
-        default=0.3,
+        default=0.1,
         help="Persistent Safety Perturbation 0.17",
     )
-    parser.add_argument("--K_epochs", type=int, default=10, help="PPO parameter")
+    parser.add_argument("--K_epochs", type=int, default=5, help="PPO parameter")
     parser.add_argument(
         "--use_adv_norm",
         type=bool,
@@ -1392,7 +1392,7 @@ if __name__ == "__main__":
         "--use_reward_scaling", type=bool, default=False, help="Trick 4:reward scaling"
     )
     parser.add_argument(
-        "--entropy_coef", type=float, default=0.01, help="Trick 5: policy entropy"
+        "--entropy_coef", type=float, default=0.001, help="Trick 5: policy entropy"
     )
     parser.add_argument(
         "--use_lr_decay", type=bool, default=True, help="Trick 6:learning rate Decay"
@@ -1434,13 +1434,13 @@ if __name__ == "__main__":
     parser.add_argument("--GAMMA", type=str, default="0", help="file name")
     parser.add_argument("--baseline", type=int, default=9, help="baseline")
     parser.add_argument("--lambda_", type=int, default=50, help="lambda")
-    parser.add_argument("--beta", type=float, default=1e5, help="beta 600")
+    parser.add_argument("--beta", type=float, default=3e4, help="beta 600")
     parser.add_argument("--run", type=int, default=5, help="run_number")
     parser.add_argument(
         "--warm_start_flag", type=int, default=0, help="warm_start_flag"
     )
     parser.add_argument(
-        "--warm_start_episode", type=int, default=1300, help="warm_start_episode"
+        "--warm_start_episode", type=int, default=500, help="warm_start_episode"
     )
     parser.add_argument(
         "--gravity_std", type=float, default=0.5, help="gravity perturbation"

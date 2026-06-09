@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt  # Import for plotting
 from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
 from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
 from envs.half_cheetah import HalfCheetahWithPos
-from envs.reacher import ReacherWithCost
+from envs.reacher import ReacherWithCost, ReacherWithCostPerturbed
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -355,7 +355,9 @@ class Robust_RCAC_NPG:
         elif args.env == "HalfCheetahWithPos":
             self.env = HalfCheetahWithPos()
         elif args.env == "ReacherWithCost":
-            self.env = ReacherWithCost(sigma_gravity=args.sigma_gravity, max_steps=50)
+            self.env = ReacherWithCost(sigma_gravity=0.0, max_steps=50)
+        elif args.env == "ReacherWithCostPerturbed":
+            self.env = ReacherWithCostPerturbed(sigma_gravity=args.sigma_gravity, max_steps=50)
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -768,7 +770,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     evaluate_cost = 0
     evaluate_max_cost = float("-inf")
     for _ in range(times):
-        s = env.reset()[0][0]
+        s = env.reset(seed=args.seed)[0][0]
         if args.use_state_norm:
             s = state_norm(s, update=False)  # During the evaluating,update=False
         done = False
@@ -1007,10 +1009,13 @@ def main(args, run_number):
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = HalfCheetahWithPos()
     elif args.env == "ReacherWithCost":
-        env = ReacherWithCost(sigma_gravity=args.sigma_gravity, max_steps=50)
-        env_evaluate = ReacherWithCost(sigma_gravity=args.sigma_gravity, max_steps=50)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = ReacherWithCost(sigma_gravity=args.sigma_gravity, max_steps=50)  # When sampling multiple next states, we need to return to the current states
-
+        env = ReacherWithCost(sigma_gravity=0.0, max_steps=50)
+        env_evaluate = ReacherWithCost(sigma_gravity=0.0, max_steps=50)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = ReacherWithCost(sigma_gravity=0.0, max_steps=50)  # When sampling multiple next states, we need to return to the current states
+    elif args.env == "ReacherWithCostPerturbed":
+        env = ReacherWithCostPerturbed(sigma_gravity=args.sigma_gravity, max_steps=50)
+        env_evaluate = ReacherWithCostPerturbed(sigma_gravity=args.sigma_gravity, max_steps=50)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = ReacherWithCostPerturbed(sigma_gravity=args.sigma_gravity, max_steps=50)  # When sampling multiple next states, we need to return to the current states
 
     # Set random seed
     # env.reset(seed=seed)
