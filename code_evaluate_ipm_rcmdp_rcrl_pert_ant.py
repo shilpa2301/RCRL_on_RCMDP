@@ -190,7 +190,7 @@ def plot_evaluation(args,results, save_paths, perturbation_stds, labels, save=Fa
     legend_labels = []
 
     # Plot total rewards
-    plt.figure(figsize=(fig_size+9, fig_size))
+    plt.figure(figsize=(fig_size+16, fig_size))
     for save_path, label in zip(save_paths, labels):
         for i, std in enumerate(perturbation_stds):
             rewards = np.array(results[save_path][i]['rewards'])
@@ -225,7 +225,7 @@ def plot_evaluation(args,results, save_paths, perturbation_stds, labels, save=Fa
     save_legend(legend_elements, legend_labels, f"{base_filename}_rewards_legend_vertical.png", horizontal=False)
 
     # Plot max costs
-    plt.figure(figsize=(fig_size+9, fig_size))
+    plt.figure(figsize=(fig_size+14, fig_size))
     for save_path, label in zip(save_paths, labels):
         for i, std in enumerate(perturbation_stds):
             max_costs = np.array(results[save_path][i]['max_costs'])
@@ -236,10 +236,13 @@ def plot_evaluation(args,results, save_paths, perturbation_stds, labels, save=Fa
             # legend_labels.append(f"{label} (std={std})")
 
     # Add dashed baseline and shaded regions
+    y_min, y_max = plt.gca().get_ylim()
     y_limit = plt.gca().get_ylim()[1]  # Get current y-axis upper limit
     plt.axhline(y=args.persistent_eps, color='black', linestyle='--', linewidth=15, label="Baseline")
-    plt.axhspan(args.persistent_eps, y_limit, color='red', alpha=0.1)
-    plt.axhspan(plt.gca().get_ylim()[0], args.persistent_eps, color='blue', alpha=0.1)
+    # plt.axhspan(args.persistent_eps, y_limit, color='red', alpha=0.1)
+    # plt.axhspan(plt.gca().get_ylim()[0], args.persistent_eps, color='blue', alpha=0.1)
+    plt.axhspan(args.persistent_eps, y_max, color='red', alpha=0.1) # label="Max Cost > Baseline")
+    plt.axhspan(y_min, args.persistent_eps, color='blue', alpha=0.1) #, label="Max Cost < Baseline")
 
     plt.xlabel("Episode", fontweight='bold', fontsize=label_font)
     plt.ylabel("Max Cost", fontweight='bold', fontsize=label_font)

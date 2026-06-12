@@ -724,7 +724,7 @@ class Robust_RCAC_NPG:
                 self.optimizer_actor.zero_grad()
                 actor_loss.mean().backward()
                 if self.use_grad_clip:  # Trick 7: Gradient clip
-                    torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+                    torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.2) #shilpa 0.5 to 0.2
                 self.optimizer_actor.step()
 
                 # if ch == 0:
@@ -735,7 +735,7 @@ class Robust_RCAC_NPG:
                 self.optimizer_Rcritic.zero_grad()
                 Rcritic_loss.backward()
                 if self.use_grad_clip:  # Trick 7: Gradient clip
-                    torch.nn.utils.clip_grad_norm_(self.Rcritic.parameters(), 0.5)
+                    torch.nn.utils.clip_grad_norm_(self.Rcritic.parameters(), 0.2) #shilpa
                 self.optimizer_Rcritic.step()
                 
                 v_cs = self.Ccritic(s[index])
@@ -744,7 +744,7 @@ class Robust_RCAC_NPG:
                 self.optimizer_Ccritic.zero_grad()
                 Ccritic_loss.backward()
                 if self.use_grad_clip:  # Trick 7: Gradient clip
-                    torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.5)
+                    torch.nn.utils.clip_grad_norm_(self.Ccritic.parameters(), 0.2) #shilpa
                 self.optimizer_Ccritic.step()
 
                
@@ -799,12 +799,19 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
                 action = a
             # s_, r, c, truncated, terminated, info = env.step(action)
             s_, r, done, info = env.step(action)
-            c = np.max(info.get('constraint_values', 0.))
+            # print("Rendering environment...")
+            env.render()
+
+            # c = np.max(info.get('constraint_values', 0.))
+            c= 0.0
             # print("eval cost =", c)
  
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
 
+            if args.use_reward_scaling:
+                r = reward_scaling(r, update=False)
+                c = reward_scaling(c, update=False)
             episode_reward += r
             episode_cost += c
             max_cost = max(max_cost, c)
@@ -1185,11 +1192,12 @@ def main(args, run_number):
                 total_cost += c
             else:
                 s_, r, done, info = env.step(action)
-                c = np.max(info.get('constraint_values', 0.))
-                print(info['constraint_values'].shape)  
-                print(info['constraint_values'])
-                if c<=0.0:
-                    c=0.0
+                # c = np.max(info.get('constraint_values', 0.))
+                # print(info['constraint_values'].shape)  
+                # print(info['constraint_values'])
+                c = 0.0
+                # if c<=0.0:
+                #     c=0.0
                 # print("eval cost =", c)
                 total_reward += r
                 total_cost += c

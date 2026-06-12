@@ -239,7 +239,7 @@ class HalfCheetahWithPosPerturbed(HalfCheetahEnv):
     OBS_DIM = 18
     # ── FIX 2: episode length (matches MuJoCo HalfCheetah default) ───────────
     max_steps = 1000
-    def __init__(self):
+    def __init__(self, sigma_gravity: float = 0.7, max_steps: int = 1000):
         super().__init__()
         # Override observation_space to match the 18-dim obs we actually return
         obs_high = np.inf * np.ones(self.OBS_DIM, dtype=np.float32)
@@ -247,6 +247,10 @@ class HalfCheetahWithPosPerturbed(HalfCheetahEnv):
             low=-obs_high, high=obs_high, dtype=np.float32
         )
         self._elapsed_steps = 0
+        self.sigma_gravity = sigma_gravity
+        self.max_steps       = max_steps
+        self._grav_axis = 2
+        self._base_grav = float(self.model.opt.gravity[self._grav_axis])
     
     def reset(self, seed=None, **kwargs):
             # Handle seed for reproducibility
@@ -256,6 +260,7 @@ class HalfCheetahWithPosPerturbed(HalfCheetahEnv):
                 self.np_random, _ = gym.utils.seeding.np_random(seed)
             obs = super().reset()
             self._elapsed_steps = 0
+            self.model.opt.gravity[self._grav_axis] = self._base_grav
             return obs, {}   # (obs, info) tuple expected by your training loop
 
     def _get_obs(self):
@@ -302,7 +307,11 @@ class HalfCheetahWithPosPerturbed(HalfCheetahEnv):
 
     def step(self, action):
         # Perturb gravity each step (or each episode in reset)
-        self.model.opt.gravity[2] = -9.81 + np.random.normal(0, 2.0)
+        # self.model.opt.gravity[2] = -9.81 + np.random.normal(0, 2.0)
+        if self.sigma_gravity > 0.0:
+            self.model.opt.gravity[self._grav_axis] = (
+                self._base_grav + np.random.normal(0.0, self.sigma_gravity)
+            )
         xposbefore = self.sim.data.qpos[0]
         self.do_simulation(action, self.frame_skip)
         xposafter  = self.sim.data.qpos[0]

@@ -7,9 +7,11 @@ import matplotlib.pyplot as plt
 import os
 from envs.cartpole import CartPolePerturbedEnv
 import glob
-from envs.half_cheetah import HalfCheetahWithPos, HalfCheetahWithPosPerturbed
+from envs.half_cheetah import HalfCheetahWithPos
 from envs.reacher import ReacherWithCost
 from envs.swimmer import SwimmerWithPos
+from envs.ant import AntCost, AntCostPerturbed
+from envs.humanoid import HumanoidWithCostPerturbed
 
 def load_agent(args, save_path):
     """
@@ -140,7 +142,7 @@ def test_multiple_dirs(args, save_paths, perturbation_stds, num_episodes=100):
             # env = CartPolePerturbedEnv(gravity_perturbation_std=std)
             # env = ReacherWithCost(sigma_gravity=std, max_steps=50)
             # env = SwimmerWithPos(sigma_viscosity=std, max_steps=1000)
-            env = HalfCheetahWithPosPerturbed()
+            env = HumanoidWithCostPerturbed(sigma_gravity=std)
             env.reset(seed=args.seed)
             env.action_space.seed(args.seed)
             args.max_action = float(env.action_space.high[0])
@@ -234,7 +236,7 @@ def plot_evaluation(args,results, save_paths, perturbation_stds, labels, save=Fa
             # legend_elements.append(line)
             # legend_labels.append(f"{label} (std={std})")
 
-     # Add dashed baseline and shaded regions
+    # Add dashed baseline and shaded regions
     y_min, y_max = plt.gca().get_ylim()
     y_limit = plt.gca().get_ylim()[1]  # Get current y-axis upper limit
     plt.axhline(y=args.persistent_eps, color='black', linestyle='--', linewidth=15, label="Baseline")
@@ -242,7 +244,6 @@ def plot_evaluation(args,results, save_paths, perturbation_stds, labels, save=Fa
     # plt.axhspan(plt.gca().get_ylim()[0], args.persistent_eps, color='blue', alpha=0.1)
     plt.axhspan(args.persistent_eps, y_max, color='red', alpha=0.1) # label="Max Cost > Baseline")
     plt.axhspan(y_min, args.persistent_eps, color='blue', alpha=0.1) #, label="Max Cost < Baseline")
-
 
     plt.xlabel("Episode", fontweight='bold', fontsize=label_font)
     plt.ylabel("Max Cost", fontweight='bold', fontsize=label_font)
@@ -334,7 +335,7 @@ if __name__ == "__main__":
         # Save the finmma", type=float, default=0.99, help="Discount factor 0.99")
     parser.add_argument("--lamda", type=float, default=0.95, help="GAE parameter 0.95")
     parser.add_argument("--epsilon", type=float, default=0.2, help="PPO clip parameter")
-    parser.add_argument("--persistent_eps", type=float, default=0.1, help="Persistent Safety Perturbation")
+    parser.add_argument("--persistent_eps", type=float, default=1.0, help="Persistent Safety Perturbation")
     parser.add_argument("--K_epochs", type=int, default=5, help="PPO parameter")
     parser.add_argument("--use_adv_norm", type=bool, default=True, help="Trick 1:advantage normalization")
     parser.add_argument("--use_state_norm", type=bool, default=False, help="Trick 2:state normalization")
@@ -356,7 +357,7 @@ if __name__ == "__main__":
     parser.add_argument("--run",type=int,default=1,help="run_number") 
     parser.add_argument("--warm_start_flag",type=int,default=0,help="warm_start_flag") 
     parser.add_argument("--warm_start_episode",type=int,default=150,help="warm_start_episode")
-    parser.add_argument("--sigma_viscosity",type=float,default=0.7,help="sigma of gravity perturbation")
+    parser.add_argument("--sigma_gravity",type=float,default=0.7,help="sigma of gravity perturbation")
     parser.add_argument("--lr_cost",type=float,default=1e-3,help="learning rate for cost function")
 
     args = parser.parse_args()
@@ -393,12 +394,12 @@ if __name__ == "__main__":
     #     "./models/CartPolePerturbedEnv/run3/Best_RCAC",
     #     "./models/CartPoleCostEnv/run2/Best_RCAC",
     # ]
-    labels = ["Surrogate Obj(NP)","Ours(P+R)","Ours(NP+R)"] 
+    labels = ["Surrogate Obj(NP)","Ours(P+R)"] 
 
 
     directories = [
-        "./models/HalfCheetahWithPos/run3/Best_RCAC",
-        "./models/HalfCheetahWithPosPerturbed/run1/Best_RCAC"
+        "./models/HumanoidWithCost/run2/Best_RCAC",
+        "./models/HumanoidWithCostPerturbed/run1/Best_RCAC",
     ]
     # Match files starting with "RCAC_"
     # directories =[]
@@ -429,7 +430,7 @@ if __name__ == "__main__":
     # directories[2] = "PD"
 
     # Plot the evaluation results
-    plot_evaluation(args, results, directories, perturbation_stds, labels, save=True, base_filename="plot_inference/HC_inference", smooth_window=20)
+    plot_evaluation(args, results, directories, perturbation_stds, labels, save=True, base_filename="plot_inference/humanoid_inference", smooth_window=20)
 
     # run_and_plot_comparison(args, directories, perturbation_stds, num_episodes=100)
 

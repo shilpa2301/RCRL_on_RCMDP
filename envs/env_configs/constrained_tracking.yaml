@@ -43,7 +43,7 @@ quadrotor_config:
       high: 0.01
   randomized_inertial_prop: False
 
-  task: stabilization #traj_tracking #shilpa
+  task: stabilization #traj_tracking, stabilization #shilpa
   task_info:
     stabilization_goal: [0, 1]
     stabilization_goal_tolerance: 0.01

@@ -354,7 +354,7 @@ class Robust_RCAC_NPG:
         elif args.env == "HalfCheetahWithPos":
             self.env = HalfCheetahWithPos()
         elif args.env == "HalfCheetahWithPosPerturbed":
-            self.env = HalfCheetahWithPosPerturbed()
+            self.env = HalfCheetahWithPosPerturbed(sigma_gravity=args.sigma_gravity)
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -576,24 +576,7 @@ class Robust_RCAC_NPG:
                     beta_penalty,
                 )
 
-               
-                # vs_mean = vs.mean().item()
-                # penalty_normalized = vcs.max() - torch.tensor(self.persistent_eps)
-                # if self.warm_start_flag == 1:
-                #     # ch = 0 if (vs_mean_normalized > 0.5 and penalty_normalized < 0) else (
-                #     #             1 if penalty_normalized > 0 else 0
-                #     #         )
-                #     ch = 0 if penalty_normalized < 0 else 1
-                # else:
-                #     ch = 0
-                # # ch = 1
-                # print(
-                #     "ch, vs_mean, vl_pi=",
-                #     ch,
-                #     vs_mean,
-                #     penalty_normalized
-                # )
-    
+              
                 reg_norm, weight_norm, bias_norm = 0, [], []
 
                 linear_layers = [l for l in self.Ccritic.children() if isinstance(l, nn.Linear)]
@@ -1008,12 +991,12 @@ def main(args, run_number):
 
     elif args.env == "HalfCheetahWithPosPerturbed":
         env = (
-            HalfCheetahWithPosPerturbed()
+            HalfCheetahWithPosPerturbed(sigma_gravity=args.sigma_gravity)
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
-            HalfCheetahWithPosPerturbed() #HalfCheetahWithPostest()
+            HalfCheetahWithPosPerturbed(sigma_gravity=args.sigma_gravity) #HalfCheetahWithPostest()
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = HalfCheetahWithPosPerturbed()
+        env_reset = HalfCheetahWithPosPerturbed(sigma_gravity=args.sigma_gravity)
 
 
     # Set random seed
@@ -1446,7 +1429,7 @@ if __name__ == "__main__":
         "--gravity_std", type=float, default=0.5, help="gravity perturbation"
     )
     parser.add_argument(
-        "--sigma_viscosity", type=float, default=0.0, help="viscosity perturbation"
+        "--sigma_gravity", type=float, default=0.0, help="gravity perturbation"
     )
 
 

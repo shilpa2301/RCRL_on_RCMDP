@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import os
 from envs.cartpole import CartPolePerturbedEnv
 import glob
-from envs.half_cheetah import HalfCheetahWithPos, HalfCheetahWithPosPerturbed
+from envs.half_cheetah import HalfCheetahWithPos
 from envs.reacher import ReacherWithCost
 from envs.swimmer import SwimmerWithPos
 
@@ -139,8 +139,7 @@ def test_multiple_dirs(args, save_paths, perturbation_stds, num_episodes=100):
             # Create a new environment instance with the specified gravity perturbation std
             # env = CartPolePerturbedEnv(gravity_perturbation_std=std)
             # env = ReacherWithCost(sigma_gravity=std, max_steps=50)
-            # env = SwimmerWithPos(sigma_viscosity=std, max_steps=1000)
-            env = HalfCheetahWithPosPerturbed()
+            env = SwimmerWithPos(sigma_viscosity=std, max_steps=1000)
             env.reset(seed=args.seed)
             env.action_space.seed(args.seed)
             args.max_action = float(env.action_space.high[0])
@@ -159,23 +158,57 @@ def test_multiple_dirs(args, save_paths, perturbation_stds, num_episodes=100):
 
             model_results.append({'rewards': rewards, 'costs': costs, 'max_costs': max_costs})
         
-        # Store results for this model
-        if isinstance(save_path, list):
-            results["PD"] = model_results
-        else:
-            results[save_path] = model_results
+        
+            results[std] = model_results
     return results
 
+def test_multiple_perturbations(args, save_path, perturbation_stds, num_episodes=100):
+        """
+        Test a single model across different gravity perturbation standard deviations.
 
-def plot_evaluation(args,results, save_paths, perturbation_stds, labels, save=False, base_filename="evaluation_plot", smooth_window=10):
+        Args:
+            args: Argument parser with required parameters.
+            save_path: Directory where the model is saved.
+            perturbation_stds: List of gravity perturbation std values to test.
+            num_episodes: Number of episodes to test.
+
+        Returns:
+            results: Dictionary where keys are gravity perturbation std values, and values are results for each std.
+        """
+        results = {}
+        model_results = []
+        
+        for std in perturbation_stds:
+            print(f"Testing model from {save_path} with gravity_perturbation_std = {std}")
+            
+            # Create a new environment instance with the specified gravity perturbation std
+            env = SwimmerWithPos(sigma_viscosity=std, max_steps=1000)
+            env.reset(seed=args.seed)
+            env.action_space.seed(args.seed)
+            args.max_action = float(env.action_space.high[0])
+            args.state_dim = env.observation_space.shape[0]
+            args.action_dim = env.action_space.shape[0]
+            args.gravity_std = std
+            
+            # Test the agent in the environment
+            rewards, costs, max_costs = test_agent_multiple_models(args, save_path, env, num_episodes=num_episodes)
+            
+            # Store results for the current perturbation std
+            model_results.append({'rewards': rewards, 'costs': costs, 'max_costs': max_costs})
+            results[std] = model_results  # Add the results for the current perturbation std
+        
+        return results
+
+
+
+def plot_evaluation(args, results, perturbation_stds, label, save=False, base_filename="evaluation_plot", smooth_window=10):
     """
-    Plot evaluation results for multiple models across gravity perturbation std values.
+    Plot evaluation results for a single model across gravity perturbation std values.
 
     Args:
-        results: Dictionary where keys are model directories and values are lists of results for each gravity perturbation std.
-        save_paths: List of model directory paths.
+        results: Dictionary where keys are perturbation std values and values are lists of results for each perturbation std.
         perturbation_stds: List of gravity perturbation std values.
-        labels: List of labels corresponding to each model directory.
+        label: Label corresponding to the model directory.
         save: Whether to save the plots.
         base_filename: Base file name to save the plots.
         smooth_window: Window size for smoothing.
@@ -184,115 +217,55 @@ def plot_evaluation(args,results, save_paths, perturbation_stds, labels, save=Fa
     fig_size = 28
     label_font = 130
 
-    # Prepare legend elements
-    legend_elements = []
-    legend_labels = []
+    # Define 4 bright colors for perturbation stds
+    bright_colors = ['#e41a1c', '#377eb8', '#4daf4a', '#ff7f00']  # Red, Blue, Green, Orange
 
     # Plot total rewards
-    plt.figure(figsize=(fig_size+16, fig_size))
-    for save_path, label in zip(save_paths, labels):
-        for i, std in enumerate(perturbation_stds):
-            rewards = np.array(results[save_path][i]['rewards'])
-            # Check if the save_path is "PD" and reduce rewards accordingly
-            # if save_path == "./models/CartPoleCostEnv/run2/Best_RCAC":
-            #     print(f"Original rewards for {label} (std={std}): {rewards}")  # Debugging line
-            #     rewards -= 15.0  # Reduce rewards by 10.0
-            #     print(f"Modified rewards for {label} (std={std}): {rewards}")  # Debugging line
-            smoothed_rewards = smooth(rewards, smooth_window)
-            smoothed_x = range(len(smoothed_rewards))
-            line, = plt.plot(smoothed_x, smoothed_rewards)
-            legend_elements.append(line)
-            legend_labels.append(f"{label} (std={std})")
+    plt.figure(figsize=(fig_size + 16, fig_size))
+    for i, std in enumerate(perturbation_stds):
+        model_results = results[std]  # Get results for the current perturbation std
+        rewards = np.array(model_results[0]['rewards'])  # Access rewards for the current perturbation std
+        smoothed_rewards = smooth(rewards, smooth_window)
+        smoothed_x = range(len(smoothed_rewards))
+        plt.plot(smoothed_x, smoothed_rewards, color=bright_colors[i], label=f"{label} (std={std})")
     plt.xlabel("Episode", fontweight='bold', fontsize=label_font)
     plt.ylabel("Cumulative Reward", fontweight='bold', fontsize=label_font)
-    # plt.title("Cumulative Reward per Episode")
     plt.grid(False)  # Turn off the grid
     plt.gca().spines['top'].set_linewidth(15)  # Make top edge bold
     plt.gca().spines['right'].set_linewidth(15)  # Make right edge bold
     plt.gca().spines['left'].set_linewidth(15)  # Make left edge bold
     plt.gca().spines['bottom'].set_linewidth(15)  # Make bottom edge bold
-
-    # Adjust y-axis ticks for better readability
-    # plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
 
     if save:
         plt.savefig(f"{base_filename}_rewards.png")
     plt.close()
 
-    # Save horizontal and vertical legends for rewards plot
-    save_legend(legend_elements, legend_labels, f"{base_filename}_rewards_legend_horizontal.png", horizontal=True)
-    save_legend(legend_elements, legend_labels, f"{base_filename}_rewards_legend_vertical.png", horizontal=False)
-
     # Plot max costs
-    plt.figure(figsize=(fig_size+14, fig_size))
-    for save_path, label in zip(save_paths, labels):
-        for i, std in enumerate(perturbation_stds):
-            max_costs = np.array(results[save_path][i]['max_costs'])
-            smoothed_max_costs = smooth(max_costs, smooth_window)
-            smoothed_x = range(len(smoothed_max_costs))
-            line, = plt.plot(smoothed_x, smoothed_max_costs)
-            # legend_elements.append(line)
-            # legend_labels.append(f"{label} (std={std})")
+    plt.figure(figsize=(fig_size + 14, fig_size))
+    for i, std in enumerate(perturbation_stds):
+        model_results = results[std]  # Get results for the current perturbation std
+        max_costs = np.array(model_results[0]['max_costs'])  # Access max_costs for the current perturbation std
+        smoothed_max_costs = smooth(max_costs, smooth_window)
+        smoothed_x = range(len(smoothed_max_costs))
+        plt.plot(smoothed_x, smoothed_max_costs, color=bright_colors[i], label=f"{label} (std={std})")
 
-     # Add dashed baseline and shaded regions
+    # Add dashed baseline and shaded regions
     y_min, y_max = plt.gca().get_ylim()
-    y_limit = plt.gca().get_ylim()[1]  # Get current y-axis upper limit
     plt.axhline(y=args.persistent_eps, color='black', linestyle='--', linewidth=15, label="Baseline")
-    # plt.axhspan(args.persistent_eps, y_limit, color='red', alpha=0.1)
-    # plt.axhspan(plt.gca().get_ylim()[0], args.persistent_eps, color='blue', alpha=0.1)
-    plt.axhspan(args.persistent_eps, y_max, color='red', alpha=0.1) # label="Max Cost > Baseline")
-    plt.axhspan(y_min, args.persistent_eps, color='blue', alpha=0.1) #, label="Max Cost < Baseline")
-
-
+    plt.axhspan(args.persistent_eps, y_max, color='red', alpha=0.1)
+    plt.axhspan(y_min, args.persistent_eps, color='blue', alpha=0.1)
     plt.xlabel("Episode", fontweight='bold', fontsize=label_font)
     plt.ylabel("Max Cost", fontweight='bold', fontsize=label_font)
-    # plt.title("Max Cost per Episode")
     plt.grid(False)  # Turn off the grid
     plt.gca().spines['top'].set_linewidth(15)  # Make top edge bold
     plt.gca().spines['right'].set_linewidth(15)  # Make right edge bold
     plt.gca().spines['left'].set_linewidth(15)  # Make left edge bold
     plt.gca().spines['bottom'].set_linewidth(15)  # Make bottom edge bold
-
-    # Adjust y-axis ticks for better readability
-    # plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
 
     if save:
         plt.savefig(f"{base_filename}_max_costs.png")
     plt.close()
 
-    # Save horizontal and vertical legends for max costs plot
-    # save_legend(legend_elements, legend_labels, f"{base_filename}_max_costs_legend_horizontal.png", horizontal=True)
-    # save_legend(legend_elements, legend_labels, f"{base_filename}_max_costs_legend_vertical.png", horizontal=False)
-
-    # Plot total costs
-    plt.figure(figsize=(fig_size, fig_size))
-    for save_path, label in zip(save_paths, labels):
-        for i, std in enumerate(perturbation_stds):
-            costs = np.array(results[save_path][i]['costs'])
-            smoothed_costs = smooth(costs, smooth_window)
-            smoothed_x = range(len(smoothed_costs))
-            line, = plt.plot(smoothed_x, smoothed_costs)
-            # legend_elements.append(line)
-            # legend_labels.append(f"{label} (std={std})")
-    plt.xlabel("Episode", fontweight='bold', fontsize=label_font)
-    plt.ylabel("Max Cost", fontweight='bold', fontsize=label_font)
-    # plt.title("Cumulative Cost per Episode")
-    plt.grid(False)  # Turn off the grid
-    plt.gca().spines['top'].set_linewidth(15)  # Make top edge bold
-    plt.gca().spines['right'].set_linewidth(15)  # Make right edge bold
-    plt.gca().spines['left'].set_linewidth(15)  # Make left edge bold
-    plt.gca().spines['bottom'].set_linewidth(15)  # Make bottom edge bold
-
-    # Adjust y-axis ticks for better readability
-    # plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
-
-    if save:
-        plt.savefig(f"{base_filename}_total_costs.png")
-    plt.close()
-
-    # Save horizontal and vertical legends for total costs plot
-    # save_legend(legend_elements, legend_labels, f"{base_filename}_total_costs_legend_horizontal.png", horizontal=True)
-    # save_legend(legend_elements, legend_labels, f"{base_filename}_total_costs_legend_vertical.png", horizontal=False)
 
 
 def save_legend(legend_elements, labels, filename, horizontal=True):
@@ -393,12 +366,12 @@ if __name__ == "__main__":
     #     "./models/CartPolePerturbedEnv/run3/Best_RCAC",
     #     "./models/CartPoleCostEnv/run2/Best_RCAC",
     # ]
-    labels = ["Surrogate Obj(NP)","Ours(P+R)","Ours(NP+R)"] 
+    # labels = ["Surrogate Obj(NP)","Ours(P+R)"] 
 
 
     directories = [
-        "./models/HalfCheetahWithPos/run3/Best_RCAC",
-        "./models/HalfCheetahWithPosPerturbed/run1/Best_RCAC"
+        # "./models/SwimmerWithPos/run2/Best_RCAC",
+        "./models/SwimmerWithPosPerturbed/run2/Best_RCAC",
     ]
     # Match files starting with "RCAC_"
     # directories =[]
@@ -421,15 +394,18 @@ if __name__ == "__main__":
     # base_names_list = list(base_names)
     # directories.extend([base_names_list])
 
-    perturbation_stds = [2.0]
+    perturbation_stds = [0.5, 1,0, 2.0]
+    labels = ["Perturbation 0.5","Perturbation 1.0","Perturbation 2.0"] 
+
 
     # Run tests for all models across different gravity perturbations
-    results = test_multiple_dirs(args, directories, perturbation_stds, num_episodes=100)
+    # results = test_multiple_dirs(args, directories, perturbation_stds, num_episodes=100)
 
-    # directories[2] = "PD"
+    save_path = "./models/SwimmerWithPosPerturbed/run2/Best_RCAC"
+    results = test_multiple_perturbations(args, save_path, perturbation_stds, num_episodes=100)
 
     # Plot the evaluation results
-    plot_evaluation(args, results, directories, perturbation_stds, labels, save=True, base_filename="plot_inference/HC_inference", smooth_window=20)
+    plot_evaluation(args, results, perturbation_stds, labels, save=True, base_filename="plot_inference/pert_variation_swimmer", smooth_window=20)
 
     # run_and_plot_comparison(args, directories, perturbation_stds, num_episodes=100)
 
