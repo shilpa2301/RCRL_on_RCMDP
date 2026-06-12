@@ -66,3 +66,9 @@ python code_ipm_rcmdp_rcrl_max_walker2d.py --run 1 --persistent_eps 0.1 --beta 3
 python code_ipm_rcmdp_primal_dual_swimmer.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_viscosity 0.0 --env SwimmerWithPos --seed 1
 ```
 
+## Models and Plots
+
+Find the models and ongoing running plots under the following directories:
+
+- Models: `models/<env>/run<id>`
+- Plots: `plot_data/<env>/run<id>`
