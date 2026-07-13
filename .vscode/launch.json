@@ -16,19 +16,24 @@
 
                 
             // ],
-            "program": "C:/Shilpa/Work/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_swimmer.py",
+            "program": "C:/Shilpa/Work/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_quadrotor2.py",
             "args": [
                 // "--warm_start_episode", "3",
-                "--run", "3",
+                "--run", "2",
                 "--persistent_eps", "0.1",
                 "--beta", "30000",
                 "--K_epochs", "5",
                 "--max_train_steps", "10000",
                 "--warm_start_episode", "150",
-                "--lr_cost", "1e-3",
-                "--entropy_coef", "0.001",
-                "--weight_reg", "0.001",
-                "--sigma_viscosity", "0.7"
+                "--lr_cost", "5e-4",
+                "--lr_c", "5e-4",
+                "--lr_a", "5e-4",
+                "--entropy_coef", "0.007",
+                "--seed", "2",
+                "--batch_size", "1024",
+                "--mini_batch_size", "256",
+                "--weight_reg", "0.0",
+                // "--sigma_viscosity", "0.7"
             ],
             "cwd": "C:/Shilpa/Work/RCRL_on_RCMDP", //${workspaceFolder}",
             "env": {

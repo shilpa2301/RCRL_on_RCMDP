@@ -803,8 +803,10 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
             env.render()
 
             # c = np.max(info.get('constraint_values', 0.))
-            c= 0.0
+            # c= 0.0
+            c = args.omega1*max(0, info["constraint_values"][0]) + args.omega2*max(0, info["constraint_values"][1])  # Assuming info contains constraint values
             # print("eval cost =", c)
+
  
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
@@ -1195,10 +1197,12 @@ def main(args, run_number):
                 # c = np.max(info.get('constraint_values', 0.))
                 # print(info['constraint_values'].shape)  
                 # print(info['constraint_values'])
-                c = 0.0
+                # c = 0.0
+                # config[quadrotor_config]["constraints"][0]["lower_bounds"] and config[quadrotor_config]["constraints"][0]["upper_bounds"]
+                c  = args.omega1 * max(0, info['constraint_values'][0])+ args.omega2 * max(0, info['constraint_values'][1])
                 # if c<=0.0:
                 #     c=0.0
-                # print("eval cost =", c)
+                # print("training cost =", c)
                 total_reward += r
                 total_cost += c
                 max_cost = max(max_cost, c)
@@ -1480,9 +1484,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--gravity_std", type=float, default=0.5, help="gravity perturbation"
     )
-    # parser.add_argument(
-        # "--sigma_viscosity", type=float, default=0.0, help="viscosity perturbation"
-    # )
+    parser.add_argument(
+        "--omega1", type=float, default=0.5, help="cost lower bounds weigt"
+    )
+    parser.add_argument(
+        "--omega2", type=float, default=0.5, help="cost upper bounds weigt"
+    )
     args = parser.parse_args()
     # make folders to dump results
     if not os.path.exists("./models"):
