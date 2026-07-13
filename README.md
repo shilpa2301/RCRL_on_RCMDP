@@ -1,4 +1,4 @@
-# Robust Peak-Constrained Reinforcementy Learning (RP-CRL)
+# Robust Peak-Constrained Reinforcement Learning (RP-CRL)
 
 # Dependencies
 
