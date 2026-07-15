@@ -34,8 +34,9 @@ python code_ipm_rcmdp_rcrl_max_swimmer.py --run 1 --persistent_eps 0.1 --beta 30
 python code_ipm_rcmdp_rcrl_max_swimmer.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --sigma_viscosity 0.7 --env SwimmerWithPosPerturbed --seed 1
 
 QUADROTOR ENV:
-python code_ipm_rcmdp_rcrl_max_quadrotor2.py --run 2 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 5e-4 --lr_c 5e-4 --lr_a 5e-4 --entropy_coef 0.007 --weight_reg 0.0 --seed 2 --batch_size 1024 --mini_batch_size 256 --omega1 1.0 --omega2 1.0
-
+python code_ipm_rcmdp_rcrl_max_quadrotor2.py --run 2 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 700 --lr_cost 5e-4 --lr_c 5e-4 --lr_a 5e-4 --entropy_coef 0.007 --weight_reg 0.0 --seed 2 --batch_size 1024 --mini_batch_size 256 --omega1 1.0 --omega2 1.0
+ python code_ipm_rcmdp_rcrl_max_quadrotor3.py --run 4 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 10000 --warm_start_episode 700 --lr_cost 5e-4 --lr_c 5e-4 --lr_a 5e-4 --entropy_coef 0.007 --weight_reg 0.0 --seed 2 --batch_size 1024 --mini_batch_size 256 --omega1 1.0 --omega2 0.0
+ 
 ANT ENV:
 python code_ipm_rcmdp_rcrl_max_ant.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 700 --lr_cost 1e-3 --lr_a 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 2 --env AntCost --lr_c 1e-3 
 python code_ipm_rcmdp_rcrl_max_ant.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 700 --lr_cost 1e-3 --lr_a 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --seed 2 --env AntCostPerturbed --sigma_gravity 0.7 --lr_c 1e-3 

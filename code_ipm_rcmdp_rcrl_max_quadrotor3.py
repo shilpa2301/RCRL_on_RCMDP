@@ -319,7 +319,9 @@ class ReplayBuffer:
         self.a = np.zeros((args.batch_size, args.action_dim))
         self.a_logprob = np.zeros((args.batch_size, args.action_dim))
         self.r = np.zeros((args.batch_size, 1))
-        self.c = np.zeros((args.batch_size, 1))
+        #shilpa multi constraint
+        # self.c = np.zeros((args.batch_size, 1))
+        self.c = np.zeros((args.batch_size, args.cost_dim))  # For multi-constraint
         self.s_ = np.zeros((args.batch_size, args.state_dim))
         self.dw = np.zeros((args.batch_size, 1))
         self.done = np.zeros((args.batch_size, 1))
@@ -330,7 +332,13 @@ class ReplayBuffer:
         self.a[self.count] = a
         self.a_logprob[self.count] = a_logprob
         self.r[self.count] = r
+        #shilpa multi constraint
+        # self.c[self.count] = c
+        # c should be [c1, c2]
+        c = np.asarray(c).reshape(-1)
+        assert c.shape[0] == args.cost_dim, f"Expected c=[c1, c2], got shape {c.shape}, value {c}"
         self.c[self.count] = c
+
         self.s_[self.count] = s_
         self.dw[self.count] = dw
         self.done[self.count] = done
@@ -655,7 +663,7 @@ class Robust_RCAC_NPG:
                 # Expand to match cost critic output shape [batch_size, 2]
                 reg_norm = reg_norm.view(1, 2).expand_as(vcs)
 
-                
+
 
                 #shilpa multi constraint
                 # cost_deltas = (
@@ -851,16 +859,24 @@ class Robust_RCAC_NPG:
 def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     times = 3
     evaluate_reward = 0
-    evaluate_cost = 0
-    evaluate_max_cost = float("-inf")
+    #shilpa multi constraint
+    # evaluate_cost = 0
+    evaluate_cost = np.zeros(args.cost_dim)
+    evaluate_max_cost = np.full(args.cost_dim, float("-inf"))  # Initialize max cost for each constraint
+    # evaluate_max_cost = float("-inf")
     for _ in range(times):
         s, _ = env.reset()#[0][0]
         if args.use_state_norm:
             s = state_norm(s, update=False)  # During the evaluating,update=False
         done = False
         episode_reward = 0
-        episode_cost = 0
-        max_cost = float("-inf")
+
+        #shilpa multi constraint
+        # episode_cost = 0
+        # max_cost = float("-inf")
+        episode_cost = np.zeros(args.cost_dim)
+        max_cost = np.full(args.cost_dim, float("-inf"))  # Initialize max cost
+
         while not done:
             a = agent.evaluate(
                 s
@@ -876,7 +892,11 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
 
             # c = np.max(info.get('constraint_values', 0.))
             # c= 0.0
-            c = args.omega1*max(0, info["constraint_values"][0]) + args.omega2*max(0, info["constraint_values"][1])  # Assuming info contains constraint values
+            # c = args.omega1*max(0, info["constraint_values"][0]) + args.omega2*max(0, info["constraint_values"][1])  # Assuming info contains constraint values
+            #shilpa multi constraint
+            # c = info["constraint_values"]  # Assuming info contains constraint values
+            c = np.asarray(info["constraint_values"], dtype=np.float32).reshape(-1)
+            c = np.maximum(c, 0.0)
             # print("eval cost =", c)
 
  
@@ -888,7 +908,9 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
                 c = reward_scaling(c, update=False)
             episode_reward += r
             episode_cost += c
-            max_cost = max(max_cost, c)
+            #shilpa multi constraint
+            # max_cost = max(max_cost, c)
+            max_cost = np.maximum(max_cost, c)  # Update max cost for each constraint
 
             # if args.use_reward_norm:
             #     r = reward_norm(r, update=False)
@@ -902,9 +924,23 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
             s = s_
         evaluate_reward += episode_reward
         evaluate_cost += episode_cost
-        evaluate_max_cost = max(evaluate_max_cost, max_cost)
+        #shilpa multi constraint
+        # evaluate_max_cost = max(evaluate_max_cost, max_cost)
+        evaluate_max_cost = np.maximum(evaluate_max_cost, max_cost)
 
-    return evaluate_reward / times, evaluate_cost / times, evaluate_max_cost
+    #shilpa multi constraint
+    # return evaluate_reward / times, evaluate_cost / times, evaluate_max_cost
+    # Scalar summaries
+    evaluate_total_cost = np.sum(evaluate_cost)
+    evaluate_max_total_cost = np.max(evaluate_max_cost)
+
+    return (
+        evaluate_reward,
+        evaluate_cost,
+        evaluate_max_cost,
+        evaluate_total_cost,
+        evaluate_max_total_cost,
+    )
 
 
 def save_agent(agent, save_path, state_norm=None, reward_scaling=None):
@@ -919,30 +955,105 @@ def save_agent(agent, save_path, state_norm=None, reward_scaling=None):
             pickle.dump(reward_scaling, file2)
 # ── ADD this new function right after the existing plot_metrics function ──────
 
+#shilpa multiple constraints
+# def plot_eval_metrics(
+#     evaluate_rewards,
+#     evaluate_costs,
+#     evaluate_max_costs,
+#     persistent_eps,
+#     save=False,
+#     filename="eval_metrics.png",
+# ):
+#     """
+#     Plot evaluation metrics (reward, total cost, max cost) over evaluation
+#     checkpoints and optionally save the plot.
+#     Args:
+#         evaluate_rewards:   List of avg rewards per evaluation checkpoint.
+#         evaluate_costs:     List of avg total costs per evaluation checkpoint.
+#         evaluate_max_costs: List of max costs per evaluation checkpoint.
+#         persistent_eps:     Safety threshold — drawn as a horizontal reference line.
+#         save:               Whether to save the plot to a file.
+#         filename:           File name to save the plot.
+#     """
+#     evals = list(range(1, len(evaluate_rewards) + 1))
+
+#     fig, axes = plt.subplots(3, 1, figsize=(10, 9))
+
+#     # ── Subplot 1: Evaluate Reward ────────────────────────────────────────────
+#     axes[0].plot(evals, evaluate_rewards, color="blue", label="Eval Reward")
+#     axes[0].set_xlabel("Evaluation #")
+#     axes[0].set_ylabel("Reward")
+#     axes[0].set_title("Evaluation Reward")
+#     axes[0].legend()
+#     axes[0].grid(True, alpha=0.3)
+
+#     # ── Subplot 2: Evaluate Max Cost (with safety threshold line) ────────────
+#     axes[1].plot(evals, evaluate_max_costs, color="red", label="Eval Max Cost")
+#     axes[1].axhline(
+#         y=persistent_eps,
+#         color="black",
+#         linestyle="--",
+#         linewidth=1.5,
+#         label=f"Safety threshold ({persistent_eps})",
+#     )
+#     axes[1].set_xlabel("Evaluation #")
+#     axes[1].set_ylabel("Max Cost")
+#     axes[1].set_title("Evaluation Max Cost per Checkpoint")
+#     axes[1].legend()
+#     axes[1].grid(True, alpha=0.3)
+
+#     # ── Subplot 3: Evaluate Total Cost ───────────────────────────────────────
+#     axes[2].plot(evals, evaluate_costs, color="green", label="Eval Total Cost")
+#     axes[2].set_xlabel("Evaluation #")
+#     axes[2].set_ylabel("Total Cost")
+#     axes[2].set_title("Evaluation Total Cost per Checkpoint")
+#     axes[2].legend()
+#     axes[2].grid(True, alpha=0.3)
+
+#     plt.tight_layout()
+#     if save:
+#         plt.savefig(filename, dpi=150)
+#     plt.close()
+
 def plot_eval_metrics(
     evaluate_rewards,
     evaluate_costs,
     evaluate_max_costs,
+    evaluate_total_costs,
+    evaluate_max_total_costs,
     persistent_eps,
+    cost_dim,
     save=False,
     filename="eval_metrics.png",
 ):
     """
-    Plot evaluation metrics (reward, total cost, max cost) over evaluation
-    checkpoints and optionally save the plot.
-    Args:
-        evaluate_rewards:   List of avg rewards per evaluation checkpoint.
-        evaluate_costs:     List of avg total costs per evaluation checkpoint.
-        evaluate_max_costs: List of max costs per evaluation checkpoint.
-        persistent_eps:     Safety threshold — drawn as a horizontal reference line.
-        save:               Whether to save the plot to a file.
-        filename:           File name to save the plot.
+    Plot evaluation metrics for arbitrary cost dimension.
+
+    evaluate_costs:
+        list where each entry has shape [cost_dim]
+
+    evaluate_max_costs:
+        list where each entry has shape [cost_dim]
+
+    evaluate_total_costs:
+        list of scalar sum of total costs over dimensions
+
+    evaluate_max_total_costs:
+        list of scalar max over max costs across dimensions
     """
+
     evals = list(range(1, len(evaluate_rewards) + 1))
 
-    fig, axes = plt.subplots(3, 1, figsize=(10, 9))
+    evaluate_costs = np.asarray(evaluate_costs)                  # [N, cost_dim]
+    evaluate_max_costs = np.asarray(evaluate_max_costs)          # [N, cost_dim]
+    evaluate_total_costs = np.asarray(evaluate_total_costs)      # [N]
+    evaluate_max_total_costs = np.asarray(evaluate_max_total_costs)  # [N]
 
-    # ── Subplot 1: Evaluate Reward ────────────────────────────────────────────
+    fig, axes = plt.subplots(3, 1, figsize=(10, 10))
+
+    # ------------------------------------------------------------------
+    # Subplot 1: Evaluation Reward
+    # ------------------------------------------------------------------
     axes[0].plot(evals, evaluate_rewards, color="blue", label="Eval Reward")
     axes[0].set_xlabel("Evaluation #")
     axes[0].set_ylabel("Reward")
@@ -950,84 +1061,218 @@ def plot_eval_metrics(
     axes[0].legend()
     axes[0].grid(True, alpha=0.3)
 
-    # ── Subplot 2: Evaluate Max Cost (with safety threshold line) ────────────
-    axes[1].plot(evals, evaluate_max_costs, color="red", label="Eval Max Cost")
+    # ------------------------------------------------------------------
+    # Subplot 2: Max Cost per dimension
+    # ------------------------------------------------------------------
+    for i in range(cost_dim):
+        axes[1].plot(
+            evals,
+            evaluate_max_costs[:, i],
+            label=f"Max C{i+1}",
+        )
+
+    # axes[1].plot(
+    #     evals,
+    #     evaluate_max_total_costs,
+    #     color="black",
+    #     linestyle="-.",
+    #     linewidth=1.8,
+    #     label="Max Total Cost",
+    # )
+
     axes[1].axhline(
         y=persistent_eps,
-        color="black",
+        color="red",
         linestyle="--",
         linewidth=1.5,
         label=f"Safety threshold ({persistent_eps})",
     )
+
     axes[1].set_xlabel("Evaluation #")
     axes[1].set_ylabel("Max Cost")
-    axes[1].set_title("Evaluation Max Cost per Checkpoint")
+    axes[1].set_title("Evaluation Max Cost per Constraint Dimension")
     axes[1].legend()
     axes[1].grid(True, alpha=0.3)
 
-    # ── Subplot 3: Evaluate Total Cost ───────────────────────────────────────
-    axes[2].plot(evals, evaluate_costs, color="green", label="Eval Total Cost")
+    # ------------------------------------------------------------------
+    # Subplot 3: Total Cost per dimension
+    # ------------------------------------------------------------------
+    for i in range(cost_dim):
+        axes[2].plot(
+            evals,
+            evaluate_costs[:, i],
+            label=f"Total C{i+1}",
+        )
+
+    # axes[2].plot(
+    #     evals,
+    #     evaluate_total_costs,
+    #     color="black",
+    #     linestyle="-.",
+    #     linewidth=1.8,
+    #     label="Total Cost Sum",
+    # )
+
     axes[2].set_xlabel("Evaluation #")
     axes[2].set_ylabel("Total Cost")
-    axes[2].set_title("Evaluation Total Cost per Checkpoint")
+    axes[2].set_title("Evaluation Total Cost per Constraint Dimension")
     axes[2].legend()
     axes[2].grid(True, alpha=0.3)
 
     plt.tight_layout()
+
     if save:
         plt.savefig(filename, dpi=150)
+
     plt.close()
 
-            
+
+ #shilpa multi constraints           
+# def plot_metrics(
+#     episode_rewards,
+#     episode_costs,
+#     max_costs,
+#     save=False,
+#     filename="training_metrics.png",
+# ):
+#     """
+#     Plot the metrics (reward and cost) over episodes and optionally save the plot.
+#     Args:
+#         episode_rewards: List of total rewards per episode.
+#         episode_costs: List of total costs per episode.
+#         save: Whether to save the plot to a file.
+#         filename: File name to save the plot.
+#     """
+#     # plt.ion()  # Turn on interactive mode
+#     plt.figure(figsize=(10, 6))
+#     plt.clf()  # Clear the current figure to avoid overlapping plots
+#     # plt.figure(figsize=(10, 6))
+
+#     # Plot total rewards
+#     plt.subplot(3, 1, 1)
+#     plt.plot(episode_rewards, label="Total Reward", color="blue")
+#     plt.xlabel("Episode")
+#     plt.ylabel("Reward")
+#     plt.title("Total Reward per Episode")
+#     plt.legend()
+
+#     # Plot total costs
+#     plt.subplot(3, 1, 2)
+#     plt.plot(max_costs, label="Max Cost", color="red")
+#     plt.xlabel("Episode")
+#     plt.ylabel("Max Cost")
+#     plt.title("Max Cost per Episode")
+#     plt.legend()
+
+#     # Plot total costs
+#     plt.subplot(3, 1, 3)
+#     plt.plot(episode_costs, label="Total Cost", color="green")
+#     plt.xlabel("Episode")
+#     plt.ylabel("Total Cost")
+#     plt.title("Total Cost per Episode")
+#     plt.legend()
+
+#     plt.tight_layout()
+#     if save:
+#         plt.savefig(filename)
+#     # plt.show()
+#     plt.close()
+
 def plot_metrics(
     episode_rewards,
     episode_costs,
     max_costs,
+    cost_dim,
     save=False,
     filename="training_metrics.png",
 ):
     """
-    Plot the metrics (reward and cost) over episodes and optionally save the plot.
-    Args:
-        episode_rewards: List of total rewards per episode.
-        episode_costs: List of total costs per episode.
-        save: Whether to save the plot to a file.
-        filename: File name to save the plot.
+    Plot training metrics for arbitrary cost dimension.
+
+    episode_costs:
+        list where each entry has shape [cost_dim]
+
+    max_costs:
+        list where each entry has shape [cost_dim]
     """
-    # plt.ion()  # Turn on interactive mode
-    plt.figure(figsize=(10, 6))
-    plt.clf()  # Clear the current figure to avoid overlapping plots
-    # plt.figure(figsize=(10, 6))
 
-    # Plot total rewards
-    plt.subplot(3, 1, 1)
-    plt.plot(episode_rewards, label="Total Reward", color="blue")
-    plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.title("Total Reward per Episode")
-    plt.legend()
+    episodes = list(range(1, len(episode_rewards) + 1))
 
-    # Plot total costs
-    plt.subplot(3, 1, 2)
-    plt.plot(max_costs, label="Max Cost", color="red")
-    plt.xlabel("Episode")
-    plt.ylabel("Max Cost")
-    plt.title("Max Cost per Episode")
-    plt.legend()
+    episode_costs = np.asarray(episode_costs)  # [N, cost_dim]
+    max_costs = np.asarray(max_costs)          # [N, cost_dim]
 
-    # Plot total costs
-    plt.subplot(3, 1, 3)
-    plt.plot(episode_costs, label="Total Cost", color="green")
-    plt.xlabel("Episode")
-    plt.ylabel("Total Cost")
-    plt.title("Total Cost per Episode")
-    plt.legend()
+    total_cost_sum = np.sum(episode_costs, axis=1)
+    max_cost_over_dims = np.max(max_costs, axis=1)
+
+    fig, axes = plt.subplots(3, 1, figsize=(10, 10))
+
+    # ------------------------------------------------------------------
+    # Reward
+    # ------------------------------------------------------------------
+    axes[0].plot(episodes, episode_rewards, label="Total Reward", color="blue")
+    axes[0].set_xlabel("Episode")
+    axes[0].set_ylabel("Reward")
+    axes[0].set_title("Total Reward per Episode")
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+
+    # ------------------------------------------------------------------
+    # Max costs
+    # ------------------------------------------------------------------
+    for i in range(cost_dim):
+        axes[1].plot(
+            episodes,
+            max_costs[:, i],
+            label=f"Max C{i+1}",
+        )
+
+    # axes[1].plot(
+    #     episodes,
+    #     max_cost_over_dims,
+    #     label="Max Total Cost",
+    #     color="black",
+    #     linestyle="-.",
+    #     linewidth=1.8,
+    # )
+
+    axes[1].set_xlabel("Episode")
+    axes[1].set_ylabel("Max Cost")
+    axes[1].set_title("Max Cost per Episode")
+    axes[1].legend()
+    axes[1].grid(True, alpha=0.3)
+
+    # ------------------------------------------------------------------
+    # Total costs
+    # ------------------------------------------------------------------
+    for i in range(cost_dim):
+        axes[2].plot(
+            episodes,
+            episode_costs[:, i],
+            label=f"Total C{i+1}",
+        )
+
+    # axes[2].plot(
+    #     episodes,
+    #     total_cost_sum,
+    #     label="Total Cost Sum",
+    #     color="black",
+    #     linestyle="-.",
+    #     linewidth=1.8,
+    # )
+
+    axes[2].set_xlabel("Episode")
+    axes[2].set_ylabel("Total Cost")
+    axes[2].set_title("Total Cost per Episode")
+    axes[2].legend()
+    axes[2].grid(True, alpha=0.3)
 
     plt.tight_layout()
+
     if save:
-        plt.savefig(filename)
-    # plt.show()
+        plt.savefig(filename, dpi=150)
+
     plt.close()
+
 
 
 def main(args, run_number):
@@ -1151,6 +1396,12 @@ def main(args, run_number):
     evaluate_num = 0  # Record the number of evaluations
     evaluate_rewards = []  # Record the rewards during the evaluating
     evaluate_costs = []  # Record the costs during the evaluating
+
+    #shilpa multi constraint
+    evaluate_max_costs = []  # Record the max costs during the evaluating
+    evaluate_total_costs = []  # Record the total costs during the evaluating
+    evaluate_max_total_costs = []  # Record the max total costs during the evaluating
+
     total_steps = 0  # Record the total steps during the training
     max_value = -np.inf
     evaluate_max_costs = []
@@ -1197,8 +1448,11 @@ def main(args, run_number):
         done = False
 
         total_reward = 0
-        total_cost = 0
-        max_cost = float("-inf")
+        #shilpa multi constraint
+        # total_cost = 0
+        # max_cost = float("-inf")
+        total_cost = np.zeros(args.cost_dim)
+        max_cost = np.full(args.cost_dim, -np.inf)
 
         agent.beta = (
             args.beta
@@ -1271,13 +1525,17 @@ def main(args, run_number):
                 # print(info['constraint_values'])
                 # c = 0.0
                 # config[quadrotor_config]["constraints"][0]["lower_bounds"] and config[quadrotor_config]["constraints"][0]["upper_bounds"]
-                c  = args.omega1 * max(0, info['constraint_values'][0])+ args.omega2 * max(0, info['constraint_values'][1])
-                # if c<=0.0:
-                #     c=0.0
+                # c  = args.omega1 * max(0, info['constraint_values'][0])+ args.omega2 * max(0, info['constraint_values'][1])
+                c = info["constraint_values"] # Assuming info contains constraint values
                 # print("training cost =", c)
                 total_reward += r
+                #shilps multi constraint
+                # total_cost += c
+                # max_cost = max(max_cost, c)
+                c = np.asarray(info["constraint_values"], dtype=np.float32).reshape(-1)
+                c = np.maximum(c, 0.0)
                 total_cost += c
-                max_cost = max(max_cost, c)
+                max_cost = np.maximum(max_cost, c)
             # x_pos = np.array([info["x_position"]])
             if args.use_state_norm:
                 # nexts = state_norm(nexts, update=False)
@@ -1320,32 +1578,82 @@ def main(args, run_number):
                 reward_scaling = None
             if not args.use_state_norm:
                 state_norm = None
-            evaluate_reward, evaluate_cost, evaluate_max_cost = evaluate_policy(
+            #shilpa multi constraint
+            # evaluate_reward, evaluate_cost, evaluate_max_cost = evaluate_policy(
+            #     args,
+            #     env_evaluate,
+            #     agent,
+            #     state_norm=state_norm,
+            #     reward_scaling=reward_scaling,
+            # )
+            (
+                evaluate_reward,
+                evaluate_cost,
+                evaluate_max_cost,
+                evaluate_total_cost,
+                evaluate_max_total_cost,
+            ) = evaluate_policy(
                 args,
                 env_evaluate,
                 agent,
                 state_norm=state_norm,
                 reward_scaling=reward_scaling,
             )
+            
             # evaluate_cost = evaluate_cost_function(args, env_evaluate, agent, state_norm)
             evaluate_rewards.append(evaluate_reward)
             evaluate_costs.append(evaluate_cost)
             evaluate_max_costs.append(evaluate_max_cost)
+            #shilpa multi constraint
+            evaluate_total_costs.append(evaluate_total_cost)
+            evaluate_max_total_costs.append(evaluate_max_total_cost)
+
+            # shilpa multi constraint
+            # print(
+            #     "evaluate_num:{} \t evaluate_reward:{} \t evaluate_cost:{} \t evaluate_max_cost:{}".format(
+            #         evaluate_num, evaluate_reward, evaluate_cost, evaluate_max_cost
+            #     )
+            # )
+            cost_str = " \t ".join(
+                [f"Total C{i+1}:{evaluate_cost[i]:.3f}" for i in range(args.cost_dim)]
+            )
+
+            max_cost_str = " \t ".join(
+                [f"Max C{i+1}:{evaluate_max_cost[i]:.3f}" for i in range(args.cost_dim)]
+            )
 
             print(
-                "evaluate_num:{} \t evaluate_reward:{} \t evaluate_cost:{} \t evaluate_max_cost:{}".format(
-                    evaluate_num, evaluate_reward, evaluate_cost, evaluate_max_cost
-                )
+                f"evaluate_num:{evaluate_num} \t "
+                f"reward:{evaluate_reward:.3f} \t "
+                f"{cost_str} \t "
+                f"Total Cost:{evaluate_total_cost:.3f} \t "
+                f"{max_cost_str} \t "
+                f"Max Total Cost:{evaluate_max_total_cost:.3f}"
             )
+
+
             # ── NEW: save evaluation plot after every checkpoint ──────────────
+            #shilpa multiple constraint
+            # plot_eval_metrics(
+            #     evaluate_rewards,
+            #     evaluate_costs,
+            #     evaluate_max_costs,
+            #     persistent_eps=args.persistent_eps,
+            #     save=True,
+            #     filename=f"{plot_data_dir}/eval_metrics.png",
+            # )
             plot_eval_metrics(
-                evaluate_rewards,
-                evaluate_costs,
-                evaluate_max_costs,
-                persistent_eps=args.persistent_eps,
-                save=True,
-                filename=f"{plot_data_dir}/eval_metrics.png",
-            )
+                    evaluate_rewards,
+                    evaluate_costs,
+                    evaluate_max_costs,
+                    evaluate_total_costs,
+                    evaluate_max_total_costs,
+                    persistent_eps=args.persistent_eps,
+                    cost_dim=args.cost_dim,
+                    save=True,
+                    filename=f"{plot_data_dir}/eval_metrics.png",
+                )
+
             # ─────────────────────────────────────────────────────────────────
 
             writer.add_scalar(
@@ -1364,22 +1672,53 @@ def main(args, run_number):
                 np.array(evaluate_costs),
             )
             np.save(
-                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy",
+                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_max_costs.npy",
                 np.array(evaluate_max_cost),
             )
 
             # Check if the current model satisfies the conditions for being the best
+            #shilpa multi constraint
+            # if (
+            #     evaluate_reward > best_reward
+            #     and evaluate_max_cost <= args.persistent_eps
+            # ):
+            #     best_reward = evaluate_reward
+            #     best_model_path = f"{model_dir}/Best_RCAC"
+            #     print(
+            #         f"New best model found! Saving model with reward: {evaluate_reward} and max cost: {evaluate_max_cost}"
+            #     )
+
+            #     # Save the best model
+            #     if args.use_reward_scaling and args.use_state_norm:
+            #         save_agent(agent, best_model_path, state_norm, reward_scaling)
+            #     elif args.use_reward_scaling:
+            #         save_agent(
+            #             agent,
+            #             best_model_path,
+            #             state_norm=None,
+            #             reward_scaling=reward_scaling,
+            #         )
+            #     elif args.use_state_norm:
+            #         save_agent(agent, best_model_path, state_norm)
+            #     else:
+            #         save_agent(agent, best_model_path)
+
             if (
                 evaluate_reward > best_reward
-                and evaluate_max_cost <= args.persistent_eps
+                and np.all(evaluate_max_cost <= args.persistent_eps)
             ):
                 best_reward = evaluate_reward
                 best_model_path = f"{model_dir}/Best_RCAC"
-                print(
-                    f"New best model found! Saving model with reward: {evaluate_reward} and max cost: {evaluate_max_cost}"
+
+                max_cost_str = ", ".join(
+                    [f"Max C{i+1}: {evaluate_max_cost[i]:.3f}" for i in range(args.cost_dim)]
                 )
 
-                # Save the best model
+                print(
+                    f"New best model found! Saving model with reward: {evaluate_reward:.3f}, "
+                    f"{max_cost_str}, Max Total Cost: {evaluate_max_total_cost:.3f}"
+                )
+
                 if args.use_reward_scaling and args.use_state_norm:
                     save_agent(agent, best_model_path, state_norm, reward_scaling)
                 elif args.use_reward_scaling:
@@ -1394,23 +1733,39 @@ def main(args, run_number):
                 else:
                     save_agent(agent, best_model_path)
 
+
         episode_rewards.append(total_reward)
         episode_costs.append(total_cost)
         episode_max_costs.append(max_cost)  # Save data for plotting
         np.save(f"{plot_data_dir}/episode_rewards.npy", episode_rewards)
         np.save(f"{plot_data_dir}/episode_max_costs.npy", episode_max_costs)
+        #shilpa multi constraints
+        # np.save(f"{plot_data_dir}/episode_costs.npy")
+        
+        #shilpa multi constraints
+        # plot_metrics(
+        #     episode_rewards,
+        #     episode_costs,
+        #     episode_max_costs,
+        #     save=True,
+        #     filename=f"{plot_data_dir}/training_metrics.png",
+        # )
         plot_metrics(
             episode_rewards,
             episode_costs,
             episode_max_costs,
+            cost_dim=args.cost_dim,
             save=True,
             filename=f"{plot_data_dir}/training_metrics.png",
         )
+        
 
     # Save the evaluation rewards and costs for this run
     np.save(f"{data_train_dir}/evaluate_rewards.npy", evaluate_rewards)
     np.save(f"{data_train_dir}/evaluate_costs.npy", evaluate_costs)
     np.save(f"{data_train_dir}/evaluate_max_costs.npy", evaluate_max_costs)
+    #shilpa multi constraints
+    np.save(f"{data_train_dir}/evaluate_max_total_costs.npy", evaluate_max_total_costs)
 
 
 if __name__ == "__main__":
