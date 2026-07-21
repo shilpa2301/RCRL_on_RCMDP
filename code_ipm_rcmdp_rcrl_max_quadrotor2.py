@@ -346,6 +346,439 @@ class ReplayBuffer:
         done = torch.tensor(self.done, dtype=torch.float)
 
         return s, a, a_logprob, r, c, s_, dw, done
+    
+class RPCRL_MC:
+    def __init__(self, args):
+        if args.env == "CartPolePerturbedEnv":
+            self.env = CartPolePerturbedEnv(
+                args.gravity_std
+            )  # CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
+        elif args.env == "CartPoleCostEnv":
+            self.env = CartPoleCostEnv()
+        elif args.env == "PendulumEnv":
+            self.env = PendulumEnv()
+        elif args.env == "PendulumCostEnv":
+            self.env = PendulumCostEnv()
+        elif args.env == "PendulumPerturbedEnv":
+            self.env = PendulumPerturbedEnv()
+        elif args.env == "HopperPerturbedEnv":
+            self.env = HopperPerturbedEnv()
+        elif args.env == "HalfCheetahWithPos":
+            self.env = HalfCheetahWithPos()
+        elif args.env == "SwimmerWithPos":
+            self.env = SwimmerWithPos(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
+        elif args.env == "Quadrotor":
+            self.env = make('quadrotor', **config.quadrotor_config)
+        else:
+            print("No env selected")
+        # self.env.seed(args.seed)
+        self.policy_dist = args.policy_dist
+        self.max_action = args.max_action
+        self.batch_size = args.batch_size
+        self.mini_batch_size = args.mini_batch_size
+        self.max_train_steps = args.max_train_steps
+        self.lr_a = args.lr_a  # Learning rate of actor
+        self.lr_c = args.lr_c  # Learning rate of critic
+        self.lr_cost = args.lr_cost  # Learning rate of cost critic
+        self.gamma = args.gamma  # Discount factor
+        self.lamda = args.lamda  # GAE parameter
+        self.epsilon = args.epsilon  # PPO clip parameter
+        self.persistent_eps = args.persistent_eps
+        self.K_epochs = args.K_epochs  # PPO parameter
+        self.entropy_coef = args.entropy_coef  # Entropy coefficient
+        self.set_adam_eps = args.set_adam_eps
+        self.use_grad_clip = args.use_grad_clip
+        self.use_lr_decay = args.use_lr_decay
+        self.use_adv_norm = args.use_adv_norm
+        self.adaptive_alpha = args.adaptive_alpha
+        self.weight_reg = args.weight_reg
+        self.lambda_ = args.lambda_
+        # self.b = args.baseline
+        if self.adaptive_alpha:
+            self.target_entropy = -args.action_dim
+            self.log_alpha = torch.zeros(1, requires_grad=True)
+            self.alpha = self.log_alpha.exp()
+            self.alpha_optimzier = torch.optim.Adam([self.log_alpha], lr=self.lr_a)
+        else:
+            self.alpha = 0.0
+
+        if self.policy_dist == "Beta":
+            self.actor = Actor_Beta(args)
+        elif self.policy_dist == "Gaussian":
+            self.actor = Actor_Gaussian(args)
+        else:
+            self.actor = Actor_Discrete(args)
+        self.Rcritic = Critic(args)
+        self.Ccritic = CostCritic(args)
+
+        self.beta = args.beta
+        # self.persistent_eps = 0.0
+        self.warm_start_flag = args.warm_start_flag
+
+        if self.set_adam_eps:  # Trick 9: set Adam epsilon=1e-5
+            self.optimizer_actor = torch.optim.Adam(
+                self.actor.parameters(), lr=self.lr_a, eps=1e-5
+            )
+            self.optimizer_Rcritic = torch.optim.Adam(
+                self.Rcritic.parameters(), lr=self.lr_c, eps=1e-5
+            )
+            self.optimizer_Ccritic = torch.optim.Adam(
+                self.Ccritic.parameters(), lr=self.lr_cost, eps=1e-5
+            )
+        else:
+            self.optimizer_actor = torch.optim.Adam(
+                self.actor.parameters(), lr=self.lr_a
+            )
+            self.optimizer_Rcritic = torch.optim.Adam(
+                self.Rcritic.parameters(), lr=self.lr_c
+            )
+            self.optimizer_Ccritic = torch.optim.Adam(
+                self.Ccritic.parameters(), lr=self.lr_cost
+            )
+
+
+
+    def evaluate(
+        self, s
+    ):  # When evaluating the policy, we only use the mean in Beta and gaussian and simply the action for Discrete
+        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
+        with torch.no_grad():
+            if self.policy_dist == "Beta":
+                a = self.actor.mean(s).detach().numpy().flatten()
+            elif self.policy_dist == "Gaussian":
+                a = self.actor(s).detach().numpy().flatten()
+            else:
+                a = self.actor(s).detach().numpy().flatten()
+        return a
+
+    def choose_action(self, s):
+        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
+        if self.policy_dist == "Beta":
+            with torch.no_grad():
+                dist = self.actor.get_dist(s)
+                a = (
+                    dist.sample()
+                )  # Sample the action according to the probability distribution
+                a_logprob = dist.log_prob(
+                    a
+                )  # The log probability density of the action
+        elif self.policy_dist == "Gaussian":
+            with torch.no_grad():
+                dist = self.actor.get_dist(s)
+                a = (
+                    dist.sample()
+                )  # Sample the action according to the probability distribution
+                a = torch.clamp(a, -self.max_action, self.max_action)  # [-max,max]
+                a_logprob = dist.log_prob(
+                    a
+                )  # The log probability density of the action
+        else:
+            with torch.no_grad():
+                dist = self.actor.get_dist(s)
+                a = dist.sample()
+                a_logprob = dist.log_prob(a)
+        return a.numpy().flatten(), a_logprob.numpy().flatten()
+
+    def lr_decay(self, total_steps):
+        lr_a_now = self.lr_a * (1 - total_steps / self.max_train_steps)
+        lr_c_now = self.lr_c * (1 - total_steps / self.max_train_steps)
+        lr_cost_now = self.lr_cost * (1 - total_steps / self.max_train_steps)
+
+        for p in self.optimizer_actor.param_groups:
+            p["lr"] = lr_a_now
+        for p in self.optimizer_Rcritic.param_groups:
+            p["lr"] = lr_c_now
+        for p in self.optimizer_Ccritic.param_groups:
+            p["lr"] = lr_cost_now
+
+    def softmax_fn(self, a, b, temperature=0.1):
+        exp_a = torch.exp(a / temperature)
+        exp_b = torch.exp(b / temperature)
+        softmax_weighted = (a * exp_a + b * exp_b) / (exp_a + exp_b)
+        return softmax_weighted
+
+    # def log_sum_exp_fn(self, a, b, eta=0.01): #prev 0.001
+    #     # Compute the Log-Sum-Exp smooth approximation of max(a, b)
+    #     # print("a, b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta))= ", a,b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta)))
+    #     # lse = eta * torch.log(torch.exp(a / eta) + torch.exp(b / eta))
+
+    #     if not isinstance(a, torch.Tensor):
+    #         a = torch.tensor(a, dtype=torch.float32)
+    #     if not isinstance(b, torch.Tensor):
+    #         b = torch.tensor(b, dtype=torch.float32)
+
+    #     # Find the maximum value between a and b : else exp(10/0.1) becomes infinity
+    #     max_val = torch.max(a, b)
+    #     # Stabilize the log-sum-exp computation
+    #     lse = max_val + eta * torch.log(
+    #         torch.exp((a - max_val) / eta) + torch.exp((b - max_val) / eta)
+    #     )
+    #     return lse
+
+    def log_sum_exp_all(self, x, eta=0.01):
+        """
+        Smooth approximation of max over all elements in x.
+
+        Numerically stable log-sum-exp:
+
+            max(x) ≈ max_x + eta * log(sum(exp((x - max_x) / eta)))
+        """
+        if not isinstance(x, torch.Tensor):
+            x = torch.tensor(x, dtype=torch.float32)
+
+        max_x = torch.max(x)
+
+        return max_x + eta * torch.log(
+            torch.sum(torch.exp((x - max_x) / eta))
+        )
+    
+    def log_sum_exp_fn(self, a, b, eta=0.01): #prev 0.001
+        # Compute the Log-Sum-Exp smooth approximation of max(a, b)
+        # print("a, b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta))= ", a,b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta)))
+        # lse = eta * torch.log(torch.exp(a / eta) + torch.exp(b / eta))
+
+        if not isinstance(a, torch.Tensor):
+            a = torch.tensor(a, dtype=torch.float32)
+        if not isinstance(b, torch.Tensor):
+            b = torch.tensor(b, dtype=torch.float32)
+
+        # Find the maximum value between a and b : else exp(10/0.1) becomes infinity
+        max_val = torch.max(a, b)
+        # Stabilize the log-sum-exp computation
+        lse = max_val + eta * torch.log(
+            torch.exp((a - max_val) / eta) + torch.exp((b - max_val) / eta)
+        )
+        return lse
+
+  
+
+    def update(self, replay_buffer, total_steps):
+        s, a, a_logprob, r, c, s_, dw, done = (
+            replay_buffer.numpy_to_tensor()
+        )  # Get training data
+       
+        # ------------------------------------------------------------
+        # Monte Carlo return computation
+        # ------------------------------------------------------------
+        with torch.no_grad():
+            vs = self.Rcritic(s)
+            vcs = self.Ccritic(s)
+
+            # ========================================================
+            # Reward Monte Carlo returns
+            # ========================================================
+            mc_returns_r = []
+            G_r = 0.0
+
+            for reward, d in zip(
+                reversed(r.flatten().numpy()),
+                reversed(done.flatten().numpy())
+            ):
+                if d:
+                    G_r = 0.0
+
+                G_r = reward + self.gamma * G_r
+                mc_returns_r.insert(0, G_r)
+
+            v_target_r = torch.tensor(
+                mc_returns_r,
+                dtype=torch.float
+            ).view(-1, 1)
+
+            adv_r = v_target_r - vs
+
+            # ========================================================
+            # Cost Monte Carlo returns
+            # ========================================================
+            mc_returns_c = []
+
+            G_c = torch.tensor(0.0, dtype=torch.float)
+
+            for cost, d in zip(
+                reversed(c.flatten()),
+                reversed(done.flatten())
+            ):
+                if d.item() == 1.0:
+                    G_c = torch.tensor(0.0, dtype=torch.float)
+
+                immediate_cost = (1.0 - self.gamma) * cost
+                future_cost = self.gamma * G_c
+
+                G_c = self.log_sum_exp_fn(
+                    immediate_cost,
+                    future_cost,
+                    eta=0.01
+                )
+
+                mc_returns_c.insert(0, G_c)
+
+            v_target_c = torch.stack(mc_returns_c).view(-1, 1)
+
+            adv_c = v_target_c - vcs
+        
+            # ========================================================
+            # Robust cost objective:
+            # max over all Monte Carlo cost returns,
+            # approximated by log-sum-exp
+            # ========================================================
+            vl_pi = self.log_sum_exp_all(v_target_c, eta=0.01)
+
+            # Cost advantage:
+            # Every state compares its current cost critic value against
+            # the robust worst-case batch/trajectory-level cost.
+            adv_c = vl_pi - vcs
+
+            # ------------------------------------------------------------
+            # Reward/cost mode selection
+            # ------------------------------------------------------------
+            penalty_term = vl_pi - torch.tensor(self.persistent_eps)
+            beta_penalty = self.beta * penalty_term
+
+            vs_mean = v_target_r.mean().item()
+
+            if self.warm_start_flag == 1:
+                ch = np.argmax([vs_mean, beta_penalty])
+            else:
+                ch = 0
+
+            print(
+                "RP_CRL_MC | ch, vs_mean, vl_pi, beta penalty=",
+                ch,
+                vs_mean,
+                vl_pi,
+                beta_penalty,
+            )
+
+    
+            # ------------------------------------------------------------
+            # Select actor advantage
+            # ------------------------------------------------------------
+            if ch == 1:
+                # Cost mode:
+                # minimize robust cost = maximize negative cost advantage
+                if self.use_adv_norm:
+                    adv_mean = adv_c.mean()
+                    adv_std = adv_c.std()
+
+                    adv_c = (adv_c - adv_mean) / (adv_std + 1e-5)
+                    adv_c = torch.clamp(adv_c, -3.0, 3.0)
+
+                adv = -adv_c
+
+            else:
+                # Reward mode
+                adv = adv_r
+
+                if self.use_adv_norm:
+                    adv = (adv - adv.mean()) / (adv.std() + 1e-5)
+
+        # ------------------------------------------------------------
+        # PPO-style actor and critic optimization
+        # ------------------------------------------------------------
+        for _ in range(self.K_epochs):
+            for index in BatchSampler(
+                SubsetRandomSampler(range(self.batch_size)),
+                self.mini_batch_size,
+                False
+            ):
+                dist_now = self.actor.get_dist(s[index])
+
+                dist_entropy = dist_now.entropy().sum(
+                    1,
+                    keepdim=True
+                )
+
+                a_logprob_now = dist_now.log_prob(a[index])
+
+                ratios = torch.exp(
+                    a_logprob_now.sum(1, keepdim=True)
+                    - a_logprob[index].sum(1, keepdim=True)
+                )
+
+                surr1 = ratios * adv[index]
+
+                surr2 = torch.clamp(
+                    ratios,
+                    1 - self.epsilon,
+                    1 + self.epsilon
+                ) * adv[index]
+
+                actor_loss = (
+                    -torch.min(surr1, surr2)
+                    - self.entropy_coef * dist_entropy
+                )
+
+                # ----------------------------------------------------
+                # Update actor
+                # ----------------------------------------------------
+                self.optimizer_actor.zero_grad()
+                actor_loss.mean().backward()
+
+                if self.use_grad_clip:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.actor.parameters(),
+                        0.2
+                    )
+
+                self.optimizer_actor.step()
+
+                # ----------------------------------------------------
+                # Update reward critic using MC reward target
+                # ----------------------------------------------------
+                v_s = self.Rcritic(s[index])
+                Rcritic_loss = F.mse_loss(v_target_r[index], v_s)
+
+                self.optimizer_Rcritic.zero_grad()
+                Rcritic_loss.backward()
+
+                if self.use_grad_clip:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.Rcritic.parameters(),
+                        0.2
+                    )
+
+                self.optimizer_Rcritic.step()
+
+                # ----------------------------------------------------
+                # Update cost critic using MC cost target
+                # ----------------------------------------------------
+                v_cs = self.Ccritic(s[index])
+                Ccritic_loss = F.mse_loss(v_target_c[index], v_cs)
+
+                self.optimizer_Ccritic.zero_grad()
+                Ccritic_loss.backward()
+
+                if self.use_grad_clip:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.Ccritic.parameters(),
+                        0.2
+                    )
+
+                self.optimizer_Ccritic.step()
+
+        # ------------------------------------------------------------
+        # Learning-rate decay
+        # ------------------------------------------------------------
+        if self.use_lr_decay:
+            self.lr_decay(total_steps)
+
+        # ------------------------------------------------------------
+        # Adaptive entropy coefficient
+        # ------------------------------------------------------------
+        if self.adaptive_alpha:
+            alpha_loss = -(
+                self.log_alpha.exp()
+                * (
+                    a_logprob.sum(dim=1, keepdim=True)
+                    + self.target_entropy
+                ).detach()
+            ).mean()
+
+            self.alpha_optimzier.zero_grad()
+            alpha_loss.backward()
+            self.alpha_optimzier.step()
+
+            self.alpha = self.log_alpha.exp()
 
 
 class Robust_RCAC_NPG:
@@ -1084,7 +1517,7 @@ def main(args, run_number):
     evaluate_max_costs = []
 
     replay_buffer = ReplayBuffer(args)
-    agent = Robust_RCAC_NPG(args)
+    agent = RPCRL_MC(args) #Robust_RCAC_NPG(args) #shilpa Monte Carlo
 
     # Build a tensorboard
     writer = SummaryWriter(
@@ -1127,6 +1560,12 @@ def main(args, run_number):
         total_reward = 0
         total_cost = 0
         max_cost = float("-inf")
+
+        #shilpa multi constraint debug
+        upper_raw_values = []
+        upper_cost_values = []
+        lower_cost_values = []
+
 
         agent.beta = (
             args.beta
@@ -1217,6 +1656,12 @@ def main(args, run_number):
                 r = reward_scaling(r)
                 # c = reward_scaling(c)
 
+            #shilpa multi constraint debug
+            upper_raw_values.append(info["constraint_values"][1])
+            lower_cost_values.append(max(0, info["constraint_values"][0]))
+            upper_cost_values.append(max(0, info["constraint_values"][1]))
+
+
             # total_reward += r
             # total_cost += c
             # max_cost = max(max_cost, c)
@@ -1240,7 +1685,22 @@ def main(args, run_number):
             if replay_buffer.count == args.batch_size:
                 agent.update(replay_buffer, total_steps)
                 replay_buffer.count = 0
+        #shilpa multi constraint debug
+        if total_steps % 100 == 0:
+            print("lower cost max:", np.max(lower_cost_values))
+            print("upper raw min/max:", np.min(upper_raw_values), np.max(upper_raw_values))
+            print("upper cost max:", np.max(upper_cost_values))
 
+        raw_constraints = info["constraint_values"]
+        if total_steps % 100 == 0 and episode_steps < 5:
+            print(
+                "raw constraint_values:",
+                raw_constraints,
+                "lower term:",
+                max(0, raw_constraints[0]),
+                "upper term:",
+                max(0, raw_constraints[1]),
+            )
         # Evaluate the policy every 'evaluate_freq' steps
         if total_steps % args.evaluate_freq == 0:
             evaluate_num += 1

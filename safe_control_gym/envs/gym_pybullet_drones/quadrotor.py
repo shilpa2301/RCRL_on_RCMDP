@@ -643,7 +643,7 @@ class Quadrotor(BaseAviary):
         self.x_dot_threshold = 30
         self.y_threshold = 2
         self.y_dot_threshold = 30
-        self.z_threshold = 2
+        self.z_threshold = 2 #shilpa multi constraint debug
         self.z_dot_threshold = 30
         self.phi_threshold_radians = 85 * math.pi / 180
         self.theta_threshold_radians = 85 * math.pi / 180

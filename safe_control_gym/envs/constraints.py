@@ -94,6 +94,7 @@ class Constraint:
         '''
         raise NotImplementedError
 
+    #shilpa multi constraint debug
     def get_value(self,
                   env
                   ):
@@ -107,6 +108,50 @@ class Constraint:
         '''
         env_value = self.get_env_constraint_var(env)
         return np.round(np.atleast_1d(np.squeeze(self.sym_func(np.array(env_value, ndmin=1)))), decimals=self.decimals)
+
+    # def get_value(self,
+    #           env
+    #           ):
+    #     '''Gets the constraint function value.
+
+    #     Args:
+    #         env (BenchmarkEnv): The environment to constrain.
+
+    #     Returns:
+    #         value (ndarray): The evaluation of the constraint.
+    #     '''
+    #     env_value = self.get_env_constraint_var(env)
+
+    #     # Dump quadrotor x,z position used for constraint calculation.
+    #     # Assumes env.state[0] = x and env.state[2] = z.
+    #     try:
+    #         import os
+
+    #         state = np.asarray(env.state).reshape(-1)
+
+    #         if state.shape[0] >= 3:
+    #             x_pos = state[0]
+    #             z_pos = state[2]
+
+    #             filename = "quadroto_position.txt"
+    #             write_header = not os.path.exists(filename)
+
+    #             with open(filename, "a") as f:
+    #                 if write_header:
+    #                     f.write("x,z\n")
+    #                 f.write(f"{x_pos},{z_pos}\n")
+
+    #     except Exception:
+    #         # Do not let logging interfere with constraint evaluation.
+    #         pass
+
+    #     return np.round(
+    #         np.atleast_1d(
+    #             np.squeeze(self.sym_func(np.array(env_value, ndmin=1)))
+    #         ),
+    #         decimals=self.decimals
+    #     )
+
 
     def is_violated(self,
                     env,
