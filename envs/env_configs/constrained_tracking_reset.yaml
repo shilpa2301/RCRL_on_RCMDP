@@ -7,6 +7,8 @@ quadrotor_config:
   physics: pyb
   quad_type: 2
   normalized_rl_action_space: True
+  #shilpa
+  norm_act_scale: 0.5
 
   init_state:
     init_x: 0
@@ -27,8 +29,8 @@ quadrotor_config:
       high: 1
     init_z:
       distrib: "uniform"
-      low: -0.75
-      high: 0.75
+      low: 0.5 #-0.75 #shilpa
+      high: 1.5 #0.75 #shilpa
     init_z_dot:
       distrib: "uniform"
       low: -1.5
@@ -86,7 +88,7 @@ quadrotor_config:
       lower_bounds:
         - 0.0
       upper_bounds:
-        - 0.08
+        - 0.15 #0.08 #shilpa
 
 #------------------------------------------------------------------------------
 #           TRAJECTORY TRACKING

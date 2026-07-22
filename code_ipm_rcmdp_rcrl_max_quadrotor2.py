@@ -1238,6 +1238,8 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
             # c = np.max(info.get('constraint_values', 0.))
             # c= 0.0
             c = args.omega1*max(0, info["constraint_values"][0]) + args.omega2*max(0, info["constraint_values"][1])  # Assuming info contains constraint values
+            #shilpa cost scale
+            c = c* args.cost_scale
             # print("eval cost =", c)
 
  
@@ -1517,7 +1519,9 @@ def main(args, run_number):
     evaluate_max_costs = []
 
     replay_buffer = ReplayBuffer(args)
-    agent = RPCRL_MC(args) #Robust_RCAC_NPG(args) #shilpa Monte Carlo
+    # agent = RPCRL_MC(args) #Robust_RCAC_NPG(args) #shilpa Monte Carlo
+    agent = Robust_RCAC_NPG(args) #shilpa Monte Carlo
+
 
     # Build a tensorboard
     writer = SummaryWriter(
@@ -1639,6 +1643,8 @@ def main(args, run_number):
                 # c = 0.0
                 # config[quadrotor_config]["constraints"][0]["lower_bounds"] and config[quadrotor_config]["constraints"][0]["upper_bounds"]
                 c  = args.omega1 * max(0, info['constraint_values'][0])+ args.omega2 * max(0, info['constraint_values'][1])
+                #shilpa cost scale
+                c = c* args.cost_scale
                 # if c<=0.0:
                 #     c=0.0
                 # print("training cost =", c)
@@ -1949,6 +1955,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--omega2", type=float, default=0.5, help="cost upper bounds weigt"
+    )
+    parser.add_argument(
+        "--cost_scale", type=float, default=100.0, help="cost scale"
     )
     args = parser.parse_args()
     # make folders to dump results

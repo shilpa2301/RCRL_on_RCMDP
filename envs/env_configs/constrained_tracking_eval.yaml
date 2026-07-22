@@ -3,10 +3,12 @@ quadrotor_config:
   info_in_reset: True
   ctrl_freq: 60
   pyb_freq: 240
-  gui:  True #True #False
+  gui:  False #True #False
   physics: pyb
   quad_type: 2
   normalized_rl_action_space: True
+  #shilpa
+  norm_act_scale: 0.5
 
   init_state:
     init_x: 1
@@ -18,7 +20,7 @@ quadrotor_config:
   randomized_init: False
   randomized_inertial_prop: False
 
-  task: traj_tracking # traj_tracking , stabilization #shilpa
+  task: stabilization # traj_tracking , stabilization #shilpa
   task_info:
     stabilization_goal: [0, 1]
     stabilization_goal_tolerance: 0.01
@@ -61,7 +63,7 @@ quadrotor_config:
       lower_bounds:
         - 0.0
       upper_bounds:
-        - 0.08
+        - 0.15 #0.08 #shilpa
 
 
       
