@@ -326,6 +326,8 @@ class ReplayBuffer:
         self.dw = np.zeros((args.batch_size, 1))
         self.done = np.zeros((args.batch_size, 1))
         self.count = 0
+        #shilpa multi constraint
+        self.cost_dim = args.cost_dim
 
     def store(self, s, a, a_logprob, r, c, s_, dw, done):
         self.s[self.count] = s
@@ -336,7 +338,7 @@ class ReplayBuffer:
         # self.c[self.count] = c
         # c should be [c1, c2]
         c = np.asarray(c).reshape(-1)
-        assert c.shape[0] == args.cost_dim, f"Expected c=[c1, c2], got shape {c.shape}, value {c}"
+        assert c.shape[0] == self.cost_dim, f"Expected c=[c1, c2], got shape {c.shape}, value {c}"
         self.c[self.count] = c
 
         self.s_[self.count] = s_
@@ -432,6 +434,8 @@ class Robust_RCAC_NPG:
         self.beta = args.beta
         # self.persistent_eps = 0.0
         self.warm_start_flag = args.warm_start_flag
+        #shilpa reward+cost learning
+        self.reward_learning_after_cost = 0
 
         if self.set_adam_eps:  # Trick 9: set Adam epsilon=1e-5
             self.optimizer_actor = torch.optim.Adam(
@@ -615,6 +619,29 @@ class Robust_RCAC_NPG:
                 vs_mean = vs.mean().item()
                 if self.warm_start_flag == 1:
                     ch = np.argmax([vs_mean, beta_penalty])
+                    #shilpa cost+reward learning
+                    if ch == 1 and self.reward_learning_after_cost==0:
+                                        self.reward_learning_after_cost=1
+                                        if self.set_adam_eps:  # Trick 9: set Adam epsilon=1e-5
+                                            self.optimizer_actor = torch.optim.Adam(
+                                                self.actor.parameters(), lr=self.lr_a, eps=1e-5
+                                            )
+                                            self.optimizer_Rcritic = torch.optim.Adam(
+                                                self.Rcritic.parameters(), lr=self.lr_c, eps=1e-5
+                                            )
+                                            self.optimizer_Ccritic = torch.optim.Adam(
+                                                self.Ccritic.parameters(), lr=self.lr_cost, eps=1e-5
+                                            )
+                                        else:
+                                            self.optimizer_actor = torch.optim.Adam(
+                                                self.actor.parameters(), lr=self.lr_a
+                                            )
+                                            self.optimizer_Rcritic = torch.optim.Adam(
+                                                self.Rcritic.parameters(), lr=self.lr_c
+                                            )
+                                            self.optimizer_Ccritic = torch.optim.Adam(
+                                                self.Ccritic.parameters(), lr=self.lr_cost
+                                            )
                 else:
                     ch = 0
                 print(
@@ -661,7 +688,9 @@ class Robust_RCAC_NPG:
                 reg_norm = torch.norm(last_weight, p=2, dim=1)  # shape: [2]
 
                 # Expand to match cost critic output shape [batch_size, 2]
-                reg_norm = reg_norm.view(1, 2).expand_as(vcs)
+                # reg_norm = reg_norm.view(1, 2).expand_as(vcs)
+                reg_norm = reg_norm.view(1, -1).expand_as(vcs)
+
 
 
 
@@ -895,7 +924,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
             # c = args.omega1*max(0, info["constraint_values"][0]) + args.omega2*max(0, info["constraint_values"][1])  # Assuming info contains constraint values
             #shilpa multi constraint
             # c = info["constraint_values"]  # Assuming info contains constraint values
-            c = np.asarray(info["constraint_values"], dtype=np.float32).reshape(-1)
+            c = args.cost_scale * (np.asarray(info["constraint_values"], dtype=np.float32).reshape(-1))
             c = np.maximum(c, 0.0)
             # print("eval cost =", c)
 
@@ -911,7 +940,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
             #shilpa multi constraint
             # max_cost = max(max_cost, c)
             max_cost = np.maximum(max_cost, c)  # Update max cost for each constraint
-
+    
             # if args.use_reward_norm:
             #     r = reward_norm(r, update=False)
             #     c = reward_norm(c, update=False)
@@ -930,7 +959,22 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
 
     #shilpa multi constraint
     # return evaluate_reward / times, evaluate_cost / times, evaluate_max_cost
+    
     # Scalar summaries
+    # evaluate_total_cost = np.sum(evaluate_cost)
+    # evaluate_max_total_cost = np.max(evaluate_max_cost)
+
+    # return (
+    #     evaluate_reward,
+    #     evaluate_cost,
+    #     evaluate_max_cost,
+    #     evaluate_total_cost,
+    #     evaluate_max_total_cost,
+    # )
+
+    evaluate_reward = evaluate_reward / times
+    evaluate_cost = evaluate_cost / times
+
     evaluate_total_cost = np.sum(evaluate_cost)
     evaluate_max_total_cost = np.max(evaluate_max_cost)
 
@@ -1532,7 +1576,7 @@ def main(args, run_number):
                 #shilps multi constraint
                 # total_cost += c
                 # max_cost = max(max_cost, c)
-                c = np.asarray(info["constraint_values"], dtype=np.float32).reshape(-1)
+                c = args.cost_scale*( np.asarray(info["constraint_values"], dtype=np.float32).reshape(-1))
                 c = np.maximum(c, 0.0)
                 total_cost += c
                 max_cost = np.maximum(max_cost, c)
@@ -1673,7 +1717,7 @@ def main(args, run_number):
             )
             np.save(
                 f"{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_max_costs.npy",
-                np.array(evaluate_max_cost),
+                np.array(evaluate_max_costs),
             )
 
             # Check if the current model satisfies the conditions for being the best
@@ -1918,8 +1962,11 @@ if __name__ == "__main__":
         "--omega2", type=float, default=0.5, help="cost upper bounds weigt"
     )
     parser.add_argument(
-        "--cost_dim", type=int, default=2, help="dimension of the cost"
+        "--cost_dim", type=int, default=4, help="dimension of the cost"
     )
+    parser.add_argument(
+        "--cost_scale", type=float, default=100.0, help="scale of cost"
+        )
     args = parser.parse_args()
     # make folders to dump results
     if not os.path.exists("./models"):

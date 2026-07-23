@@ -414,6 +414,8 @@ class RPCRL_MC:
         self.beta = args.beta
         # self.persistent_eps = 0.0
         self.warm_start_flag = args.warm_start_flag
+        #shilpa quadrotor reward LR set
+        self.reward_learning_after_cost =0
 
         if self.set_adam_eps:  # Trick 9: set Adam epsilon=1e-5
             self.optimizer_actor = torch.optim.Adam(
@@ -638,6 +640,29 @@ class RPCRL_MC:
 
             if self.warm_start_flag == 1:
                 ch = np.argmax([vs_mean, beta_penalty])
+                # if ch == 1 and self.reward_learning_after_cost==0:
+                #     self.reward_learning_after_cost=1
+                #     if self.set_adam_eps:  # Trick 9: set Adam epsilon=1e-5
+                #         self.optimizer_actor = torch.optim.Adam(
+                #             self.actor.parameters(), lr=self.lr_a, eps=1e-5
+                #         )
+                #         self.optimizer_Rcritic = torch.optim.Adam(
+                #             self.Rcritic.parameters(), lr=self.lr_c, eps=1e-5
+                #         )
+                #         self.optimizer_Ccritic = torch.optim.Adam(
+                #             self.Ccritic.parameters(), lr=self.lr_cost, eps=1e-5
+                #         )
+                #     else:
+                #         self.optimizer_actor = torch.optim.Adam(
+                #             self.actor.parameters(), lr=self.lr_a
+                #         )
+                #         self.optimizer_Rcritic = torch.optim.Adam(
+                #             self.Rcritic.parameters(), lr=self.lr_c
+                #         )
+                #         self.optimizer_Ccritic = torch.optim.Adam(
+                #             self.Ccritic.parameters(), lr=self.lr_cost
+                #         )
+
             else:
                 ch = 0
 
