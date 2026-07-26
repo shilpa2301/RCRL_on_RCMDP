@@ -66,6 +66,107 @@ quadrotor_config:
   #       - 0.12 #0.08 #shilpa
 
 
+
+  # disturbances:
+  #   dynamics:
+  #     - disturbance_func: white_noise
+  #       std:
+  #         - 0.005
+  #         - 0.005
+
+  disturbances:
+    dynamics:
+      - disturbance_func: uniform
+        low:
+          - -0.005
+          - -0.005
+        high:
+          - 0.005
+          - 0.005
+
+  #const horizontal wind after 2 seconds
+  # disturbances:
+  #   dynamics:
+  #     - disturbance_func: step
+  #       magnitude:
+  #         - 0.005
+  #         - 0.0
+  #       step_offset: 120
+
+  #const vertical force after 2 seconds
+  # disturbances:
+  #   dynamics:
+  #     - disturbance_func: step
+  #       magnitude:
+  #         - 0.0
+  #         - -0.005
+  #       step_offset: 120
+
+  #step disturbance at random time each episode
+  # disturbances:
+  #   dynamics:
+  #     - disturbance_func: step
+  #       magnitude:
+  #         - 0.005
+  #         - 0.0
+
+  #impulse disturbance: at sround step 180, apply a horizontal impulse
+  #duration: 30 control steps = 0.5 seconds
+  #Peak Fx = 0.02N
+  # disturbances:
+  #   dynamics:
+  #     - disturbance_func: impulse
+  #       magnitude:
+  #         - 0.02
+  #         - 0.0
+  #       step_offset: 180
+  #       duration: 30
+  #       decay_rate: 0.95
+
+  #Observation Noise
+  # disturbances:
+  #   observation:
+  #     - disturbance_func: white_noise
+  #       std:
+  #         - 0.005   # x position noise, m
+  #         - 0.01    # x velocity noise, m/s
+  #         - 0.005   # z position noise, m
+  #         - 0.01    # z velocity noise, m/s
+  #         - 0.005   # theta noise, rad
+  #         - 0.01    # theta_dot noise, rad/s
+
+  #Action disturbance
+  # disturbances:
+  #   action:
+  #     - disturbance_func: white_noise
+  #       std:
+  #         - 0.002
+  #         - 0.002
+
+  #combine multiple disturbances on dynamics
+  # disturbances:
+  #   dynamics:
+  #     - disturbance_func: white_noise
+  #       std:
+  #         - 0.002
+  #         - 0.002
+
+  #     - disturbance_func: step
+  #       magnitude:
+  #         - 0.005
+  #         - 0.0
+  #       step_offset: 120
+
+
+
+
+
+
+
+
+
+
+
       
 
 #---------------------------------------------------------

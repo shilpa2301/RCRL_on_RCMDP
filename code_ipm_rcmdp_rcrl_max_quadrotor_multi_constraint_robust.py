@@ -1435,6 +1435,10 @@ def main(args, run_number):
     print("state_dim={}".format(args.state_dim))
     print("action_dim={}".format(args.action_dim))
     print("max_action={}".format(args.max_action))
+    #shilpa disturbances
+    print("DISTURBANCE_MODES:", env.DISTURBANCE_MODES)
+    print("disturbances:", env.disturbances)
+
     # print("max_episode_steps={}".format(args.max_episode_steps))
 
     evaluate_num = 0  # Record the number of evaluations
