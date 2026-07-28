@@ -1,384 +1,718 @@
 import torch
 import numpy as np
-from code_ipm_rcmdp_rcrl_max_reacher import Actor_Beta, Actor_Gaussian, Actor_Discrete, Critic, CostCritic, Robust_RCAC_NPG, Normalization, RunningMeanStd, RewardScaling
+from code_ipm_rcmdp_rcrl_max_quadrotor_multi_constraint import (
+    Actor_Beta,
+    Actor_Gaussian,
+    Actor_Discrete,
+    Critic,
+    CostCritic,
+    Robust_RCAC_NPG,
+    Normalization,
+    RunningMeanStd,
+    RewardScaling,
+)
 import argparse
 import pickle
 import matplotlib.pyplot as plt
 import os
-from envs.cartpole import CartPolePerturbedEnv
-import glob
-from envs.half_cheetah import HalfCheetahWithPos
-from envs.reacher import ReacherWithCost
-from envs.swimmer import SwimmerWithPos
+import copy
+
+# from envs.cartpole import CartPolePerturbedEnv
+# from envs.half_cheetah import HalfCheetahWithPos
+# from envs.reacher import ReacherWithCost
+# from envs.swimmer import SwimmerWithPos
+
 from safe_control_gym.envs.gym_pybullet_drones.quadrotor import Quadrotor
 from safe_control_gym.utils.configuration import ConfigFactory
 from safe_control_gym.utils.registration import make
 
+
 CONFIG_FACTORY = ConfigFactory()
-CONFIG_FACTORY.parser.set_defaults(overrides=['./envs/env_configs/constrained_tracking_reset.yaml'])
+CONFIG_FACTORY.parser.set_defaults(
+    overrides=["./envs/env_configs/constrained_tracking_reset.yaml"]
+)
 config = CONFIG_FACTORY.merge()
 
-# Evaluation environment (deterministic, fixed starts)
 CONFIG_FACTORY_EVAL = ConfigFactory()
-CONFIG_FACTORY_EVAL.parser.set_defaults(overrides=['./envs/env_configs/constrained_tracking_eval.yaml'])
+CONFIG_FACTORY_EVAL.parser.set_defaults(
+    overrides=["./envs/env_configs/constrained_tracking_eval.yaml"]
+)
 config_eval = CONFIG_FACTORY_EVAL.merge()
+
 
 def load_agent(args, save_path):
     """
-    Load the trained agent from saved files.
-
-    Args:
-        args: Argument parser with required parameters.
-        save_path: Base path where the models were saved.
-
-    Returns:
-        agent: Loaded Robust_RCAC_NPG agent with weights.
-        state_norm: State normalization object.
-        reward_scaling: Reward scaling object.
+    Load trained agent and optional normalization/scaling objects.
     """
+
     agent = Robust_RCAC_NPG(args)
     state_norm = None
     reward_scaling = None
 
-
     actor_path = f"{save_path}_actor"
-    agent.actor.load(actor_path)
     rcritic_path = f"{save_path}_Rcritic"
-    agent.Rcritic.load(rcritic_path)
     ccritic_path = f"{save_path}_Ccritic"
+
+    agent.actor.load(actor_path)
+    agent.Rcritic.load(rcritic_path)
     agent.Ccritic.load(ccritic_path)
 
     if args.use_state_norm:
         print("Loading state norm")
-        with open(f'{save_path}_state_norm', 'rb') as file1:
+        with open(f"{save_path}_state_norm", "rb") as file1:
             state_norm = pickle.load(file1)
-        print(state_norm.running_ms.mean,state_norm.running_ms.std)
+        print(state_norm.running_ms.mean, state_norm.running_ms.std)
 
     if args.use_reward_scaling:
-        print("Loading reward scaling") 
-        with open(f'{save_path}_reward_scaling', 'rb') as file2:
+        print("Loading reward scaling")
+        with open(f"{save_path}_reward_scaling", "rb") as file2:
             reward_scaling = pickle.load(file2)
 
-    print("Agent and normalization objects loaded successfully!")
+    print(f"Agent loaded successfully from: {save_path}")
+    return agent, state_norm, reward_scaling
+
+def load_agent_specific_model(args, save_path, model_num):
+    """
+    Load trained agent and optional normalization/scaling objects.
+    """
+
+    agent = Robust_RCAC_NPG(args)
+    state_norm = None
+    reward_scaling = None
+
+    actor_path = f"{save_path}_actor_{str(model_num)}"
+    rcritic_path = f"{save_path}_Rcritic_{str(model_num)}"
+    ccritic_path = f"{save_path}_Ccritic_{str(model_num)}"
+
+    agent.actor.load(actor_path)
+    agent.Rcritic.load(rcritic_path)
+    agent.Ccritic.load(ccritic_path)
+
+    if args.use_state_norm:
+        print("Loading state norm")
+        with open(f"{save_path}_state_norm", "rb") as file1:
+            state_norm = pickle.load(file1)
+        print(state_norm.running_ms.mean, state_norm.running_ms.std)
+
+    if args.use_reward_scaling:
+        print("Loading reward scaling")
+        with open(f"{save_path}_reward_scaling", "rb") as file2:
+            reward_scaling = pickle.load(file2)
+
+    print(f"Agent loaded successfully from: {save_path}")
     return agent, state_norm, reward_scaling
 
 
-def test_agent_multiple_models(args, save_paths, env, num_episodes=100):
+def extract_multicost(args, info):
+    """
+    Extract multi-dimensional cost exactly like trainer.
+
+    Trainer logic:
+        c = args.cost_scale * np.asarray(info["constraint_values"]).reshape(-1)
+        c = np.maximum(c, 0.0)
+    """
+
+    if "constraint_values" not in info:
+        raise KeyError(
+            "Expected info['constraint_values'] from environment, "
+            f"but info keys are: {list(info.keys())}"
+        )
+
+    c = args.cost_scale * np.asarray(
+        info["constraint_values"], dtype=np.float32
+    ).reshape(-1)
+
+    c = np.maximum(c, 0.0)
+
+    if c.shape[0] != args.cost_dim:
+        raise ValueError(
+            f"Expected cost_dim={args.cost_dim}, "
+            f"but got cost shape={c.shape}, value={c}"
+        )
+
+    return c
+
+
+def env_reset_compat(env, seed=None):
+    """
+    Handles both Gymnasium-style reset and custom safe-control-gym reset.
+    """
+
+    if seed is not None:
+        out = env.reset(seed=seed)
+    else:
+        out = env.reset()
+
+    if isinstance(out, tuple):
+        # Gymnasium: obs, info
+        # Some of your older code had env.reset()[0][0].
+        # For quadrotor trainer, reset gives s, _.
+        obs = out[0]
+    else:
+        obs = out
+
+    # Handle accidental nested shape from some envs.
+    obs = np.asarray(obs)
+
+    if obs.ndim > 1:
+        obs = obs.reshape(-1)
+
+    return obs
+
+
+def env_step_compat(env, action):
+    """
+    Handles both:
+        s_, r, done, info
+    and:
+        s_, r, cost, truncated, terminated, info
+    and Gymnasium:
+        s_, r, terminated, truncated, info
+    """
+
+    out = env.step(action)
+
+    if len(out) == 4:
+        # safe-control-gym style in trainer:
+        # s_, r, done, info
+        s_, r, done, info = out
+        return s_, r, done, info
+
+    elif len(out) == 5:
+        # Gymnasium style:
+        # s_, r, terminated, truncated, info
+        s_, r, terminated, truncated, info = out
+        done = terminated or truncated
+        return s_, r, done, info
+
+    elif len(out) == 6:
+        # Your older env style:
+        # next_state, reward, cost, truncated, terminated, info
+        s_, r, _unused_cost, truncated, terminated, info = out
+        done = terminated or truncated
+        return s_, r, done, info
+
+    else:
+        raise RuntimeError(f"Unsupported env.step output length: {len(out)}")
+
+
+def test_agent_multiple_models(args, save_paths, env, model_num=None, num_episodes=100):
+    """
+    Test one model or an ensemble of models.
+
+    Multi-constraint outputs:
+        rewards: list of scalar episode rewards
+        costs: list of vectors, each shape [cost_dim]
+        max_costs: list of vectors, each shape [cost_dim]
+        total_cost_sums: list of scalar sum over cost dimensions
+        max_total_costs: list of scalar max over max-cost dimensions
+    """
 
     rewards = []
+
+    # Multi-constraint arrays per episode
     costs = []
     max_costs = []
 
-    # Load all agents ahead of time
+    # Scalar summaries per episode
+    total_cost_sums = []
+    max_total_costs = []
+
     agents = []
+
     if isinstance(save_paths, str):
         save_paths = [save_paths]
+
+    # Load all agents first
+    #shilpa specific model
+
+    # for save_path in save_paths:
+
+    #         agent, state_norm, reward_scaling = load_agent(args, save_path)
+    #         agents.append((agent, state_norm, reward_scaling))
+    
+   
     for save_path in save_paths:
-        agent, state_norm, reward_scaling = load_agent(args, save_path)
-        agents.append((agent, state_norm, reward_scaling))
+        if save_path in ['./models/Quadrotor/run18/Best_RCAC']:
+            agent, state_norm, reward_scaling = load_agent_specific_model(args, save_path, model_num)
+            agents.append((agent, state_norm, reward_scaling))
+
+        else:
+            agent, state_norm, reward_scaling = load_agent(args, save_path)
+            agents.append((agent, state_norm, reward_scaling))
+
+
+    # Use first agent's normalization object for state preprocessing.
+    # This assumes all ensemble models were trained with the same normalization.
+    first_state_norm = agents[0][1]
+    first_reward_scaling = agents[0][2]
 
     for episode in range(num_episodes):
-        state = env.reset()[0][0]
-        if args.use_state_norm:
-            state = state_norm(state, update=False)
-        total_reward = 0
-        total_cost = 0
-        max_cost = float('-inf')
+        state = env_reset_compat(env)
+
+        if args.use_state_norm and first_state_norm is not None:
+            state = first_state_norm(state, update=False)
+
+        total_reward = 0.0
+        total_cost = np.zeros(args.cost_dim, dtype=np.float64)
+        max_cost = np.full(args.cost_dim, -np.inf, dtype=np.float64)
 
         done = False
 
         while not done:
             actions = []
 
-            # Get actions from all loaded agents
             for agent, _, _ in agents:
-                # Get action from the policy
                 action = agent.evaluate(state)
+
                 if agent.policy_dist == "Beta":
-                    action = 2 * (action - 0.5) * agent.max_action  # Map [0, 1] to [-max_action, max_action]
+                    action = 2 * (action - 0.5) * agent.max_action
 
                 actions.append(action)
 
-            # Calculate the mean action
             mean_action = np.mean(actions, axis=0)
 
-            # Step in the environment with the mean action
-            next_state, reward, cost, truncated, terminated, _ = env.step(mean_action)
-            done = truncated or terminated
-            
-            if args.use_state_norm:
-                next_state = state_norm(next_state, update=False)
+            next_state, reward, done, info = env_step_compat(env, mean_action)
+
+            c = extract_multicost(args, info)
+
+            if args.use_state_norm and first_state_norm is not None:
+                next_state = first_state_norm(next_state, update=False)
+
+            if args.use_reward_scaling and first_reward_scaling is not None:
+                reward = first_reward_scaling(reward, update=False)
+                # In trainer, cost scaling is NOT passed through reward_scaling.
+                # Keep cost unnormalized for reporting.
 
             total_reward += reward
-            total_cost += cost
-            max_cost = max(max_cost, cost)
-            state = next_state
+            total_cost += c
+            max_cost = np.maximum(max_cost, c)
+
+            state = copy.deepcopy(next_state)
+
+        total_cost_sum = float(np.sum(total_cost))
+        max_total_cost = float(np.max(max_cost))
 
         rewards.append(total_reward)
-        costs.append(total_cost)
-        max_costs.append(max_cost)
-        print(f"Episode {episode + 1}: Total Reward = {total_reward}, Max Cost= {max_cost}, Total Cost = {total_cost}")
+        costs.append(total_cost.copy())
+        max_costs.append(max_cost.copy())
+        total_cost_sums.append(total_cost_sum)
+        max_total_costs.append(max_total_cost)
 
-    return rewards, costs, max_costs
+        cost_str = " | ".join(
+            [f"Total C{i+1}={total_cost[i]:.3f}" for i in range(args.cost_dim)]
+        )
+        max_cost_str = " | ".join(
+            [f"Max C{i+1}={max_cost[i]:.3f}" for i in range(args.cost_dim)]
+        )
 
+        safe = np.all(max_cost <= args.persistent_eps)
+
+        print(
+            f"Episode {episode + 1}: "
+            f"Reward={total_reward:.3f} | "
+            f"{cost_str} | "
+            f"Total Cost Sum={total_cost_sum:.3f} | "
+            f"{max_cost_str} | "
+            f"Max Total Cost={max_total_cost:.3f} | "
+            f"Safe={safe}"
+        )
+
+    return rewards, costs, max_costs, total_cost_sums, max_total_costs
 
 
 def smooth(data, window_size):
-    """Smooth the data using a simple moving average."""
-    smoothed_data = np.convolve(data, np.ones(window_size) / window_size, mode='valid')
-    return smoothed_data
-
-# Function to test multiple models across multiple gravity perturbations
-def test_multiple_dirs(args, save_paths, num_episodes=100):
     """
-    Test multiple models across different gravity perturbation standard deviations.
+    Smooth data using simple moving average.
 
-    Args:
-        args: Argument parser with required parameters.
-        save_paths: List of directories where models are saved.
-        perturbation_stds: List of gravity perturbation std values to test.
-        num_episodes: Number of episodes to test.
-
-    Returns:
-        results: Dictionary where keys are model directories, and values are lists of results for each gravity perturbation std.
+    Supports 1D arrays only. For multi-cost arrays, call per dimension.
     """
+
+    data = np.asarray(data)
+
+    if len(data) < window_size:
+        return data
+
+    return np.convolve(data, np.ones(window_size) / window_size, mode="valid")
+
+
+def test_multiple_dirs(args, save_paths, model_num=None, num_episodes=100):
+    """
+    Evaluate each model path or model ensemble.
+
+    save_paths can contain:
+        - str: single model
+        - list[str]: ensemble averaged action model
+    """
+
     results = {}
+
     for save_path in save_paths:
-        model_results = []
-        print(f"Testing model from {save_path} with gravity_perturbation_std = {std}")
-            
-        # Create a new environment instance with the specified gravity perturbation std
-        # env = CartPolePerturbedEnv(gravity_perturbation_std=std)
-        # env = ReacherWithCost(sigma_gravity=std, max_steps=50)
-        env = make('quadrotor', **config_eval.quadrotor_config)
+        print(f"Testing model from {save_path}")
+
+        env = make("quadrotor", **config_eval.quadrotor_config)
         env.reset(seed=args.seed)
         env.action_space.seed(args.seed)
+
         args.max_action = float(env.action_space.high[0])
         args.state_dim = env.observation_space.shape[0]
         args.action_dim = env.action_space.shape[0]
-        
-        # Load the agent
-        # agent, state_norm, reward_scaling = load_agent(args, save_path)
-        
-        # Test the agent in the environment
-        # rewards, costs, max_costs = test_agent(agent, env, num_episodes, state_norm)
-        # rewards, costs, max_costs = test_agent_multiple_models(agent, env, num_episodes, state_norm)
-        rewards, costs, max_costs = test_agent_multiple_models(args, save_path, env, num_episodes=100)
-        model_results.append({'rewards': rewards, 'costs': costs, 'max_costs': max_costs})
-        
-        # Store results for this model
+
+        (
+            rewards,
+            costs,
+            max_costs,
+            total_cost_sums,
+            max_total_costs,
+        ) = test_agent_multiple_models(
+            args,
+            save_path,
+            env,
+            model_num=model_num,
+            num_episodes=num_episodes,
+        )
+
+        model_results = [
+            {
+                "rewards": rewards,
+                "costs": costs,
+                "max_costs": max_costs,
+                "total_cost_sums": total_cost_sums,
+                "max_total_costs": max_total_costs,
+            }
+        ]
+
         if isinstance(save_path, list):
-            results["PD"] = model_results
+            key = "PD"
         else:
-            results[save_path] = model_results
+            key = save_path
+
+        results[key] = model_results
+
     return results
 
 
-def plot_evaluation(args,results, save_paths, perturbation_stds, labels, save=False, base_filename="evaluation_plot", smooth_window=10):
+def plot_evaluation(
+    args,
+    results,
+    save_paths,
+    labels,
+    save=False,
+    base_filename="evaluation_plot",
+    smooth_window=10,
+):
     """
-    Plot evaluation results for multiple models across gravity perturbation std values.
+    Multi-constraint evaluation plots.
 
-    Args:
-        results: Dictionary where keys are model directories and values are lists of results for each gravity perturbation std.
-        save_paths: List of model directory paths.
-        perturbation_stds: List of gravity perturbation std values.
-        labels: List of labels corresponding to each model directory.
-        save: Whether to save the plots.
-        base_filename: Base file name to save the plots.
-        smooth_window: Window size for smoothing.
+    Creates:
+        1. reward plot
+        2. max cost per constraint dimension
+        3. total cost per constraint dimension
+        4. scalar max-total-cost plot
+        5. scalar total-cost-sum plot
     """
-    plt.rcParams.update({'font.size': 100, 'lines.linewidth': 15, 'font.weight': 'bold'})
-    fig_size = 28
-    label_font = 130
 
-    # Prepare legend elements
+    os.makedirs(os.path.dirname(base_filename), exist_ok=True)
+
+    plt.rcParams.update(
+        {
+            "font.size": 24,
+            "lines.linewidth": 3,
+            "font.weight": "bold",
+        }
+    )
+
     legend_elements = []
     legend_labels = []
 
-    # Plot total rewards
-    plt.figure(figsize=(fig_size+16, fig_size))
-    for save_path, label in zip(save_paths, labels):
-        for i, std in enumerate(perturbation_stds):
-            rewards = np.array(results[save_path][i]['rewards'])
-            # Check if the save_path is "PD" and reduce rewards accordingly
-            # if save_path == "./models/CartPoleCostEnv/run2/Best_RCAC":
-            #     print(f"Original rewards for {label} (std={std}): {rewards}")  # Debugging line
-            #     rewards -= 15.0  # Reduce rewards by 10.0
-            #     print(f"Modified rewards for {label} (std={std}): {rewards}")  # Debugging line
-            smoothed_rewards = smooth(rewards, smooth_window)
-            smoothed_x = range(len(smoothed_rewards))
-            line, = plt.plot(smoothed_x, smoothed_rewards)
-            legend_elements.append(line)
-            legend_labels.append(f"{label} (std={std})")
-    plt.xlabel("Episode", fontweight='bold', fontsize=label_font)
-    plt.ylabel("Cumulative Reward", fontweight='bold', fontsize=label_font)
-    # plt.title("Cumulative Reward per Episode")
-    plt.grid(False)  # Turn off the grid
-    plt.gca().spines['top'].set_linewidth(15)  # Make top edge bold
-    plt.gca().spines['right'].set_linewidth(15)  # Make right edge bold
-    plt.gca().spines['left'].set_linewidth(15)  # Make left edge bold
-    plt.gca().spines['bottom'].set_linewidth(15)  # Make bottom edge bold
+    def key_from_save_path(save_path):
+        return "PD" if isinstance(save_path, list) else save_path
 
-    # Adjust y-axis ticks for better readability
-    # plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
+    # ------------------------------------------------------------
+    # 1. Rewards
+    # ------------------------------------------------------------
+    plt.figure(figsize=(14, 8))
+
+    for save_path, label in zip(save_paths, labels):
+        key = key_from_save_path(save_path)
+        rewards = np.asarray(results[key][0]["rewards"])
+
+        smoothed_rewards = smooth(rewards, smooth_window)
+        x = range(len(smoothed_rewards))
+
+        line, = plt.plot(x, smoothed_rewards, label=label)
+        legend_elements.append(line)
+        legend_labels.append(label)
+
+    plt.xlabel("Episode", fontweight="bold")
+    plt.ylabel("Cumulative Reward", fontweight="bold")
+    plt.title("Evaluation Reward")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
 
     if save:
-        plt.savefig(f"{base_filename}_rewards.png")
+        plt.savefig(f"{base_filename}_rewards.png", dpi=150, bbox_inches="tight")
+
     plt.close()
 
-    # Save horizontal and vertical legends for rewards plot
-    save_legend(legend_elements, legend_labels, f"{base_filename}_rewards_legend_horizontal.png", horizontal=True)
-    save_legend(legend_elements, legend_labels, f"{base_filename}_rewards_legend_vertical.png", horizontal=False)
+    # ------------------------------------------------------------
+    # 2. Max cost per constraint dimension
+    # ------------------------------------------------------------
+    fig, axes = plt.subplots(args.cost_dim, 1, figsize=(14, 4 * args.cost_dim))
 
-    # Plot max costs
-    plt.figure(figsize=(fig_size+14, fig_size))
-    for save_path, label in zip(save_paths, labels):
-        for i, std in enumerate(perturbation_stds):
-            max_costs = np.array(results[save_path][i]['max_costs'])
-            smoothed_max_costs = smooth(max_costs, smooth_window)
-            smoothed_x = range(len(smoothed_max_costs))
-            line, = plt.plot(smoothed_x, smoothed_max_costs)
-            # legend_elements.append(line)
-            # legend_labels.append(f"{label} (std={std})")
+    if args.cost_dim == 1:
+        axes = [axes]
 
-    # Add dashed baseline and shaded regions
-    y_min, y_max = plt.gca().get_ylim()
-    y_limit = plt.gca().get_ylim()[1]  # Get current y-axis upper limit
-    plt.axhline(y=args.persistent_eps, color='black', linestyle='--', linewidth=15, label="Baseline")
-    # plt.axhspan(args.persistent_eps, y_limit, color='red', alpha=0.1)
-    # plt.axhspan(plt.gca().get_ylim()[0], args.persistent_eps, color='blue', alpha=0.1)
-    plt.axhspan(args.persistent_eps, y_max, color='red', alpha=0.1) # label="Max Cost > Baseline")
-    plt.axhspan(y_min, args.persistent_eps, color='blue', alpha=0.1) #, label="Max Cost < Baseline")
-    plt.xlabel("Episode", fontweight='bold', fontsize=label_font)
-    plt.ylabel("Max Cost", fontweight='bold', fontsize=label_font)
-    # plt.title("Max Cost per Episode")
-    plt.grid(False)  # Turn off the grid
-    plt.gca().spines['top'].set_linewidth(15)  # Make top edge bold
-    plt.gca().spines['right'].set_linewidth(15)  # Make right edge bold
-    plt.gca().spines['left'].set_linewidth(15)  # Make left edge bold
-    plt.gca().spines['bottom'].set_linewidth(15)  # Make bottom edge bold
+    for ci in range(args.cost_dim):
+        ax = axes[ci]
 
-    # Adjust y-axis ticks for better readability
-    # plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
+        for save_path, label in zip(save_paths, labels):
+            key = key_from_save_path(save_path)
+            max_costs = np.asarray(results[key][0]["max_costs"])  # [episodes, cost_dim]
+
+            y = smooth(max_costs[:, ci], smooth_window)
+            x = range(len(y))
+
+            ax.plot(x, y, label=label)
+
+        ax.axhline(
+            y=args.persistent_eps,
+            color="black",
+            linestyle="--",
+            linewidth=2,
+            label=f"Threshold={args.persistent_eps}",
+        )
+
+        ax.set_xlabel("Episode", fontweight="bold")
+        ax.set_ylabel(f"Max C{ci+1}", fontweight="bold")
+        ax.set_title(f"Max Cost Constraint {ci+1}")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+    plt.tight_layout()
 
     if save:
-        plt.savefig(f"{base_filename}_max_costs.png")
+        plt.savefig(f"{base_filename}_max_costs_per_constraint.png", dpi=150)
+
     plt.close()
 
-    # Save horizontal and vertical legends for max costs plot
-    # save_legend(legend_elements, legend_labels, f"{base_filename}_max_costs_legend_horizontal.png", horizontal=True)
-    # save_legend(legend_elements, legend_labels, f"{base_filename}_max_costs_legend_vertical.png", horizontal=False)
+    # ------------------------------------------------------------
+    # 3. Total cost per constraint dimension
+    # ------------------------------------------------------------
+    fig, axes = plt.subplots(args.cost_dim, 1, figsize=(14, 4 * args.cost_dim))
 
-    # Plot total costs
-    plt.figure(figsize=(fig_size, fig_size))
-    for save_path, label in zip(save_paths, labels):
-        for i, std in enumerate(perturbation_stds):
-            costs = np.array(results[save_path][i]['costs'])
-            smoothed_costs = smooth(costs, smooth_window)
-            smoothed_x = range(len(smoothed_costs))
-            line, = plt.plot(smoothed_x, smoothed_costs)
-            # legend_elements.append(line)
-            # legend_labels.append(f"{label} (std={std})")
-    plt.xlabel("Episode", fontweight='bold', fontsize=label_font)
-    plt.ylabel("Max Cost", fontweight='bold', fontsize=label_font)
-    # plt.title("Cumulative Cost per Episode")
-    plt.grid(False)  # Turn off the grid
-    plt.gca().spines['top'].set_linewidth(15)  # Make top edge bold
-    plt.gca().spines['right'].set_linewidth(15)  # Make right edge bold
-    plt.gca().spines['left'].set_linewidth(15)  # Make left edge bold
-    plt.gca().spines['bottom'].set_linewidth(15)  # Make bottom edge bold
+    if args.cost_dim == 1:
+        axes = [axes]
 
-    # Adjust y-axis ticks for better readability
-    # plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
+    for ci in range(args.cost_dim):
+        ax = axes[ci]
+
+        for save_path, label in zip(save_paths, labels):
+            key = key_from_save_path(save_path)
+            costs = np.asarray(results[key][0]["costs"])  # [episodes, cost_dim]
+
+            y = smooth(costs[:, ci], smooth_window)
+            x = range(len(y))
+
+            ax.plot(x, y, label=label)
+
+        ax.set_xlabel("Episode", fontweight="bold")
+        ax.set_ylabel(f"Total C{ci+1}", fontweight="bold")
+        ax.set_title(f"Total Cost Constraint {ci+1}")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+    plt.tight_layout()
 
     if save:
-        plt.savefig(f"{base_filename}_total_costs.png")
+        plt.savefig(f"{base_filename}_total_costs_per_constraint.png", dpi=150)
+
     plt.close()
 
-    # Save horizontal and vertical legends for total costs plot
-    # save_legend(legend_elements, legend_labels, f"{base_filename}_total_costs_legend_horizontal.png", horizontal=True)
-    # save_legend(legend_elements, legend_labels, f"{base_filename}_total_costs_legend_vertical.png", horizontal=False)
+    # ------------------------------------------------------------
+    # 4. Scalar max over max-cost dimensions
+    # ------------------------------------------------------------
+    plt.figure(figsize=(14, 8))
+
+    for save_path, label in zip(save_paths, labels):
+        key = key_from_save_path(save_path)
+        max_total_costs = np.asarray(results[key][0]["max_total_costs"])
+
+        y = smooth(max_total_costs, smooth_window)
+        x = range(len(y))
+
+        plt.plot(x, y, label=label)
+
+    plt.axhline(
+        y=args.persistent_eps,
+        color="black",
+        linestyle="--",
+        linewidth=2,
+        label=f"Threshold={args.persistent_eps}",
+    )
+
+    plt.xlabel("Episode", fontweight="bold")
+    plt.ylabel("Max over Constraint Max Costs", fontweight="bold")
+    plt.title("Scalar Max Total Cost")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+
+    if save:
+        plt.savefig(f"{base_filename}_max_total_cost.png", dpi=150, bbox_inches="tight")
+
+    plt.close()
+
+    # ------------------------------------------------------------
+    # 5. Scalar sum of total costs
+    # ------------------------------------------------------------
+    plt.figure(figsize=(14, 8))
+
+    for save_path, label in zip(save_paths, labels):
+        key = key_from_save_path(save_path)
+        total_cost_sums = np.asarray(results[key][0]["total_cost_sums"])
+
+        y = smooth(total_cost_sums, smooth_window)
+        x = range(len(y))
+
+        plt.plot(x, y, label=label)
+
+    plt.xlabel("Episode", fontweight="bold")
+    plt.ylabel("Sum of Total Costs", fontweight="bold")
+    plt.title("Scalar Total Cost Sum")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+
+    if save:
+        plt.savefig(f"{base_filename}_total_cost_sum.png", dpi=150, bbox_inches="tight")
+
+    plt.close()
+
+    save_legend(
+        legend_elements,
+        legend_labels,
+        f"{base_filename}_legend_horizontal.png",
+        horizontal=True,
+    )
 
 
 def save_legend(legend_elements, labels, filename, horizontal=True):
     """
-    Save a separate legend as an image.
-
-    Args:
-        legend_elements: List of matplotlib line objects for the legend.
-        labels: List of labels corresponding to the legend elements.
-        filename: File name to save the legend image.
-        horizontal: Whether to save the legend as horizontal or vertical.
+    Save separate legend image.
     """
+
     fig = plt.figure(figsize=(20, 5) if horizontal else (5, 20))
     ax = fig.add_subplot(111)
-    ax.axis('off')
-    legend = ax.legend(handles=legend_elements, labels=labels, loc='center', ncol=len(legend_elements) if horizontal else 1, frameon=False)
+    ax.axis("off")
+
+    ax.legend(
+        handles=legend_elements,
+        labels=labels,
+        loc="center",
+        ncol=len(legend_elements) if horizontal else 1,
+        frameon=False,
+    )
+
     plt.savefig(filename, bbox_inches="tight", pad_inches=0)
     plt.close()
 
 
 if __name__ == "__main__":
-    # Define your arguments (or load them from a config file)
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
-    parser.add_argument("--env", type=str, default='Quadrotor',help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv")
-    parser.add_argument("--uncer_set", type=str, default='IPM', help="DS/IPM")
-    parser.add_argument("--next_steps", type=int, default=2, help="Number of next states")
-    parser.add_argument("--random_steps", type=int, default=int(25e3), help="Uniformlly sample action within random steps")
-    parser.add_argument("--max_train_steps", type=int, default=int(16e3), help="Maximum number of training steps")
-    parser.add_argument("--evaluate_freq", type=float, default=1e2, help="Evaluate the policy every 'evaluate_freq' steps")
-    parser.add_argument("--save_freq", type=int, default=20, help="Save frequency")
-    parser.add_argument("--policy_dist", type=str, default="Gaussian", help="Beta or Gaussian or Discrete")
-    parser.add_argument("--batch_size", type=int, default=1024, help="Batch size")
-    parser.add_argument("--mini_batch_size", type=int, default=256, help="Minibatch size")
-    parser.add_argument("--hidden_width", type=int, default=64, help="The number of neurons in hidden layers of the neural network")
-    parser.add_argument("--lr_a", type=float, default=5e-4, help="Learning rate of actor")
-    parser.add_argument("--lr_c", type=float, default=5e-4, help="Learning rate of critic")
-    parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor 0.99")
 
-        # Save the finmma", type=float, default=0.99, help="Discount factor 0.99")
-    parser.add_argument("--lamda", type=float, default=0.95, help="GAE parameter 0.95")
-    parser.add_argument("--epsilon", type=float, default=0.2, help="PPO clip parameter")
-    parser.add_argument("--persistent_eps", type=float, default=0.5, help="Persistent Safety Perturbation")
-    parser.add_argument("--K_epochs", type=int, default=5, help="PPO parameter")
-    parser.add_argument("--use_adv_norm", type=bool, default=True, help="Trick 1:advantage normalization")
-    parser.add_argument("--use_state_norm", type=bool, default=False, help="Trick 2:state normalization")
-    parser.add_argument("--use_reward_norm", type=bool, default=False, help="Trick 3:reward normalization")
-    parser.add_argument("--use_reward_scaling", type=bool, default=False, help="Trick 4:reward scaling")
-    parser.add_argument("--entropy_coef", type=float, default=0.007, help="Trick 5: policy entropy")
-    parser.add_argument("--use_lr_decay", type=bool, default=True, help="Trick 6:learning rate Decay")
-    parser.add_argument("--use_grad_clip", type=bool, default=True, help="Trick 7: Gradient clip")
-    parser.add_argument("--use_orthogonal_init", type=bool, default=True, help="Trick 8: orthogonal initialization")
-    parser.add_argument("--set_adam_eps", type=float, default=True, help="Trick 9: set Adam epsilon=1e-5")
-    parser.add_argument("--use_tanh", type=float, default=True, help="Trick 10: tanh activation function")
-    parser.add_argument("--adaptive_alpha", type=float, default=False, help="Trick 11: adaptive entropy regularization")
-    parser.add_argument("--weight_reg", type=float, default=0.0, help="Regularization for weight of critic")
-    parser.add_argument("--seed", type=int, default=2, help="seed 2, 5, 7, 11, 17") 
-    parser.add_argument("--GAMMA", type=str, default='0', help="file name")
-    parser.add_argument("--baseline",type=int,default=9,help="baseline")
-    parser.add_argument("--lambda_",type=int,default=1.0,help="lambda")
-    parser.add_argument("--beta",type=float,default=30000.0,help="beta") 
-    parser.add_argument("--run",type=int,default=1,help="run_number") 
-    parser.add_argument("--warm_start_flag",type=int,default=0,help="warm_start_flag") 
-    parser.add_argument("--warm_start_episode",type=int,default=1000,help="warm_start_episode")
-    parser.add_argument("--lr_cost",type=float,default=5e-4,help="learning rate for cost function")
-    parser.add_argument("--cost_dim",type=int,default=4,help="sigma of gravity perturbation")
-    parser.add_argument("--cost_scale",type=float,default=100.0,help="sigma of gravity perturbation")
+    parser.add_argument("--env", type=str, default="Quadrotor")
+    parser.add_argument("--uncer_set", type=str, default="IPM", help="DS/IPM")
+    parser.add_argument("--next_steps", type=int, default=2)
+    parser.add_argument("--random_steps", type=int, default=int(25e3))
+    parser.add_argument("--max_train_steps", type=int, default=int(16e3))
+    parser.add_argument("--evaluate_freq", type=float, default=1e2)
+    parser.add_argument("--save_freq", type=int, default=20)
+
+    parser.add_argument("--policy_dist", type=str, default="Gaussian")
+    parser.add_argument("--batch_size", type=int, default=2048)
+    parser.add_argument("--mini_batch_size", type=int, default=128)
+    parser.add_argument("--hidden_width", type=int, default=64)
+
+    parser.add_argument("--lr_a", type=float, default=1e-3)
+    parser.add_argument("--lr_c", type=float, default=1e-3)
+    parser.add_argument("--lr_cost", type=float, default=5e-4)
+
+    parser.add_argument("--gamma", type=float, default=0.99)
+    parser.add_argument("--lamda", type=float, default=0.95)
+    parser.add_argument("--epsilon", type=float, default=0.2)
+
+    parser.add_argument(
+        "--persistent_eps",
+        type=float,
+        default=0.5,
+        help="Safety threshold",
+    )
+
+    parser.add_argument("--K_epochs", type=int, default=10)
+    parser.add_argument("--use_adv_norm", type=bool, default=True)
+    parser.add_argument("--use_state_norm", type=bool, default=False)
+    parser.add_argument("--use_reward_norm", type=bool, default=False)
+    parser.add_argument("--use_reward_scaling", type=bool, default=False)
+    parser.add_argument("--entropy_coef", type=float, default=0.007)
+    parser.add_argument("--use_lr_decay", type=bool, default=True)
+    parser.add_argument("--use_grad_clip", type=bool, default=True)
+    parser.add_argument("--use_orthogonal_init", type=bool, default=True)
+    parser.add_argument("--set_adam_eps", type=float, default=True)
+    parser.add_argument("--use_tanh", type=float, default=True)
+    parser.add_argument("--adaptive_alpha", type=float, default=False)
+    parser.add_argument("--weight_reg", type=float, default=0.001)
+
+    parser.add_argument("--seed", type=int, default=2)
+    parser.add_argument("--GAMMA", type=str, default="0")
+    parser.add_argument("--baseline", type=int, default=9)
+    parser.add_argument("--lambda_", type=float, default=50.0)
+    parser.add_argument("--beta", type=float, default=1e5)
+    parser.add_argument("--run", type=int, default=13)
+    parser.add_argument("--warm_start_flag", type=int, default=0)
+    parser.add_argument("--warm_start_episode", type=int, default=1300)
+ 
+
+    # Important for multi-constraint
+    parser.add_argument(
+        "--cost_dim",
+        type=int,
+        default=4,
+        help="number of constraints",
+    )
+    parser.add_argument(
+        "--cost_scale",
+        type=float,
+        default=100.0,
+        help="same cost scale used in trainer",
+    )
+
+    parser.add_argument("--num_episodes", type=int, default=100)
 
     args = parser.parse_args()
 
-    labels = ["Surrogate Obj(NP)","Ours(P+R)"] 
-
+    labels = [
+        "Surrogate Obj(NP)",
+        "Ours(P+R)",
+    ]
 
     directories = [
         "./models/quadrotor/run13/Best_RCAC",
-        "./models/quadrotor/run13/Best_RCAC",
+        "./models/Quadrotor/run18/Best_RCAC",
     ]
-     # Run tests for all models across different gravity perturbations
-    results = test_multiple_dirs(args, directories, num_episodes=100)
+    model_num = 6200
 
+    results = test_multiple_dirs(
+        args,
+        directories,
+        model_num=model_num,
+        num_episodes=args.num_episodes,
+    )
 
-    # Plot the evaluation results
-    plot_evaluation(args, results, directories, perturbation_stds, labels, save=True, base_filename="plot_inference/swimmer_inference", smooth_window=20)
-
-  
+    plot_evaluation(
+        args,
+        results,
+        directories,
+        labels,
+        save=True,
+        base_filename="plot_inference/quadrotor_inference",
+        smooth_window=20,
+    )

@@ -24,10 +24,10 @@ from gym import utils
 from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
-from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
-from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
-from envs.half_cheetah import HalfCheetahWithPos
-from envs.swimmer import SwimmerWithPos
+# from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
+# from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
+# from envs.half_cheetah import HalfCheetahWithPos
+# from envs.swimmer import SwimmerWithPos
 from safe_control_gym.envs.gym_pybullet_drones.quadrotor import Quadrotor
 from safe_control_gym.utils.configuration import ConfigFactory
 from safe_control_gym.utils.registration import make
@@ -987,17 +987,28 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     )
 
 
-def save_agent(agent, save_path, state_norm=None, reward_scaling=None):
-    agent.actor.save(f"{save_path}_actor")
-    agent.Rcritic.save(f"{save_path}_Rcritic")
-    agent.Ccritic.save(f"{save_path}_Ccritic")
+#shilpa model save
+# def save_agent(agent, save_path, state_norm=None, reward_scaling=None):
+#     agent.actor.save(f"{save_path}_actor")
+#     agent.Rcritic.save(f"{save_path}_Rcritic")
+#     agent.Ccritic.save(f"{save_path}_Ccritic")
+#     if state_norm:
+#         with open(f"{save_path}_state_norm", "wb") as file1:
+#             pickle.dump(state_norm, file1)
+#     if reward_scaling:
+#         with open(f"{save_path}_reward_scaling", "wb") as file2:
+#             pickle.dump(reward_scaling, file2)
+
+def save_agent(agent, save_path, ep=0, state_norm=None, reward_scaling=None):
+    agent.actor.save(f"{save_path}_actor_{str(ep)}")
+    agent.Rcritic.save(f"{save_path}_Rcritic_{str(ep)}")
+    agent.Ccritic.save(f"{save_path}_Ccritic_{str(ep)}")
     if state_norm:
-        with open(f"{save_path}_state_norm", "wb") as file1:
+        with open(f"{save_path}_state_norm_{str(ep)}", "wb") as file1:
             pickle.dump(state_norm, file1)
     if reward_scaling:
-        with open(f"{save_path}_reward_scaling", "wb") as file2:
+        with open(f"{save_path}_reward_scaling_{str(ep)}", "wb") as file2:
             pickle.dump(reward_scaling, file2)
-# ── ADD this new function right after the existing plot_metrics function ──────
 
 #shilpa multiple constraints
 # def plot_eval_metrics(
@@ -1751,7 +1762,7 @@ def main(args, run_number):
             #         save_agent(agent, best_model_path)
 
             if (
-                evaluate_reward > best_reward
+                evaluate_reward >= best_reward
                 and np.all(evaluate_max_cost <= args.persistent_eps)
             ):
                 best_reward = evaluate_reward
@@ -1766,19 +1777,34 @@ def main(args, run_number):
                     f"{max_cost_str}, Max Total Cost: {evaluate_max_total_cost:.3f}"
                 )
 
+                #shilpa model save
+                # if args.use_reward_scaling and args.use_state_norm:
+                #     save_agent(agent, best_model_path, state_norm, reward_scaling)
+                # elif args.use_reward_scaling:
+                #     save_agent(
+                #         agent,
+                #         best_model_path,
+                #         state_norm=None,
+                #         reward_scaling=reward_scaling,
+                #     )
+                # elif args.use_state_norm:
+                #     save_agent(agent, best_model_path, state_norm)
+                # else:
+                #     save_agent(agent, best_model_path)
                 if args.use_reward_scaling and args.use_state_norm:
-                    save_agent(agent, best_model_path, state_norm, reward_scaling)
+                    save_agent(agent, best_model_path, total_steps, state_norm, reward_scaling)
                 elif args.use_reward_scaling:
                     save_agent(
                         agent,
                         best_model_path,
+                        total_steps, 
                         state_norm=None,
                         reward_scaling=reward_scaling,
                     )
                 elif args.use_state_norm:
-                    save_agent(agent, best_model_path, state_norm)
+                    save_agent(agent, best_model_path, total_steps, state_norm)
                 else:
-                    save_agent(agent, best_model_path)
+                    save_agent(agent, best_model_path, total_steps)
 
 
         episode_rewards.append(total_reward)
