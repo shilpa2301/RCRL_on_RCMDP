@@ -335,7 +335,7 @@ class ReplayBuffer:
         return s, a, a_logprob, r, c, s_, dw, done
 
 
-class Robust_RCAC_NPG:
+class RPCRL:
     def __init__(self, args):
         if args.env == "CartPolePerturbedEnv":
             self.env = CartPolePerturbedEnv(
@@ -397,13 +397,6 @@ class Robust_RCAC_NPG:
         self.Rcritic = Critic(args)
         self.Ccritic = CostCritic(args)
 
-        #shilpa target critic
-        # Initialize target critics
-        # self.target_Rcritic = Critic(args)  # Target reward critic
-        # self.target_Ccritic = CostCritic(args)  # Target cost critic        
-        # # # Copy initial weights from critics to target critics
-        # self.target_Rcritic.load_state_dict(self.Rcritic.state_dict())
-        # self.target_Ccritic.load_state_dict(self.Ccritic.state_dict())
 
         self.beta = args.beta
         # self.persistent_eps = 0.0
@@ -429,22 +422,12 @@ class Robust_RCAC_NPG:
             self.optimizer_Ccritic = torch.optim.Adam(
                 self.Ccritic.parameters(), lr=self.lr_cost
             )
+        #shilpa RCRL
+        self.dual_lambda = torch.tensor(0.0, dtype=torch.float32)
+        self.dual_lr = 1e-3
+        self.dual_lambda_max = 100.0
 
-        #shilpa target critic 
-        # Target networks are not optimized directly
-        # self.target_Rcritic.eval()
-        # self.target_Ccritic.eval()
-        # for p in self.target_Rcritic.parameters():
-        #     p.requires_grad = False
-        # for p in self.target_Ccritic.parameters():
-        #     p.requires_grad = False
-        # self.tau = getattr(args, "tau", 0.005)
-
-        # In __init__, add:
-        # self.ch = 0                        # current mode: 0=reward, 1=cost
-        # self.enter_cost_threshold  = self.persistent_eps          # enter cost mode if max > this
-        # self.exit_cost_threshold   = self.persistent_eps * 0.8   # exit cost mode only if max < this (more lenient)
-
+       
 
     def evaluate(
         self, s
@@ -529,11 +512,17 @@ class Robust_RCAC_NPG:
         s, a, a_logprob, r, c, s_, dw, done = (
             replay_buffer.numpy_to_tensor()
         )  # Get training data
-        """
-            Calculate the advantage using GAE
-            'dw=True' means dead or win, there is no next state s'
-            'done=True' represents the terminal of an episode(dead or win or reaching the max_episode_steps). When calculating the adv, if done=True, gae=0
-        """
+
+        #shilpa RCRL
+        # Make sure dual_lambda is on the same device as tensors
+        if not isinstance(self.dual_lambda, torch.Tensor):
+            self.dual_lambda = torch.tensor(
+                self.dual_lambda, 
+                dtype=torch.float32, 
+                device=s.device
+            )
+        else:
+            self.dual_lambda = self.dual_lambda.to(s.device)
         
         # Optimize policy for K epochs:
         for _ in range(self.K_epochs):
@@ -546,114 +535,117 @@ class Robust_RCAC_NPG:
                 vs_ = self.Rcritic(s_)
                 vcs = self.Ccritic(s)
                 vcs_ = self.Ccritic(s_)
-                # vs = self.Rcritic(s)
-                # vcs = self.Ccritic(s)
-                # vs_ = self.target_Rcritic(s_)
-                # vcs_ = self.target_Ccritic(s_)
-
-
-                # Construct trajectory dynamically from replay buffer
-
-                trajectory = {"states": s, "actions": a, "next_states": s_, "costs": c}
-
-                # with torch.no_grad():
-                    # Compute robust value function and V_L^pi
+                
                 
                 vl_pi = vcs.max()
-                # penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
-                penalty_term = vl_pi - torch.tensor(self.persistent_eps)
-                beta_penalty = self.beta * penalty_term
-                vs_mean = vs.mean().item()
+                constraint_violation = vl_pi - torch.tensor(self.persistent_eps, dtype=torch.float32, device=s.device)
+                #Dual update:
+                # lambda <- [lambda + dual_lr * (max_cost - eps)]_+
                 if self.warm_start_flag == 1:
-                    ch = np.argmax([vs_mean, beta_penalty])
+                    self.dual_lambda = self.dual_lambda + self.dual_lr * constraint_violation
+                    self.dual_lambda = torch.clamp(
+                        self.dual_lambda,
+                        min=0.0,
+                        max=self.dual_lambda_max
+                    )
+
                 else:
-                    ch = 0
+                    # Optional: keep lambda zero before warm start
+                    self.dual_lambda = torch.tensor(
+                        0.0,
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+
                 print(
-                    "ch, vs_mean, vl_pi, beta penalty=",
-                    ch,
-                    vs_mean,
-                    vl_pi,
-                    beta_penalty,
+                    "Primal-Dual | lambda, vl_pi, eps, violation =",
+                    self.dual_lambda.item(),
+                    vl_pi.item(),
+                    self.persistent_eps,
+                    constraint_violation.item()
                 )
 
               
-                reg_norm, weight_norm, bias_norm = 0, [], []
-
-                linear_layers = [l for l in self.Ccritic.children() if isinstance(l, nn.Linear)]
+                # ============================================================
+                # Cost critic target
+                # Same max-cost-style update you currently use
+                # ============================================================
+                linear_layers = [
+                    layer for layer in self.Ccritic.children()
+                    if isinstance(layer, nn.Linear)
+                ]
                 if len(linear_layers) == 0:
                     raise ValueError("Ccritic has no nn.Linear layer")
-                reg_norm = torch.norm(linear_layers[-1].weight, p=2)
+
+                reg_norm_c = torch.norm(linear_layers[-1].weight, p=2)
 
                 cost_deltas = (
                     (1 - self.gamma) * c
                     + self.gamma * self.log_sum_exp_fn(c, (1.0 - dw) * vcs_)
                     - vcs
-                    # - self.alpha * a_logprob.sum(dim=1, keepdim=True)
-                    
-                    # + self.weight_reg * reg_norm
-                    
-                )  
-                adv_c = cost_deltas.clone()  
-                v_target_c = cost_deltas + vcs + self.weight_reg * reg_norm#- self.weight_reg * reg_norm #+ self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                )
 
+                adv_c = cost_deltas.clone()
 
-                reg_norm, weight_norm, bias_norm = 0, [], []
-                # for layer in self.Rcritic.children():
-                #         if isinstance(layer, nn.Linear):
-                #             weight_norm.append(
-                #                 torch.norm(layer.state_dict()["weight"]) ** 2
-                #             )
-                #             bias_norm.append(torch.norm(layer.state_dict()["bias"]) ** 2)
-                # reg_norm = torch.sqrt(
-                #     torch.sum(torch.stack(weight_norm))
-                #     + torch.sum(torch.stack(bias_norm[0:-1]))
-                # )
-                linear_layers = [layer for layer in self.Rcritic.children() if isinstance(layer, nn.Linear)]
+                v_target_c = cost_deltas + vcs + self.weight_reg * reg_norm_c
+
+                # ============================================================
+                # Reward critic target using GAE
+                # ============================================================
+                linear_layers = [
+                    layer for layer in self.Rcritic.children()
+                    if isinstance(layer, nn.Linear)
+                ]
                 if len(linear_layers) == 0:
                     raise ValueError("Rcritic has no nn.Linear layer")
-                last_linear = linear_layers[-1]
-                reg_norm = torch.norm(last_linear.weight, p=2)
-                #ppo
+
+                reg_norm_r = torch.norm(linear_layers[-1].weight, p=2)
+
                 deltas = (
                     r
                     + self.gamma * (1.0 - dw) * vs_
                     - vs
-                    # - self.alpha * a_logprob.sum(dim=1, keepdim=True)
-                    # + self.weight_reg * reg_norm
                 )
-                
+
                 for delta, d in zip(
-                    reversed(deltas.flatten().numpy()), reversed(done.flatten().numpy())
+                    reversed(deltas.flatten().cpu().numpy()),
+                    reversed(done.flatten().cpu().numpy())
                 ):
                     gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
                     adv_r.insert(0, gae)
-                adv_r = torch.tensor(adv_r, dtype=torch.float).view(-1, 1)
-                v_target_r = adv_r + vs + self.weight_reg * reg_norm#+ self.alpha * a_logprob.sum(dim=1, keepdim=True)
 
-                if ch == 1:
-                    
-                    # ── Normalize then negate for actor ─────────────────────────────────
-                    if self.use_adv_norm:
-                        # adv = (adv - adv.mean()) / (adv.std() + 1e-5)
-                        adv_mean = adv_c.mean()
-                        adv_std  = adv_c.std()
-                        # Always normalize, but SCALE DOWN smoothly when signal is small.
-                        # This avoids the bang-bang switching at the 1e-2 threshold.
-                        adv_c = (adv_c - adv_mean) / (adv_std + 1e-5)
-                        adv_c = torch.clamp(adv_c, -3.0, 3.0)
-                        # Soft gate: multiply by tanh(std / threshold) so near-zero std → near-zero adv
-                        # but there is NO hard discontinuity
-                        # soft_gate = torch.tanh(adv_std / 0.05)   # smooth 0→1 around std=0.05
-                        # adv = adv * soft_gate
-                    adv = -adv_c  # minimize cost = maximize negative cost advantage
-                else:
-                    
-                    if self.use_adv_norm:  # Trick 1:advantage normalization
-                        adv =  (adv_r - adv_r.mean()) / (adv_r.std() + 1e-5)
+                adv_r = torch.tensor(
+                    adv_r,
+                    dtype=torch.float32,
+                    device=s.device
+                ).view(-1, 1)
 
-        # # Optimize policy for K epochs:
-        # for _ in range(self.K_epochs):
-            # Random sampling and no repetition. 'False' indicates that training will continue even if the number of samples in the last time is less than mini_batch_size
+                v_target_r = adv_r + vs + self.weight_reg * reg_norm_r
+
+                #============================================================
+                # Normalize advantages
+                # ============================================================
+                if self.use_adv_norm:
+                    adv_r = (adv_r - adv_r.mean()) / (adv_r.std() + 1e-5)
+
+                    adv_c_mean = adv_c.mean()
+                    adv_c_std = adv_c.std()
+                    adv_c = (adv_c - adv_c_mean) / (adv_c_std + 1e-5)
+                    adv_c = torch.clamp(adv_c, -3.0, 3.0)
+
+                # ============================================================
+                # Primal-Dual actor advantage
+                #
+                # Maximize reward while penalizing cost:
+                # A_PD = A_r - lambda * A_c
+                # ============================================================
+                adv = adv_r - self.dual_lambda.detach() * adv_c
+
+                # Optional normalization of combined primal-dual advantage
+                if self.use_adv_norm:
+                    adv = (adv - adv.mean()) / (adv.std() + 1e-5)
+
+        
             for index in BatchSampler(
                 SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False
             ):
@@ -1036,7 +1028,7 @@ def main(args, run_number):
     evaluate_max_costs = []
 
     replay_buffer = ReplayBuffer(args)
-    agent = Robust_RCAC_NPG(args)
+    agent = RPCRL(args)
 
     # Build a tensorboard
     writer = SummaryWriter(

@@ -61,25 +61,25 @@ quadrotor_config:
   done_on_out_of_bound: True
 
   done_on_violation: False
-  constraints:
-    - constraint_form: bounded_constraint
-      constrained_variable: state
-      lower_bounds:
-        - 0.5
-      upper_bounds:
-        - 1.5
-      active_dims:
-        - 2
-
   # constraints:
   #   - constraint_form: bounded_constraint
-  #     constrained_variable: input
+  #     constrained_variable: state
   #     lower_bounds:
-  #       - 0.0
-  #       - 0.0
+  #       - 0.5
   #     upper_bounds:
-  #       - 0.12
-  #       - 0.12
+  #       - 1.5
+  #     active_dims:
+  #       - 2
+
+  constraints:
+    - constraint_form: bounded_constraint
+      constrained_variable: input
+      lower_bounds:
+        - 0.0
+        - 0.0
+      upper_bounds:
+        - 0.12
+        - 0.12
 
   # disturbances:
   #   dynamics:
