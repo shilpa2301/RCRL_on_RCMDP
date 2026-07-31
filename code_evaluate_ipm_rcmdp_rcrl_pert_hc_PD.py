@@ -140,13 +140,13 @@ def test_multiple_dirs(args, save_paths, perturbation_stds, num_episodes=100):
             # env = CartPolePerturbedEnv(gravity_perturbation_std=std)
             # env = ReacherWithCost(sigma_gravity=std, max_steps=50)
             # env = SwimmerWithPos(sigma_viscosity=std, max_steps=1000)
-            env = HalfCheetahWithPosPerturbed()
+            env = HalfCheetahWithPos()
             env.reset(seed=args.seed)
             env.action_space.seed(args.seed)
             args.max_action = float(env.action_space.high[0])
             args.state_dim = env.observation_space.shape[0]
             args.action_dim = env.action_space.shape[0]
-            args.gravity_std = std
+            # args.gravity_std = std
             
             # Load the agent
             # agent, state_norm, reward_scaling = load_agent(args, save_path)
@@ -393,12 +393,13 @@ if __name__ == "__main__":
     #     "./models/CartPolePerturbedEnv/run3/Best_RCAC",
     #     "./models/CartPoleCostEnv/run2/Best_RCAC",
     # ]
-    labels = ["Surrogate Obj(NP)","Ours(P+R)","Ours(NP+R)"] 
+    labels = ["Surrogate Obj(NP)","RCRL","Primal Dual"] 
 
 
     directories = [
         "./models/HalfCheetahWithPos/run3/Best_RCAC",
-        "./models/HalfCheetahWithPosPerturbed/run1/Best_RCAC"
+        "./models/HalfCheetahWithPos/run101/Best_RCAC",
+        "./models/HalfCheetahWithPos/run103/Best_RCAC"
     ]
     # Match files starting with "RCAC_"
     # directories =[]
@@ -421,7 +422,7 @@ if __name__ == "__main__":
     # base_names_list = list(base_names)
     # directories.extend([base_names_list])
 
-    perturbation_stds = [2.0]
+    perturbation_stds = [0.0]
 
     # Run tests for all models across different gravity perturbations
     results = test_multiple_dirs(args, directories, perturbation_stds, num_episodes=100)
@@ -429,7 +430,7 @@ if __name__ == "__main__":
     # directories[2] = "PD"
 
     # Plot the evaluation results
-    plot_evaluation(args, results, directories, perturbation_stds, labels, save=True, base_filename="plot_inference/HC_inference", smooth_window=20)
+    plot_evaluation(args, results, directories, perturbation_stds, labels, save=True, base_filename="plot_inference/HC_baseline_comparison", smooth_window=20)
 
     # run_and_plot_comparison(args, directories, perturbation_stds, num_episodes=100)
 
