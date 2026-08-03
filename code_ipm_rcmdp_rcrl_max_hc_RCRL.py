@@ -335,7 +335,7 @@ class ReplayBuffer:
         return s, a, a_logprob, r, c, s_, dw, done
 
 
-class RPCRL:
+class RCRL:
     def __init__(self, args):
         if args.env == "CartPolePerturbedEnv":
             self.env = CartPolePerturbedEnv(
@@ -536,7 +536,7 @@ class RPCRL:
                 vcs = self.Ccritic(s)
                 vcs_ = self.Ccritic(s_)
                 
-                
+                #shilpa RCRL
                 vl_pi = vcs.max()
                 constraint_violation = vl_pi - torch.tensor(self.persistent_eps, dtype=torch.float32, device=s.device)
                 #Dual update:
@@ -1028,7 +1028,7 @@ def main(args, run_number):
     evaluate_max_costs = []
 
     replay_buffer = ReplayBuffer(args)
-    agent = RPCRL(args)
+    agent = RCRL(args)
 
     # Build a tensorboard
     writer = SummaryWriter(

@@ -1,0 +1,17 @@
+nohup: ignoring input
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+/home/sm3934/miniconda3/envs/rpcrl_env/lib/python3.10/site-packages/gym/envs/mujoco/mujoco_env.py:190: UserWarning: [33mWARN: This version of the mujoco environments depends on the mujoco-py bindings, which are no longer maintained and may stop working. Please upgrade to the v4 versions of the environments (which depend on the mujoco python bindings instead), unless you are trying to precisely replicate previous works).[0m
+  logger.warn(
+run= 101 seed= 6 env= HumanoidWithCost k_epochs 5
+env=HumanoidWithCost
+state_dim=376
+action_dim=17
+max_action=0.4000000059604645
+max_episode_steps=1000
+------use_orthogonal_init------
+------use_orthogonal_init------
+------use_orthogonal_init------
+  0%|          | 0/6000 [00:00<?, ?it/s]  0%|          | 1/6000 [00:19<31:53:51, 19.14s/it]  0%|          | 2/6000 [00:19<13:52:06,  8.32s/it]

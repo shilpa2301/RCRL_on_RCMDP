@@ -26,7 +26,9 @@ from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
 from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
 from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
-from envs.half_cheetah import HalfCheetahWithPos, HalfCheetahWithPosPerturbed
+from envs.half_cheetah import HalfCheetahWithPos
+from envs.swimmer import SwimmerWithPos, SwimmerWithPosPerturbed
+from envs.ant import AntCost, AntCostPerturbed
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -353,8 +355,14 @@ class PrimalDual:
             self.env = HopperPerturbedEnv()
         elif args.env == "HalfCheetahWithPos":
             self.env = HalfCheetahWithPos()
-        elif args.env == "HalfCheetahWithPosPerturbed":
-            self.env = HalfCheetahWithPosPerturbed(sigma_gravity=args.sigma_gravity)
+        elif args.env == "SwimmerWithPos":
+            self.env = SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
+        elif args.env == "SwimmerWithPosPerturbed":
+            self.env = SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
+        elif args.env == "AntCost":
+            self.env = AntCost()    
+        elif args.env == "AntCostPerturbed":
+            self.env = AntCostPerturbed(sigma_gravity=args.sigma_gravity)
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -397,6 +405,15 @@ class PrimalDual:
         self.Rcritic = Critic(args)
         self.Ccritic = CostCritic(args)
 
+        #shilpa target critic
+        # Initialize target critics
+        # self.target_Rcritic = Critic(args)  # Target reward critic
+        # self.target_Ccritic = CostCritic(args)  # Target cost critic        
+        # # # Copy initial weights from critics to target critics
+        # self.target_Rcritic.load_state_dict(self.Rcritic.state_dict())
+        # self.target_Ccritic.load_state_dict(self.Ccritic.state_dict())
+
+        self.beta = args.beta
         # self.persistent_eps = 0.0
         self.warm_start_flag = args.warm_start_flag
 
@@ -420,12 +437,11 @@ class PrimalDual:
             self.optimizer_Ccritic = torch.optim.Adam(
                 self.Ccritic.parameters(), lr=self.lr_cost
             )
-        #shilpa RCRL
-        self.dual_lambda = torch.tensor(0.0, dtype=torch.float32)
-        self.dual_lr = 1e-3
-        self.dual_lambda_max = 100.0
 
-       
+        #shilpa PrimalDual
+        self.dual_lambda = torch.tensor(0.0, dtype=torch.float32)
+        self.dual_lr = 1e-5 #1e-3
+        self.dual_lambda_max = 100.0
 
     def evaluate(
         self, s
@@ -480,10 +496,6 @@ class PrimalDual:
         for p in self.optimizer_Ccritic.param_groups:
             p["lr"] = lr_cost_now
 
-
-    
-
-  
 
     def update(self, replay_buffer, total_steps):
         s, a, a_logprob, r, c, s_, dw, done = (
@@ -723,24 +735,15 @@ class PrimalDual:
             self.alpha_optimzier.step()
             self.alpha = self.log_alpha.exp()
 
-    #shilpa target critic
-    def soft_update_target_networks(self, tau=None):
-        if tau is None:
-            tau = self.tau
 
-        for target_param, param in zip(self.target_Rcritic.parameters(), self.Rcritic.parameters()):
-            target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
-
-        for target_param, param in zip(self.target_Ccritic.parameters(), self.Ccritic.parameters()):
-            target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
-
+   
 def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     times = 3
     evaluate_reward = 0
     evaluate_cost = 0
     evaluate_max_cost = float("-inf")
     for _ in range(times):
-        s = env.reset()[0][0]
+        s = env.reset(seed=args.seed)[0][0]
         if args.use_state_norm:
             s = state_norm(s, update=False)  # During the evaluating,update=False
         done = False
@@ -978,16 +981,34 @@ def main(args, run_number):
             HalfCheetahWithPos() #HalfCheetahWithPostest()
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = HalfCheetahWithPos()
-
-    elif args.env == "HalfCheetahWithPosPerturbed":
+    elif args.env == "SwimmerWithPos":
         env = (
-            HalfCheetahWithPosPerturbed(sigma_gravity=args.sigma_gravity)
+            SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
-            HalfCheetahWithPosPerturbed(sigma_gravity=args.sigma_gravity) #HalfCheetahWithPostest()
+            SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000) #SwimmerWithPostest()
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = HalfCheetahWithPosPerturbed(sigma_gravity=args.sigma_gravity)
-
+        env_reset = SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
+    elif args.env == "SwimmerWithPosPerturbed":
+        env = (
+            SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
+        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env_evaluate = (
+            SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000) #SwimmerWithPostest()
+        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
+    elif args.env == "AntCost":
+        env = (
+            AntCost()
+        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env_evaluate = (
+            AntCost() #AntWithPostest()
+        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = AntCost()
+    elif args.env == "AntCostPerturbed":
+        env = AntCostPerturbed(sigma_gravity=args.sigma_gravity)
+        env_evaluate = AntCostPerturbed(sigma_gravity= args.sigma_gravity) #AntWithPostest()
+        env_reset = AntCostPerturbed(sigma_gravity=args.sigma_gravity)
 
     # Set random seed
     # env.reset(seed=seed)
@@ -1026,6 +1047,7 @@ def main(args, run_number):
     evaluate_max_costs = []
 
     replay_buffer = ReplayBuffer(args)
+    #shilpa PrimalDual
     agent = PrimalDual(args)
 
     # Build a tensorboard
@@ -1057,6 +1079,7 @@ def main(args, run_number):
         # if total_steps > args.warm_start_episode:
         #             agent.entropy_coef = 0.0
         s = env.reset()[0][0]
+        # print("Initial state:", s[0][0].shape)  # Debugging: Print the initial state
         # print ("Initial state:", s)  # Debugging: Print the initial state
         # s_org = copy.deepcopy(s)
         if args.use_state_norm:
@@ -1070,7 +1093,9 @@ def main(args, run_number):
         total_cost = 0
         max_cost = float("-inf")
 
-        
+        agent.beta = (
+            args.beta
+        )  # 50.0 #min(max_beta, min_beta * np.exp(total_steps / scale))
         if total_steps > args.warm_start_episode:
             agent.warm_start_flag = 1
         else:
@@ -1279,8 +1304,8 @@ if __name__ == "__main__":
         "--env",
         type=str,
         # default="CartPolePerturbedEnv",
-        default="HalfCheetahWithPos",
-        help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv/PendulumCostEnv/HalfCheetahWithPos/HalfCheetahWithPosPerturbed",
+        default="AntCost",
+        help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv/PendulumCostEnv/HalfCheetahWithPos/AntCost/AntCostPerturbed",
     )
     parser.add_argument("--uncer_set", type=str, default="IPM", help="DS/IPM")
     parser.add_argument(
@@ -1295,7 +1320,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max_train_steps",
         type=int,
-        default=int(16e3),
+        default=int(4.5e3),
         help="Maximum number of training steps",
     )
     parser.add_argument(
@@ -1325,10 +1350,10 @@ if __name__ == "__main__":
         "--lr_a", type=float, default=1e-3, help="Learning rate of actor"
     )
     parser.add_argument(
-        "--lr_c", type=float, default=5e-3, help="Learning rate of critic"
+        "--lr_c", type=float, default=1e-3, help="Learning rate of critic"
     )
     parser.add_argument(
-        "--lr_cost", type=float, default=1e-3, help="Learning rate of critic"
+        "--lr_cost", type=float, default=5e-4, help="Learning rate of critic"
     )
     parser.add_argument(
         "--gamma", type=float, default=0.99, help="Discount factor 0.99"
@@ -1340,10 +1365,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--persistent_eps",
         type=float,
-        default=0.1,
+        default=0.3,
         help="Persistent Safety Perturbation 0.17",
     )
-    parser.add_argument("--K_epochs", type=int, default=5, help="PPO parameter")
+    parser.add_argument("--K_epochs", type=int, default=10, help="PPO parameter")
     parser.add_argument(
         "--use_adv_norm",
         type=bool,
@@ -1363,7 +1388,7 @@ if __name__ == "__main__":
         "--use_reward_scaling", type=bool, default=False, help="Trick 4:reward scaling"
     )
     parser.add_argument(
-        "--entropy_coef", type=float, default=0.001, help="Trick 5: policy entropy"
+        "--entropy_coef", type=float, default=0.01, help="Trick 5: policy entropy"
     )
     parser.add_argument(
         "--use_lr_decay", type=bool, default=True, help="Trick 6:learning rate Decay"
@@ -1405,22 +1430,20 @@ if __name__ == "__main__":
     parser.add_argument("--GAMMA", type=str, default="0", help="file name")
     parser.add_argument("--baseline", type=int, default=9, help="baseline")
     parser.add_argument("--lambda_", type=int, default=50, help="lambda")
+    parser.add_argument("--beta", type=float, default=1e5, help="beta 600")
     parser.add_argument("--run", type=int, default=5, help="run_number")
     parser.add_argument(
         "--warm_start_flag", type=int, default=0, help="warm_start_flag"
     )
     parser.add_argument(
-        "--warm_start_episode", type=int, default=500, help="warm_start_episode"
+        "--warm_start_episode", type=int, default=1300, help="warm_start_episode"
     )
     parser.add_argument(
         "--gravity_std", type=float, default=0.5, help="gravity perturbation"
     )
     parser.add_argument(
-        "--sigma_gravity", type=float, default=0.0, help="gravity perturbation"
+        "--sigma_gravity", type=float, default=0.0, help="viscosity perturbation"
     )
-
-
-
     args = parser.parse_args()
     # make folders to dump results
     if not os.path.exists("./models"):
