@@ -1,0 +1,106 @@
+nohup: ignoring input
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+/home/sm3934/miniconda3/envs/rpcrl_env/lib/python3.10/site-packages/gym/envs/mujoco/mujoco_env.py:190: UserWarning: [33mWARN: This version of the mujoco environments depends on the mujoco-py bindings, which are no longer maintained and may stop working. Please upgrade to the v4 versions of the environments (which depend on the mujoco python bindings instead), unless you are trying to precisely replicate previous works).[0m
+  logger.warn(
+run= 102 seed= 4 env= HumanoidWithCost k_epochs 5
+env=HumanoidWithCost
+state_dim=376
+action_dim=17
+max_action=0.4000000059604645
+max_episode_steps=1000
+------use_orthogonal_init------
+------use_orthogonal_init------
+------use_orthogonal_init------
+  0%|          | 0/6000 [00:00<?, ?it/s]  0%|          | 1/6000 [00:02<3:33:56,  2.14s/it]  0%|          | 2/6000 [00:02<1:56:17,  1.16s/it]  0%|          | 3/6000 [00:05<3:20:08,  2.00s/it]  0%|          | 4/6000 [00:06<2:21:14,  1.41s/it]  0%|          | 5/6000 [00:08<2:59:20,  1.79s/it]  0%|          | 6/6000 [00:09<2:14:51,  1.35s/it]  0%|          | 7/6000 [00:12<3:17:44,  1.98s/it]  0%|          | 8/6000 [00:12<2:33:21,  1.54s/it]  0%|          | 9/6000 [00:15<2:50:37,  1.71s/it]  0%|          | 10/6000 [00:15<2:13:29,  1.34s/it]  0%|          | 11/6000 [00:17<2:36:17,  1.57s/it]  0%|          | 12/6000 [00:18<2:04:22,  1.25s/it]  0%|          | 13/6000 [00:19<2:08:43,  1.29s/it]  0%|          | 14/6000 [00:20<1:45:01,  1.05s/it]  0%|          | 15/6000 [00:21<1:57:50,  1.18s/it]  0%|          | 16/6000 [00:22<1:37:33,  1.02it/s]  0%|          | 17/6000 [00:23<1:59:54,  1.20s/it]  0%|          | 18/6000 [00:24<1:38:54,  1.01it/s]  0%|          | 19/6000 [00:25<1:44:07,  1.04s/it]  0%|          | 20/6000 [00:25<1:28:01,  1.13it/s]  0%|          | 21/6000 [00:28<2:06:24,  1.27s/it]  0%|          | 22/6000 [00:28<1:43:09,  1.04s/it]  0%|          | 23/6000 [00:30<2:04:39,  1.25s/it]  0%|          | 24/6000 [00:30<1:42:21,  1.03s/it]  0%|          | 25/6000 [00:33<2:37:41,  1.58s/it]  0%|          | 26/6000 [00:34<2:07:35,  1.28s/it]  0%|          | 27/6000 [00:36<2:42:37,  1.63s/it]  0%|          | 28/6000 [00:37<2:08:47,  1.29s/it]  0%|          | 29/6000 [00:40<3:02:07,  1.83s/it]  0%|          | 30/6000 [00:40<2:22:15,  1.43s/it]  1%|          | 31/6000 [00:43<3:07:48,  1.89s/it]  1%|          | 32/6000 [00:44<2:26:16,  1.47s/it]  1%|          | 33/6000 [00:46<2:33:29,  1.54s/it]  1%|          | 34/6000 [00:46<2:02:12,  1.23s/it]  1%|          | 35/6000 [00:50<3:11:17,  1.92s/it]  1%|          | 36/6000 [00:50<2:32:12,  1.53s/it]evaluate_num:1 	 evaluate_reward:4984.129878529102 	 evaluate_cost:0.024869860331818927 	 evaluate_max_cost:9.435230458620936e-05
+New best model found! Saving model with reward: 4984.129878529102 and max cost: 9.435230458620936e-05
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 5.143998146057129 1.0 4.143998146057129
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 4.931041717529297 1.0 3.931041717529297
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 4.372690677642822 1.0 3.3726906776428223
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 4.347593784332275 1.0 3.3475937843322754
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.994860887527466 1.0 2.994860887527466
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 4.339075088500977 1.0 3.3390750885009766
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.9420204162597656 1.0 2.9420204162597656
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.8757193088531494 1.0 2.8757193088531494
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.714539051055908 1.0 2.714539051055908
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.6374950408935547 1.0 2.6374950408935547
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.8937158584594727 1.0 2.8937158584594727
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.6696677207946777 1.0 2.6696677207946777
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.5427215099334717 1.0 2.5427215099334717
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.4939017295837402 1.0 2.4939017295837402
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.271543025970459 1.0 2.271543025970459
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 4.2240166664123535 1.0 3.2240166664123535
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.715155839920044 1.0 2.715155839920044
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.3897287845611572 1.0 2.3897287845611572
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.3405683040618896 1.0 2.3405683040618896
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.3064820766448975 1.0 2.3064820766448975
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.8199005126953125 1.0 2.8199005126953125
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.569199562072754 1.0 2.569199562072754
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.272954225540161 1.0 2.272954225540161
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.2522153854370117 1.0 2.2522153854370117
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.198350667953491 1.0 2.198350667953491
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.288156270980835 1.0 2.288156270980835
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.2822773456573486 1.0 2.2822773456573486
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.287062406539917 1.0 2.287062406539917
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.156111240386963 1.0 2.156111240386963
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.0035271644592285 1.0 2.0035271644592285
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.496413230895996 1.0 2.496413230895996
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.372371196746826 1.0 2.372371196746826
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.1027345657348633 1.0 2.1027345657348633
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.05407452583313 1.0 2.05407452583313
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.0220694541931152 1.0 2.0220694541931152
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.205537796020508 1.0 2.205537796020508
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.086238145828247 1.0 2.086238145828247
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.9776124954223633 1.0 1.9776124954223633
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.9993717670440674 1.0 1.9993717670440674
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.9620044231414795 1.0 1.9620044231414795
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.057353973388672 1.0 2.057353973388672
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.0157177448272705 1.0 2.0157177448272705
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.9471397399902344 1.0 1.9471397399902344
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.921260118484497 1.0 1.921260118484497
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.893174409866333 1.0 1.893174409866333
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.11700701713562 1.0 2.11700701713562
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8968255519866943 1.0 1.8968255519866943
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.9001801013946533 1.0 1.9001801013946533
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8243296146392822 1.0 1.8243296146392822
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8770008087158203 1.0 1.8770008087158203
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.9958369731903076 1.0 1.9958369731903076
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8623056411743164 1.0 1.8623056411743164
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8868448734283447 1.0 1.8868448734283447
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8435323238372803 1.0 1.8435323238372803
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.822575807571411 1.0 1.8225758075714111
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.926237106323242 1.0 1.9262371063232422
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8120877742767334 1.0 1.8120877742767334
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.798267126083374 1.0 1.798267126083374
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.842939853668213 1.0 1.842939853668213
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.846261501312256 1.0 1.8462615013122559
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 3.0947682857513428 1.0 2.0947682857513428
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.953770875930786 1.0 1.9537708759307861
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8534998893737793 1.0 1.8534998893737793
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.873042106628418 1.0 1.873042106628418
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.7923898696899414 1.0 1.7923898696899414
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8763887882232666 1.0 1.8763887882232666
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8867862224578857 1.0 1.8867862224578857
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.874319553375244 1.0 1.8743195533752441
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.803255319595337 1.0 1.803255319595337
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.7598776817321777 1.0 1.7598776817321777
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8416552543640137 1.0 1.8416552543640137
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.807363510131836 1.0 1.807363510131836
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.780109405517578 1.0 1.7801094055175781
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.772662401199341 1.0 1.7726624011993408
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8153769969940186 1.0 1.8153769969940186
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8081555366516113 1.0 1.8081555366516113
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.7963552474975586 1.0 1.7963552474975586
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.808406114578247 1.0 1.808406114578247
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.7882611751556396 1.0 1.7882611751556396
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.844735860824585 1.0 1.844735860824585
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.8520569801330566 1.0 1.8520569801330566
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.806596517562866 1.0 1.8065965175628662
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.782773733139038 1.0 1.782773733139038
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.7441484928131104 1.0 1.7441484928131104
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.782682180404663 1.0 1.782682180404663
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.7660579681396484 1.0 1.7660579681396484
+Primal-Dual | lambda, vl_pi, eps, violation = 0.0 2.725222110748291 1.0 1.725222110748291
+  1%|          | 37/6000 [00:54<3:39:21,  2.21s/it]  1%|          | 38/6000 [00:54<2:48:41,  1.70s/it]  1%|          | 39/6000 [00:57<3:20:42,  2.02s/it]  1%|          | 40/6000 [00:58<2:35:56,  1.57s/it]  1%|          | 41/6000 [01:01<3:17:42,  1.99s/it]  1%|          | 42/6000 [01:01<2:32:59,  1.54s/it]  1%|          | 43/6000 [01:02<2:01:47,  1.23s/it]  1%|          | 44/6000 [01:04<2:35:33,  1.57s/it]  1%|          | 45/6000 [01:05<2:05:57,  1.27s/it]  1%|          | 46/6000 [01:07<2:26:15,  1.47s/it]  1%|          | 47/6000 [01:07<1:57:00,  1.18s/it]  1%|          | 48/6000 [01:09<2:21:02,  1.42s/it]  1%|          | 49/6000 [01:10<1:53:32,  1.14s/it]
