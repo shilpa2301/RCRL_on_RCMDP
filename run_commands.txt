@@ -52,6 +52,7 @@ HUMANOID ENV:
 python code_ipm_rcmdp_rcrl_max_humanoid.py --run 1 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 6 --env HumanoidWithCost --lr_c 5e-4 
 python code_ipm_rcmdp_rcrl_max_humanoid.py --run 1 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.001 --seed 6 --env HumanoidWithCostPerturbed --sigma_gravity 0.7 --lr_c 5e-4 
 nohup python code_ipm_rcmdp_rcrl_max_humanoid_RCRL.py --run 101 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 6 --env HumanoidWithCost --lr_c 5e-4 > 101_Humanoid_RCRL.log 2>&1 &
+nohup python code_ipm_rcmdp_rcrl_max_humanoid_PD.py --run 103 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 1e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 6 --env HumanoidWithCost --lr_c 1e-4 > 103_Humanoid_PD.log 2>&1 &
 
 
 

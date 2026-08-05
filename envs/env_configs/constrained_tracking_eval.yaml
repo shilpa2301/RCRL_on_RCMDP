@@ -45,7 +45,7 @@ quadrotor_config:
   #       - 1.5
   #     active_dims:
   #       - 2
-  
+
   constraints:
     - constraint_form: bounded_constraint
       constrained_variable: input

@@ -28,7 +28,8 @@ from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
 from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
 from envs.half_cheetah import HalfCheetahWithPos
 from envs.swimmer import SwimmerWithPos, SwimmerWithPosPerturbed
-from envs.ant import AntCost, AntCostPerturbed
+from envs.humanoid import HumanoidWithCost, HumanoidWithCostPerturbed
+
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -337,32 +338,22 @@ class ReplayBuffer:
         return s, a, a_logprob, r, c, s_, dw, done
 
 
-class RCRL:
+class PrimalDual:
     def __init__(self, args):
         if args.env == "CartPolePerturbedEnv":
             self.env = CartPolePerturbedEnv(
                 args.gravity_std
             )  # CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
-        elif args.env == "CartPoleCostEnv":
-            self.env = CartPoleCostEnv()
-        elif args.env == "PendulumEnv":
-            self.env = PendulumEnv()
-        elif args.env == "PendulumCostEnv":
-            self.env = PendulumCostEnv()
-        elif args.env == "PendulumPerturbedEnv":
-            self.env = PendulumPerturbedEnv()
-        elif args.env == "HopperPerturbedEnv":
-            self.env = HopperPerturbedEnv()
         elif args.env == "HalfCheetahWithPos":
             self.env = HalfCheetahWithPos()
         elif args.env == "SwimmerWithPos":
             self.env = SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
         elif args.env == "SwimmerWithPosPerturbed":
-            self.env = SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
-        elif args.env == "AntCost":
-            self.env = AntCost()    
-        elif args.env == "AntCostPerturbed":
-            self.env = AntCostPerturbed(sigma_gravity=args.sigma_gravity)
+            self.env = SwimmerWithPosPerturbed(sigma_viscosity=0.0, max_steps=1000)
+        elif args.env == "HumanoidWithCost":
+            self.env = HumanoidWithCost()
+        elif args.env == "HumanoidWithCostPerturbed":
+            self.env = HumanoidWithCostPerturbed(sigma_gravity=args.sigma_gravity, max_steps=1000)
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -405,14 +396,6 @@ class RCRL:
         self.Rcritic = Critic(args)
         self.Ccritic = CostCritic(args)
 
-        #shilpa target critic
-        # Initialize target critics
-        # self.target_Rcritic = Critic(args)  # Target reward critic
-        # self.target_Ccritic = CostCritic(args)  # Target cost critic        
-        # # # Copy initial weights from critics to target critics
-        # self.target_Rcritic.load_state_dict(self.Rcritic.state_dict())
-        # self.target_Ccritic.load_state_dict(self.Ccritic.state_dict())
-
         self.beta = args.beta
         # self.persistent_eps = 0.0
         self.warm_start_flag = args.warm_start_flag
@@ -440,8 +423,9 @@ class RCRL:
 
         #shilpa PrimalDual
         self.dual_lambda = torch.tensor(0.0, dtype=torch.float32)
-        self.dual_lr = 1e-5 #1e-3
+        self.dual_lr = 1e-5
         self.dual_lambda_max = 100.0
+
 
     def evaluate(
         self, s
@@ -496,12 +480,12 @@ class RCRL:
         for p in self.optimizer_Ccritic.param_groups:
             p["lr"] = lr_cost_now
 
+  
 
     def update(self, replay_buffer, total_steps):
         s, a, a_logprob, r, c, s_, dw, done = (
             replay_buffer.numpy_to_tensor()
         )  # Get training data
-
         #shilpa RCRL
         # Make sure dual_lambda is on the same device as tensors
         if not isinstance(self.dual_lambda, torch.Tensor):
@@ -525,6 +509,7 @@ class RCRL:
                 vs_ = self.Rcritic(s_)
                 vcs = self.Ccritic(s)
                 vcs_ = self.Ccritic(s_)
+
                 
                 
                 vl_pi = vcs.max()
@@ -656,6 +641,8 @@ class RCRL:
                     adv = (adv - adv.mean()) / (adv.std() + 1e-5)
 
 
+                
+            # Random sampling and no repetition. 'False' indicates that training will continue even if the number of samples in the last time is less than mini_batch_size
             for index in BatchSampler(
                 SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False
             ):
@@ -735,8 +722,7 @@ class RCRL:
             self.alpha_optimzier.step()
             self.alpha = self.log_alpha.exp()
 
-
-   
+    
 def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     times = 3
     evaluate_reward = 0
@@ -990,26 +976,17 @@ def main(args, run_number):
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
     elif args.env == "SwimmerWithPosPerturbed":
-        env = (
-            SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000) #SwimmerWithPostest()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env = ( SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000) )  
+        env_evaluate = ( SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000) )  
         env_reset = SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
-    elif args.env == "AntCost":
-        env = (
-            AntCost()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            AntCost() #AntWithPostest()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = AntCost()
-    elif args.env == "AntCostPerturbed":
-        env = AntCostPerturbed(sigma_gravity=args.sigma_gravity)
-        env_evaluate = AntCostPerturbed(sigma_gravity= args.sigma_gravity) #AntWithPostest()
-        env_reset = AntCostPerturbed(sigma_gravity=args.sigma_gravity)
-
+    elif args.env == "HumanoidWithCost":
+        env = ( HumanoidWithCost() )
+        env_evaluate = ( HumanoidWithCost() )
+        env_reset = HumanoidWithCost()
+    elif args.env == "HumanoidWithCostPerturbed":
+        env =  HumanoidWithCostPerturbed(sigma_gravity=args.sigma_gravity, max_steps=1000) 
+        env_evaluate =  HumanoidWithCostPerturbed(sigma_gravity=args.sigma_gravity, max_steps=1000) 
+        env_reset = HumanoidWithCostPerturbed(sigma_gravity=args.sigma_gravity, max_steps=1000)
     # Set random seed
     # env.reset(seed=seed)
     # env.seed(seed)
@@ -1079,7 +1056,6 @@ def main(args, run_number):
         # if total_steps > args.warm_start_episode:
         #             agent.entropy_coef = 0.0
         s = env.reset()[0][0]
-        # print("Initial state:", s[0][0].shape)  # Debugging: Print the initial state
         # print ("Initial state:", s)  # Debugging: Print the initial state
         # s_org = copy.deepcopy(s)
         if args.use_state_norm:
@@ -1304,8 +1280,8 @@ if __name__ == "__main__":
         "--env",
         type=str,
         # default="CartPolePerturbedEnv",
-        default="AntCost",
-        help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv/PendulumCostEnv/HalfCheetahWithPos/AntCost/AntCostPerturbed",
+        default="HumanoidWithCost",
+        help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv/PendulumCostEnv/HalfCheetahWithPos",
     )
     parser.add_argument("--uncer_set", type=str, default="IPM", help="DS/IPM")
     parser.add_argument(
@@ -1441,8 +1417,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--gravity_std", type=float, default=0.5, help="gravity perturbation"
     )
+    # parser.add_argument(
+    #     "--floor_friction", type=float, default=0.0, help="floor friction perturbation"
+    # )
     parser.add_argument(
-        "--sigma_gravity", type=float, default=0.0, help="viscosity perturbation"
+        "--sigma_gravity", type=float, default=0.7, help="floor friction perturbation"
     )
     args = parser.parse_args()
     # make folders to dump results

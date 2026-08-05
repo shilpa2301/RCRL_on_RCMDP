@@ -16,6 +16,7 @@ import pickle
 import matplotlib.pyplot as plt
 import os
 import copy
+import time
 
 # from envs.cartpole import CartPolePerturbedEnv
 # from envs.half_cheetah import HalfCheetahWithPos
@@ -273,6 +274,7 @@ def test_agent_multiple_models(args, save_paths, env, model_num=None, num_episod
             mean_action = np.mean(actions, axis=0)
 
             next_state, reward, done, info = env_step_compat(env, mean_action)
+            time.sleep(5.0 / 240.0)
 
             c = extract_multicost(args, info)
 
@@ -696,7 +698,7 @@ if __name__ == "__main__":
 
     directories = [
         "./models/quadrotor/run13/Best_RCAC",
-        "./models/Quadrotor/run18/Best_RCAC",
+        # "./models/Quadrotor/run18/Best_RCAC",
     ]
     model_num = 6200
 
@@ -713,6 +715,6 @@ if __name__ == "__main__":
         directories,
         labels,
         save=True,
-        base_filename="plot_inference/quadrotor_inference",
+        base_filename="plot_inference/quadrotor_inference_dummy",
         smooth_window=20,
     )
