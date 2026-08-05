@@ -5,7 +5,7 @@ sbatch cluster.sh
 squeue -u sm3934
 
 HOPPER ENV:
-python code_ipm_rcmdp_rcrl_max_hopper.py --run 23 --seed 1 --env HopperPerturbedEnv --persistent_eps 2.0 --beta 5 --max_train_steps 10000 --batch_size 1024
+python code_ipm_rcmdp_rcrl_max_hopper.py --run 23 --seed 1 --env HopperPerturbedEnv --persistent_eps 0.1 --beta 5 --max_train_steps 10000 --batch_size 1024
 
 CARTPOLE ENV:
 python code_ipm_rcmdp_rcrl_max.py --run 13 --seed 1 --env CartPoleCostEnv --persistent_eps 2.0 --beta 25.0 --max_train_steps 6000
@@ -21,10 +21,16 @@ python code_ipm_rcmdp_rcrl_max_pendulum3.py --run 10 --persistent_eps 0.25 --bet
 python code_ipm_rcmdp_rcrl_max_pendulum4.py --run 12 --persistent_eps 0.001 --beta 200000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 700 --lr_cost 5e-5 --entropy_coef 0.001
 
 ===================================================== AFTER CDC============================================================================
+HOPPER ENV:
+nohup python code_ipm_rcmdp_rcrl_max_hopper.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 700 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HopperCostEnv --lr_c 5e-3 > 1_hopper_RPCRL.log 2>&1 &
+
+
 HALFCHEETAH ENV:
 python code_ipm_rcmdp_rcrl_max_hc.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahWithPos --lr_c 5e-3 
 python code_ipm_rcmdp_rcrl_max_hc.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --seed 5 --env HalfCheetahWithPosPerturbed --lr_c 5e-3 --sigma_gravity 2.0
 python code_ipm_rcmdp_rcrl_max_hc_PD.py --run 1 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 5e-4 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahWithPos --lr_c 5e-4
+nohup python code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py --run 105 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 5e-4 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahCMDP --lr_c 5e-4 > 105_hc_CMDP.log 2>&1 &
+nohup python code_ipm_rcmdp_rcrl_max_hc_nstepGAE.py --run 201 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahWithPos --lr_c 5e-3 > 201_hc_NstepRPCRL.log 2>&1 &
 
 
 REACHER ENV:
