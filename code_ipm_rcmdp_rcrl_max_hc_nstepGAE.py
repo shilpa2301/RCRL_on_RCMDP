@@ -600,7 +600,7 @@ class RPCRL:
                 # Use full rollout horizon.
                 # If you want shorter horizon, define self.cost_gae_horizon and use:
                 # M = min(self.cost_gae_horizon, T)
-                M = T
+                M = min(128,T) #T
 
                 eps = 1e-8
 

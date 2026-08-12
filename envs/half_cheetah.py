@@ -416,8 +416,11 @@ class HalfCheetahCMDP(HalfCheetahEnv):
     OBS_DIM = 19
 
     max_steps = 1000
+    
 
     def __init__(self):
+        self._elapsed_steps = 0
+        self.max_cost = 0.0
         super().__init__()
 
         obs_high = np.inf * np.ones(self.OBS_DIM, dtype=np.float32)
@@ -428,10 +431,6 @@ class HalfCheetahCMDP(HalfCheetahEnv):
             dtype=np.float32,
         )
 
-        self._elapsed_steps = 0
-
-        # Maximum raw cost observed so far in current episode.
-        self.max_cost = 0.0
 
     def _get_base_obs(self):
         """
@@ -485,13 +484,13 @@ class HalfCheetahCMDP(HalfCheetahEnv):
         return obs, {}
 
     def reset_model(self):
-        qpos = self.init_qpos + np.random.uniform(
+        qpos = self.init_qpos + self.np_random.uniform(
             low=-0.1,
             high=0.1,
             size=self.model.nq,
         )
 
-        qvel = self.init_qvel + np.random.randn(self.model.nv) * 0.1
+        qvel = self.init_qvel + self.np_random.randn(self.model.nv) * 0.1
 
         self.set_state(qpos, qvel)
 
