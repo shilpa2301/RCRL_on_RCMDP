@@ -24,7 +24,7 @@ from gym import utils
 from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
-from envs.hopper import HopperCostEnv
+from envs.hopper import HopperCostEnv, HopperPerturbedEnv
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -333,10 +333,12 @@ class ReplayBuffer:
         return s, a, a_logprob, r, c, s_, dw, done
 
 
-class Robust_RCAC_NPG:
+class RPCRL:
     def __init__(self, args):
         if args.env == "HopperCostEnv":
-            self.env = HopperCostEnv()        
+            self.env = HopperCostEnv() 
+        elif args.env == "HopperPerturbedEnv":
+            self.env = HopperPerturbedEnv(sigma_gravity=args.sigma_gravity)       
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -928,6 +930,13 @@ def main(args, run_number):
         env = (HopperCostEnv())
         env_evaluate = (HopperCostEnv())
         env_reset = HopperCostEnv()
+    elif args.env == "HopperPerturbedEnv":
+        env = (HopperPerturbedEnv(sigma_gravity=args.sigma_gravity))
+        env_evaluate = (HopperPerturbedEnv(sigma_gravity=args.sigma_gravity))
+        env_reset = HopperPerturbedEnv(sigma_gravity=args.sigma_gravity)
+    else:
+        print("No env selected")
+        return
     
     # Set random seed
     # env.reset(seed=seed)
@@ -966,7 +975,7 @@ def main(args, run_number):
     evaluate_max_costs = []
 
     replay_buffer = ReplayBuffer(args)
-    agent = Robust_RCAC_NPG(args)
+    agent = RPCRL(args)
 
     # Build a tensorboard
     writer = SummaryWriter(

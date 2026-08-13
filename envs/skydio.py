@@ -1,14 +1,3 @@
-# import time
-# import numpy as np
-# # import gymnasium as gym
-# # from gymnasium import spaces
-# # import mujoco
-# import gym                          # FIX 1: add gym import (needed for gym.utils.seeding)
-# from gym import utils
-# # from gym.envs.mujoco import MuJocoPyEnv
-# from gym.envs import mujoco
-# # from gym.spaces import Box
-# from gym import spaces
 
 import time
 import numpy as np
@@ -63,10 +52,12 @@ class SkydioTrackingEnv(gym.Env):
         self.trajectory_period = trajectory_period
         self.omega = 2.0 * np.pi / self.trajectory_period
 
-        self.hover_ctrl = np.array(
-            [3.2495625, 3.2495625, 3.2495625, 3.2495625],
-            dtype=np.float64
-        )
+        # self.hover_ctrl = np.array(
+        #     [3.2495625, 3.2495625, 3.2495625, 3.2495625],
+        #     dtype=np.float64
+        # )
+
+        self.hover_ctrl = self.model.keyframe('hover').ctrl.copy()
 
         self.action_scale = action_scale
 
@@ -97,6 +88,14 @@ class SkydioTrackingEnv(gym.Env):
         self.prev_ctrl = self.hover_ctrl.copy()
         self.step_count = 0
         self.t = 0.0
+
+        if self.model.actuator_ctrllimited.any():
+            self.ctrl_low = self.model.actuator_ctrlrange[:, 0].copy()
+            self.ctrl_high = self.model.actuator_ctrlrange[:, 1].copy()
+        else:
+            self.ctrl_low = np.zeros(self.model.nu)
+            self.ctrl_high = np.ones(self.model.nu) * 13.0
+
 
        
     def _reference(self, t):
@@ -221,15 +220,18 @@ class SkydioTrackingEnv(gym.Env):
         action = np.asarray(action, dtype=np.float64)
         action = np.clip(action, -1.0, 1.0)
 
+        prev_ctrl_before_step = self.prev_ctrl.copy()
         ctrl = self.hover_ctrl + self.action_scale * action
-        ctrl = np.clip(ctrl, 0.0, 13.0)
+        # ctrl = np.clip(ctrl, 0.0, 13.0)
+        ctrl = np.clip(ctrl, self.ctrl_low, self.ctrl_high)
+
 
         self.data.ctrl[:] = ctrl
 
         for _ in range(self.frame_skip):
             mujoco.mj_step(self.model, self.data)
 
-        self.prev_ctrl = ctrl.copy()
+       
         self.step_count += 1
         self.t = self.step_count * self.dt
 
@@ -253,7 +255,8 @@ class SkydioTrackingEnv(gym.Env):
         ])
 
         action_deviation = (ctrl - self.hover_ctrl) / self.action_scale
-        action_smoothness = (ctrl - self.prev_ctrl) / self.action_scale
+        action_smoothness = (ctrl - prev_ctrl_before_step) / self.action_scale
+        self.prev_ctrl = ctrl.copy()
 
         # Main tracking reward.
         # reward = (
@@ -355,10 +358,13 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
         action_scale=2.0,
         action_low_safe=-0.75,
         action_high_safe=0.75,
+        randomize_phase=False, #True when robusrtness is required, False when not required
 
 
     ):
         super().__init__()
+
+        self.randomize_phase = randomize_phase
 
         self.model = mujoco.MjModel.from_xml_path(xml_path)
         self.data = mujoco.MjData(self.model)
@@ -386,10 +392,8 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
         self.trajectory_period = trajectory_period
         self.omega = 2.0 * np.pi / self.trajectory_period
 
-        self.hover_ctrl = np.array(
-            [3.2495625, 3.2495625, 3.2495625, 3.2495625],
-            dtype=np.float64
-        )
+        self.hover_ctrl = self.model.keyframe('hover').ctrl.copy()
+
 
         self.action_scale = action_scale
 
@@ -426,6 +430,14 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
 
         if np.any(self.action_low_safe >= self.action_high_safe):
             raise ValueError("action_low_safe must be smaller than action_high_safe.")
+
+        if self.model.actuator_ctrllimited.any():
+            self.ctrl_low = self.model.actuator_ctrlrange[:, 0].copy()
+            self.ctrl_high = self.model.actuator_ctrlrange[:, 1].copy()
+        else:
+            self.ctrl_low = np.zeros(self.model.nu)
+            self.ctrl_high = np.ones(self.model.nu) * 13.0
+
 
 
 
@@ -523,7 +535,14 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
         mujoco.mj_resetData(self.model, self.data)
 
         self.step_count = 0
-        self.t = 0.0
+        # self.t = 0.0
+        #robustness
+        if self.randomize_phase:
+            self.t = self.np_random.uniform(0.0, self.trajectory_period)
+        else:
+            self.t = 0.0
+
+
 
         pos_ref, vel_ref = self._reference(self.t)
 
@@ -551,17 +570,24 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
         action = np.asarray(action, dtype=np.float64)
         action = np.clip(action, -1.0, 1.0)
 
+        prev_ctrl_before_step = self.prev_ctrl.copy()
+
         ctrl = self.hover_ctrl + self.action_scale * action
-        ctrl = np.clip(ctrl, 0.0, 13.0)
+        # ctrl = np.clip(ctrl, 0.0, 13.0)
+        ctrl = np.clip(ctrl, self.ctrl_low, self.ctrl_high)
+
 
         self.data.ctrl[:] = ctrl
 
         for _ in range(self.frame_skip):
             mujoco.mj_step(self.model, self.data)
 
-        self.prev_ctrl = ctrl.copy()
+        
+        # self.step_count += 1
+        # self.t = self.step_count * self.dt
+        self.t += self.dt
         self.step_count += 1
-        self.t = self.step_count * self.dt
+
 
         obs = self._get_obs()
 
@@ -583,7 +609,8 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
         ])
 
         action_deviation = (ctrl - self.hover_ctrl) / self.action_scale
-        action_smoothness = (ctrl - self.prev_ctrl) / self.action_scale
+        action_smoothness = (ctrl - prev_ctrl_before_step) / self.action_scale
+        self.prev_ctrl = ctrl.copy()
 
         # Main tracking reward.
         # reward = (

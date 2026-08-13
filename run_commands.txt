@@ -22,7 +22,8 @@ python code_ipm_rcmdp_rcrl_max_pendulum4.py --run 12 --persistent_eps 0.001 --be
 
 ===================================================== AFTER CDC============================================================================
 HOPPER ENV:
-nohup python code_ipm_rcmdp_rcrl_max_hopper.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 700 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HopperCostEnv --lr_c 5e-3 > 1_hopper_RPCRL.log 2>&1 &
+nohup python code_ipm_rcmdp_rcrl_max_hopper.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 700 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HopperCostEnv --lr_c 5e-3 > 1_hopper_RPCRL.log 2>&1 &
+python code_ipm_rcmdp_rcrl_max_hopper.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 700 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --seed 5 --env HopperPerturbedEnv --lr_c 5e-3 --sigma_gravity 0.5
 
 
 HALFCHEETAH ENV:
