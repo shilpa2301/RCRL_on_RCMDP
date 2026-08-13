@@ -348,7 +348,7 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
     def __init__(
         self,
         xml_path='./envs/mujoco_menagerie/skydio_x2/scene.xml',
-        render_mode=None,
+        render_mode=None, 
         trajectory_type="circle",
         frame_skip=2,
         episode_seconds=20.0,
@@ -379,6 +379,16 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
         )
         if self.body_id < 0:
             raise RuntimeError("Could not find body named 'x2'.")
+
+        self.target_geom_id = mujoco.mj_name2id(
+            self.model,
+            mujoco.mjtObj.mjOBJ_GEOM,
+            "tracking_target"
+        )
+
+        if self.target_geom_id < 0:
+            raise RuntimeError("Could not find geom named 'tracking_target'.")
+
 
         self.frame_skip = frame_skip
         self.dt = self.model.opt.timestep * self.frame_skip
@@ -439,6 +449,10 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
             self.ctrl_high = np.ones(self.model.nu) * 13.0
 
 
+    def _update_target_marker(self):
+        if self.target_geom_id >= 0:
+            pos_ref, vel_ref = self._reference(self.t)
+            self.model.geom_pos[self.target_geom_id] = pos_ref
 
 
     def _reference(self, t):
@@ -562,6 +576,8 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
         self.prev_ctrl = self.hover_ctrl.copy()
         self.data.ctrl[:] = self.hover_ctrl
 
+        self._update_target_marker()
+
         mujoco.mj_forward(self.model, self.data)
 
         return self._get_obs(), {}
@@ -588,6 +604,7 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
         self.t += self.dt
         self.step_count += 1
 
+        self._update_target_marker()
 
         obs = self._get_obs()
 
@@ -695,7 +712,7 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
 
         }
 
-        # cost = 0.0
+        
 
         if self.render_mode == "human":
             self.render()
