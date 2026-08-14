@@ -75,9 +75,8 @@ python code_ipm_rcmdp_rcrl_max_skydio_multiconstraint.py --run 1 --persistent_ep
 
 
 PUSHER ENV 
-python code_ipm_rcmdp_rcrl_max_pusher.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_viscosity 0.0 --env PusherWithCost --seed 1
-python code_ipm_rcmdp_rcrl_max_pusher.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --sigma_viscosity 0.7 --env PusherWithCostPerturbed --seed 1
-
+ python code_ipm_rcmdp_rcrl_max_pusher.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 1200 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_viscosity 0.0 --env PusherWithCost --seed 1
+ python code_ipm_rcmdp_rcrl_max_pusher.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 1200 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --sigma_viscosity 0.7 --env PusherWithCostPerturbed --seed 1
 
 PRIMAL DUAL (WORK IN PROGRESS):
 python code_ipm_rcmdp_primal_dual_swimmer.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_viscosity 0.0 --env SwimmerWithPos --seed 1

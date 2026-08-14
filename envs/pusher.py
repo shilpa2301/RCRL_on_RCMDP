@@ -139,6 +139,7 @@ class PusherWithCostBase(pusher_v4.PusherEnv):
                 0.0,
             )
         )
+        # cost = 0.0
 
         truncated = self._elapsed_steps >= self.max_steps
         terminated = False

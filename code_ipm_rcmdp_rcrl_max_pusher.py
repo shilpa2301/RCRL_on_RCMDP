@@ -366,6 +366,7 @@ class RPCRL:
         self.weight_reg = args.weight_reg
         self.lambda_ = args.lambda_
         # self.b = args.baseline
+        self.cost_scale = args.cost_scale
         if self.adaptive_alpha:
             self.target_entropy = -args.action_dim
             self.log_alpha = torch.zeros(1, requires_grad=True)
@@ -547,7 +548,7 @@ class RPCRL:
                 
                 vl_pi = vcs.max()
                 # penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
-                penalty_term = vl_pi - torch.tensor(self.persistent_eps)
+                penalty_term = self.cost_scale * vl_pi - torch.tensor(self.persistent_eps)
                 beta_penalty = self.beta * penalty_term
                 vs_mean = vs.mean().item()
                 if self.warm_start_flag == 1:
@@ -753,7 +754,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     evaluate_cost = 0
     evaluate_max_cost = float("-inf")
     for _ in range(times):
-        s = env.reset(seed=args.seed)[0][0]
+        s = env.reset(seed=args.seed)[0]#[0]
         if args.use_state_norm:
             s = state_norm(s, update=False)  # During the evaluating,update=False
         done = False
@@ -999,13 +1000,13 @@ def main(args, run_number):
     best_reward = float("-inf")  # Start with the minimum possible reward
     best_model_path = None
 
-    reward_offset = 0 # 40 #17
+    reward_offset = 200 # 40 #17
     for total_steps in tqdm(range(args.max_train_steps)):
         # if total_steps > args.max_train_steps // 2:
         #    agent.gamma = 0.999
         # if total_steps > args.warm_start_episode:
         #             agent.entropy_coef = 0.0
-        s = env.reset()[0][0]
+        s = env.reset()[0]#[0]
         # print ("Initial state:", s)  # Debugging: Print the initial state
         # s_org = copy.deepcopy(s)
         if args.use_state_norm:
@@ -1115,7 +1116,7 @@ def main(args, run_number):
             # dw = done
 
             # Take the 'action'，but store the original 'a'（especially for Beta）
-            replay_buffer.store(s, a, a_logprob, r + reward_offset, c, s_, dw, done)
+            replay_buffer.store(s, a, a_logprob, np.exp(r), c, s_, dw, done)
             s = copy.deepcopy(s_)
             # s_org = copy.deepcopy(state_norm.denormal(s_, update=False))
 
@@ -1153,7 +1154,7 @@ def main(args, run_number):
                 evaluate_rewards,
                 evaluate_costs,
                 evaluate_max_costs,
-                persistent_eps=args.persistent_eps,
+                persistent_eps=args.persistent_eps/args.cost_scale,
                 save=True,
                 filename=f"{plot_data_dir}/eval_metrics.png",
             )
@@ -1182,7 +1183,7 @@ def main(args, run_number):
             # Check if the current model satisfies the conditions for being the best
             if (
                 evaluate_reward > best_reward
-                and evaluate_max_cost <= args.persistent_eps
+                and evaluate_max_cost <= args.persistent_eps/args.cost_scale
             ):
                 best_reward = evaluate_reward
                 best_model_path = f"{model_dir}/Best_RCAC"
@@ -1367,6 +1368,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sigma_viscosity", type=float, default=0.0, help="viscosity perturbation"
     )
+    parser.add_argument(
+            "--cost_scale", type=float, default=1.0, help="cost scale"
+        )
     args = parser.parse_args()
     # make folders to dump results
     if not os.path.exists("./models"):
