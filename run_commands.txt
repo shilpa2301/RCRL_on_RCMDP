@@ -70,13 +70,17 @@ python code_ipm_rcmdp_rcrl_max_walker2d.py --run 1 --persistent_eps 0.1 --beta 3
 
 SKYDIO ENV:
 python code_ipm_rcmdp_rcrl_max_skydio.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 500 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 2 --env SkydioTrackingEnv --lr_c 5e-4 
-python code_ipm_rcmdp_rcrl_max_skydio_multiconstraint.py --run 1 --persistent_eps 0.5 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 1300 --lr_cost 5e-4 --lr_c 5e-4 --lr_a 5e-4 --entropy_coef 0.007 --env SkydioTrackingMultiConstraintEnv --weight_reg 0.0 --seed 2 --batch_size 1024 --mini_batch_size 256 --cost_scale 100.0
 python code_ipm_rcmdp_rcrl_max_skydio_multiconstraint.py --run 1 --persistent_eps 0.5 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 1300 --lr_cost 5e-4 --lr_c 5e-4 --lr_a 5e-4 --entropy_coef 0.007 --env SkydioTrackingMultiConstraintEnv --weight_reg 0.0 --seed 2 --batch_size 1024 --mini_batch_size 256 --cost_scale 10.0
 
 
 PUSHER ENV 
- python code_ipm_rcmdp_rcrl_max_pusher.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 1200 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_viscosity 0.0 --env PusherWithCost --seed 1
- python code_ipm_rcmdp_rcrl_max_pusher.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 1200 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --sigma_viscosity 0.7 --env PusherWithCostPerturbed --seed 1
+python code_ipm_rcmdp_rcrl_max_pusher.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 1200 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_viscosity 0.0 --env PusherWithCost --seed 1
+nohup python code_ipm_rcmdp_rcrl_max_pusher.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 1200 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --sigma_viscosity 0.7 --env PusherWithCostPerturbed --seed 1 > 100_run2_PusherPerturbed.log 2>&1 &
+
+
+INVERTED PENDULUM
+nohup python code_ipm_rcmdp_rcrl_max_inverted_pendulum.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 8000 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_gravity 0.0 --env InvertedPendulumWithCost --seed 5 > 100_run1_InvPend.log 2>&1 &
+ nohup python code_ipm_rcmdp_rcrl_max_inverted_pendulum.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 1000 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --sigma_gravity 0.7 --env InvertedPendulumWithCostPerturbed --seed 5 > 100_run1_InvPendPerturbed.log 2>&1 &
 
 PRIMAL DUAL (WORK IN PROGRESS):
 python code_ipm_rcmdp_primal_dual_swimmer.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_viscosity 0.0 --env SwimmerWithPos --seed 1

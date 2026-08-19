@@ -24,9 +24,6 @@ from gym import utils
 from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
-# from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
-# from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
-# from envs.half_cheetah import HalfCheetahWithPos
 from envs.skydio import SkydioTrackingMultiConstraintEnv
 
 
@@ -348,29 +345,10 @@ class ReplayBuffer:
         return s, a, a_logprob, r, c, s_, dw, done
 
 
-class Robust_RCAC_NPG:
+class RPCRL:
     def __init__(self, args):
-        if args.env == "CartPolePerturbedEnv":
-            self.env = CartPolePerturbedEnv(
-                args.gravity_std
-            )  # CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
-        elif args.env == "CartPoleCostEnv":
-            self.env = CartPoleCostEnv()
-        elif args.env == "PendulumEnv":
-            self.env = PendulumEnv()
-        elif args.env == "PendulumCostEnv":
-            self.env = PendulumCostEnv()
-        elif args.env == "PendulumPerturbedEnv":
-            self.env = PendulumPerturbedEnv()
-        elif args.env == "HopperPerturbedEnv":
-            self.env = HopperPerturbedEnv()
-        elif args.env == "HalfCheetahWithPos":
-            self.env = HalfCheetahWithPos()
-        elif args.env == "SwimmerWithPos":
-            self.env = SwimmerWithPos(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
-        elif args.env == "Quadrotor":
-            self.env = make('quadrotor', **config.quadrotor_config)
-        elif args.env == "SkydioTrackingMultiConstraintEnv":
+        
+        if args.env == "SkydioTrackingMultiConstraintEnv":
             self.env = SkydioTrackingMultiConstraintEnv()
         else:
             print("No env selected")
@@ -1462,7 +1440,7 @@ def main(args, run_number):
     evaluate_max_costs = []
 
     replay_buffer = ReplayBuffer(args)
-    agent = Robust_RCAC_NPG(args)
+    agent = RPCRL(args)
 
     # Build a tensorboard
     writer = SummaryWriter(
@@ -1847,8 +1825,8 @@ if __name__ == "__main__":
         "--env",
         type=str,
         # default="CartPolePerturbedEnv",
-        default="Quadrotor",
-        help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv/PendulumCostEnv/HalfCheetahWithPos",
+        default="SkydioTrackingMultiConstraintEnv",
+        help="give the environment name",
     )
     parser.add_argument("--uncer_set", type=str, default="IPM", help="DS/IPM")
     parser.add_argument(
