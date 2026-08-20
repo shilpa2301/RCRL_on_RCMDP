@@ -25,7 +25,7 @@ from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
 from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
-from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
+# from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
 from envs.half_cheetah import HalfCheetahWithPos, HalfCheetahWithPosPerturbed, HalfCheetahCMDP
 
 
@@ -337,21 +337,7 @@ class ReplayBuffer:
 
 class PrimalDual:
     def __init__(self, args):
-        if args.env == "CartPolePerturbedEnv":
-            self.env = CartPolePerturbedEnv(
-                args.gravity_std
-            )  # CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
-        elif args.env == "CartPoleCostEnv":
-            self.env = CartPoleCostEnv()
-        elif args.env == "PendulumEnv":
-            self.env = PendulumEnv()
-        elif args.env == "PendulumCostEnv":
-            self.env = PendulumCostEnv()
-        elif args.env == "PendulumPerturbedEnv":
-            self.env = PendulumPerturbedEnv()
-        elif args.env == "HopperPerturbedEnv":
-            self.env = HopperPerturbedEnv()
-        elif args.env == "HalfCheetahCMDP":
+        if args.env == "HalfCheetahCMDP":
             self.env = HalfCheetahCMDP()
         else:
             print("No env selected")
@@ -420,7 +406,7 @@ class PrimalDual:
             )
         #shilpa RCRL
         self.dual_lambda = torch.tensor(0.0, dtype=torch.float32)
-        self.dual_lr = 1e-5 #1e-3
+        self.dual_lr = 1e-6 #1e-5 #1e-3
         self.dual_lambda_max = 100.0
 
        
@@ -913,62 +899,7 @@ def main(args, run_number):
     os.makedirs(data_train_dir, exist_ok=True)
     os.makedirs(plot_data_dir, exist_ok=True)
 
-    if args.env == "CartPolePerturbedEnv":
-        env = CartPolePerturbedEnv(
-            args.gravity_std
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            CartPolePerturbedEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = (
-            CartPolePerturbedEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == "CartPoleCostEnv":
-        env = (
-            CartPoleCostEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            CartPoleCostEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = (
-            CartPoleCostEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == "HopperPerturbed":
-        env = (
-            HopperPerturbed()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            HopperPerturbed()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = (
-            HopperPerturbed()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == "PendulumEnv":
-        env = (
-            PendulumEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            PendulumEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = PendulumEnv()
-
-    elif args.env == "PendulumCostEnv":
-        env = (
-            PendulumCostEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            PendulumCostEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = PendulumCostEnv()
-    elif args.env == "PendulumPerturbedEnv":
-        env = (
-            PendulumPerturbedEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            PendulumPerturbedEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = PendulumPerturbedEnv()
-    elif args.env == "HalfCheetahCMDP":
+    if args.env == "HalfCheetahCMDP":
         env = (
             HalfCheetahCMDP()
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
@@ -1047,7 +978,7 @@ def main(args, run_number):
         # if total_steps > args.warm_start_episode:
         #             agent.entropy_coef = 0.0
         s = env.reset()[0]#[0]
-        print("Initial state:", s)  # Debugging: Print the initial state
+        # print("Initial state:", s)  # Debugging: Print the initial state
         # print ("Initial state:", s)  # Debugging: Print the initial state
         # s_org = copy.deepcopy(s)
         if args.use_state_norm:
@@ -1129,6 +1060,7 @@ def main(args, run_number):
                 total_reward += r
                 total_cost += c
                 max_cost = max(max_cost, c)
+                # print("cost:", c, "max_cost:", max_cost)  # Debugging: Print the cost and max cost
             # x_pos = np.array([info["x_position"]])
             if args.use_state_norm:
                 # nexts = state_norm(nexts, update=False)

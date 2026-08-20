@@ -1,3 +1,4 @@
+from cmath import tau
 import os
 
 import gym
@@ -490,7 +491,7 @@ class HalfCheetahCMDP(HalfCheetahEnv):
             size=self.model.nq,
         )
 
-        qvel = self.init_qvel + self.np_random.randn(self.model.nv) * 0.1
+        qvel = self.init_qvel + self.np_random.normal(self.model.nv) * 0.1
 
         self.set_state(qpos, qvel)
 
@@ -556,12 +557,31 @@ class HalfCheetahCMDP(HalfCheetahEnv):
         #
         # Use previous max_cost before updating it.
         # ============================================================
+        # previous_max_cost = self.max_cost
+
+        # raw_cost = np.maximum(float(current_c - previous_max_cost), 0.0)
+
+        # tau = 5e-2  # choose your temperature
+
+        # cost = float(tau * np.log1p(np.exp(raw_cost / tau)))
+
+        # # Update max_cost after computing returned cost.
+        # self.max_cost = float(max(previous_max_cost, current_c))
+
         previous_max_cost = self.max_cost
 
-        cost = float(current_c - previous_max_cost)
+        incremental_max_cost = max(current_c - previous_max_cost, 0.0)
 
-        # Update max_cost after computing returned cost.
+        dense_cost = current_c
+
+        alpha = 0.1
+        beta = 1.0
+        # print(dense_cost, incremental_max_cost, alpha, beta)
+
+        cost = beta * dense_cost + alpha * incremental_max_cost
+
         self.max_cost = float(max(previous_max_cost, current_c))
+
 
         # State augmented with max_cost observed up to this time step.
         ob = self._get_obs()

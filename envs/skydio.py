@@ -217,8 +217,8 @@ class SkydioTrackingEnv(gym.Env):
         return self._get_obs(), {}
 
     def step(self, action):
-        action = np.asarray(action, dtype=np.float64)
-        action = np.clip(action, -1.0, 1.0)
+        raw_action = np.asarray(action, dtype=np.float64)
+        action = np.clip(raw_action, -1.0, 1.0)
 
         prev_ctrl_before_step = self.prev_ctrl.copy()
         ctrl = self.hover_ctrl + self.action_scale * action
@@ -583,8 +583,8 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
         return self._get_obs(), {}
 
     def step(self, action):
-        action = np.asarray(action, dtype=np.float64)
-        action = np.clip(action, -1.0, 1.0)
+        raw_action = np.asarray(action, dtype=np.float64)
+        action = np.clip(raw_action, -1.0, 1.0)
 
         prev_ctrl_before_step = self.prev_ctrl.copy()
 
@@ -681,8 +681,8 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
         # [a1_low, a1_high, a2_low, a2_high, ..., an_low, an_high]
         # ------------------------------------------------------------
 
-        g_action_low = self.action_low_safe - action
-        g_action_high = action - self.action_high_safe
+        g_action_low = self.action_low_safe - raw_action
+        g_action_high = raw_action - self.action_high_safe
 
         lower_violation_cost = np.maximum(g_action_low, 0.0)
         upper_violation_cost = np.maximum(g_action_high, 0.0)
@@ -690,6 +690,10 @@ class SkydioTrackingMultiConstraintEnv(gym.Env):
         cost = np.empty(2 * action.shape[0], dtype=np.float64)
         cost[0::2] = lower_violation_cost
         cost[1::2] = upper_violation_cost
+        # cost = np.empty(action.shape[0], dtype=np.float64)
+        # # cost[:] = lower_violation_cost
+        # cost[:] = upper_violation_cost
+
 
 
         info = {
