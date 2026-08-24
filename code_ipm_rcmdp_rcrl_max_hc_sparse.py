@@ -24,9 +24,7 @@ from gym import utils
 from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
-from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
-# from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
-from envs.half_cheetah import HalfCheetahWithPos, HalfCheetahWithPosPerturbed, HalfCheetahCMDP
+from envs.half_cheetah import HalfCheetahForwardObstacleCMDP
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -335,10 +333,10 @@ class ReplayBuffer:
         return s, a, a_logprob, r, c, s_, dw, done
 
 
-class PrimalDual:
+class RPCRL:
     def __init__(self, args):
-        if args.env == "HalfCheetahCMDP":
-            self.env = HalfCheetahCMDP()
+        if args.env == "HalfCheetahForwardObstacleCMDP":
+            self.env = HalfCheetahForwardObstacleCMDP()
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -381,6 +379,15 @@ class PrimalDual:
         self.Rcritic = Critic(args)
         self.Ccritic = CostCritic(args)
 
+        #shilpa target critic
+        # Initialize target critics
+        # self.target_Rcritic = Critic(args)  # Target reward critic
+        # self.target_Ccritic = CostCritic(args)  # Target cost critic        
+        # # # Copy initial weights from critics to target critics
+        # self.target_Rcritic.load_state_dict(self.Rcritic.state_dict())
+        # self.target_Ccritic.load_state_dict(self.Ccritic.state_dict())
+
+        self.beta = args.beta
         # self.persistent_eps = 0.0
         self.warm_start_flag = args.warm_start_flag
 
@@ -404,12 +411,22 @@ class PrimalDual:
             self.optimizer_Ccritic = torch.optim.Adam(
                 self.Ccritic.parameters(), lr=self.lr_cost
             )
-        #shilpa RCRL
-        self.dual_lambda = torch.tensor(0.0, dtype=torch.float32)
-        self.dual_lr = 1e-6 #1e-5 #1e-3
-        self.dual_lambda_max = 100.0
 
-       
+        #shilpa target critic 
+        # Target networks are not optimized directly
+        # self.target_Rcritic.eval()
+        # self.target_Ccritic.eval()
+        # for p in self.target_Rcritic.parameters():
+        #     p.requires_grad = False
+        # for p in self.target_Ccritic.parameters():
+        #     p.requires_grad = False
+        # self.tau = getattr(args, "tau", 0.005)
+
+        # In __init__, add:
+        # self.ch = 0                        # current mode: 0=reward, 1=cost
+        # self.enter_cost_threshold  = self.persistent_eps          # enter cost mode if max > this
+        # self.exit_cost_threshold   = self.persistent_eps * 0.8   # exit cost mode only if max < this (more lenient)
+
 
     def evaluate(
         self, s
@@ -464,8 +481,29 @@ class PrimalDual:
         for p in self.optimizer_Ccritic.param_groups:
             p["lr"] = lr_cost_now
 
+    def softmax_fn(self, a, b, temperature=0.1):
+        exp_a = torch.exp(a / temperature)
+        exp_b = torch.exp(b / temperature)
+        softmax_weighted = (a * exp_a + b * exp_b) / (exp_a + exp_b)
+        return softmax_weighted
 
-    
+    def log_sum_exp_fn(self, a, b, eta=0.01): #prev 0.001
+        # Compute the Log-Sum-Exp smooth approximation of max(a, b)
+        # print("a, b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta))= ", a,b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta)))
+        # lse = eta * torch.log(torch.exp(a / eta) + torch.exp(b / eta))
+
+        if not isinstance(a, torch.Tensor):
+            a = torch.tensor(a, dtype=torch.float32)
+        if not isinstance(b, torch.Tensor):
+            b = torch.tensor(b, dtype=torch.float32)
+
+        # Find the maximum value between a and b : else exp(10/0.1) becomes infinity
+        max_val = torch.max(a, b)
+        # Stabilize the log-sum-exp computation
+        lse = max_val + eta * torch.log(
+            torch.exp((a - max_val) / eta) + torch.exp((b - max_val) / eta)
+        )
+        return lse
 
   
 
@@ -473,161 +511,131 @@ class PrimalDual:
         s, a, a_logprob, r, c, s_, dw, done = (
             replay_buffer.numpy_to_tensor()
         )  # Get training data
-
-        #shilpa RCRL
-        # Make sure dual_lambda is on the same device as tensors
-        if not isinstance(self.dual_lambda, torch.Tensor):
-            self.dual_lambda = torch.tensor(
-                self.dual_lambda, 
-                dtype=torch.float32, 
-                device=s.device
-            )
-        else:
-            self.dual_lambda = self.dual_lambda.to(s.device)
+        """
+            Calculate the advantage using GAE
+            'dw=True' means dead or win, there is no next state s'
+            'done=True' represents the terminal of an episode(dead or win or reaching the max_episode_steps). When calculating the adv, if done=True, gae=0
+        """
         
         # Optimize policy for K epochs:
         for _ in range(self.K_epochs):
            
             adv_r, adv_c = [], []
-            gae_r = 0
-            gae_c = 0
+            gae = 0
             with torch.no_grad():  # adv and v_target have no gradient
                 # shilpa target critic
                 vs = self.Rcritic(s)
                 vs_ = self.Rcritic(s_)
                 vcs = self.Ccritic(s)
                 vcs_ = self.Ccritic(s_)
-                
+                # vs = self.Rcritic(s)
+                # vcs = self.Ccritic(s)
+                # vs_ = self.target_Rcritic(s_)
+                # vcs_ = self.target_Ccritic(s_)
+
+
+                # Construct trajectory dynamically from replay buffer
+
+                trajectory = {"states": s, "actions": a, "next_states": s_, "costs": c}
+
+                # with torch.no_grad():
+                    # Compute robust value function and V_L^pi
                 
                 vl_pi = vcs.max()
-                constraint_violation = vl_pi - torch.tensor(self.persistent_eps, dtype=torch.float32, device=s.device)
-                #Dual update:
-                # lambda <- [lambda + dual_lr * (max_cost - eps)]_+
+                # penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
+                penalty_term = vl_pi - torch.tensor(self.persistent_eps)
+                beta_penalty = self.beta * penalty_term
+                vs_mean = vs.mean().item()
                 if self.warm_start_flag == 1:
-                    self.dual_lambda = self.dual_lambda + self.dual_lr * constraint_violation
-                    self.dual_lambda = torch.clamp(
-                        self.dual_lambda,
-                        min=0.0,
-                        max=self.dual_lambda_max
-                    )
-
+                    ch = np.argmax([vs_mean, beta_penalty])
                 else:
-                    # Optional: keep lambda zero before warm start
-                    self.dual_lambda = torch.tensor(
-                        0.0,
-                        dtype=torch.float32,
-                        device=s.device
-                    )
-
+                    ch = 0
                 print(
-                    "Primal-Dual | lambda, vl_pi, eps, violation =",
-                    self.dual_lambda.item(),
-                    vl_pi.item(),
-                    self.persistent_eps,
-                    constraint_violation.item()
+                    "ch, vs_mean, vl_pi, beta penalty=",
+                    ch,
+                    vs_mean,
+                    vl_pi,
+                    beta_penalty,
                 )
 
-                # ============================================================
-                # Cost advantage and cost critic target: standard cumulative GAE
-                #
-                # Cost Bellman:
-                # V_c(s) = c + gamma * V_c(s')
-                # ============================================================
-                deltas_c = (
-                    c
-                    + self.gamma * (1.0 - dw) * vcs_
+              
+                reg_norm, weight_norm, bias_norm = 0, [], []
+
+                linear_layers = [l for l in self.Ccritic.children() if isinstance(l, nn.Linear)]
+                if len(linear_layers) == 0:
+                    raise ValueError("Ccritic has no nn.Linear layer")
+                reg_norm = torch.norm(linear_layers[-1].weight, p=2)
+
+                cost_deltas = (
+                    (1 - self.gamma) * c
+                    + self.gamma * self.log_sum_exp_fn(c, (1.0 - dw) * vcs_)
                     - vcs
-                )
+                    # - self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                    
+                    # + self.weight_reg * reg_norm
+                    
+                )  
+                adv_c = cost_deltas.clone()  
+                v_target_c = cost_deltas + vcs + self.weight_reg * reg_norm#- self.weight_reg * reg_norm #+ self.alpha * a_logprob.sum(dim=1, keepdim=True)
 
-                for delta, d in zip(
-                    reversed(deltas_c.flatten().cpu().numpy()),
-                    reversed(done.flatten().cpu().numpy())
-                ):
-                    gae_c = delta + self.gamma * self.lamda * gae_c * (1.0 - d)
-                    adv_c.insert(0, gae_c)
 
-                adv_c = torch.tensor(
-                    adv_c,
-                    dtype=torch.float32,
-                    device=s.device
-                ).view(-1, 1)
-
-                # Cost critic target
-                v_target_c = adv_c + vcs
-
-                # Optional cost critic regularization on target
-                if self.weight_reg > 0:
-                    linear_layers_c = [
-                        layer for layer in self.Ccritic.children()
-                        if isinstance(layer, nn.Linear)
-                    ]
-                    if len(linear_layers_c) == 0:
-                        raise ValueError("Ccritic has no nn.Linear layer")
-
-                    reg_norm_c = torch.norm(linear_layers_c[-1].weight, p=2)
-                    v_target_c = v_target_c + self.weight_reg * reg_norm_c
-
-                
-
-                # ============================================================
-                # Reward advantage and reward critic target: standard GAE
-                # ============================================================
-                deltas_r = (
+                reg_norm, weight_norm, bias_norm = 0, [], []
+                # for layer in self.Rcritic.children():
+                #         if isinstance(layer, nn.Linear):
+                #             weight_norm.append(
+                #                 torch.norm(layer.state_dict()["weight"]) ** 2
+                #             )
+                #             bias_norm.append(torch.norm(layer.state_dict()["bias"]) ** 2)
+                # reg_norm = torch.sqrt(
+                #     torch.sum(torch.stack(weight_norm))
+                #     + torch.sum(torch.stack(bias_norm[0:-1]))
+                # )
+                linear_layers = [layer for layer in self.Rcritic.children() if isinstance(layer, nn.Linear)]
+                if len(linear_layers) == 0:
+                    raise ValueError("Rcritic has no nn.Linear layer")
+                last_linear = linear_layers[-1]
+                reg_norm = torch.norm(last_linear.weight, p=2)
+                #ppo
+                deltas = (
                     r
                     + self.gamma * (1.0 - dw) * vs_
                     - vs
+                    # - self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                    # + self.weight_reg * reg_norm
                 )
-
+                
                 for delta, d in zip(
-                    reversed(deltas_r.flatten().cpu().numpy()),
-                    reversed(done.flatten().cpu().numpy())
+                    reversed(deltas.flatten().numpy()), reversed(done.flatten().numpy())
                 ):
-                    gae_r = delta + self.gamma * self.lamda * gae_r * (1.0 - d)
-                    adv_r.insert(0, gae_r)
+                    gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
+                    adv_r.insert(0, gae)
+                adv_r = torch.tensor(adv_r, dtype=torch.float).view(-1, 1)
+                v_target_r = adv_r + vs + self.weight_reg * reg_norm#+ self.alpha * a_logprob.sum(dim=1, keepdim=True)
 
-                adv_r = torch.tensor(
-                    adv_r,
-                    dtype=torch.float32,
-                    device=s.device
-                ).view(-1, 1)
+                if ch == 1:
+                    
+                    # ── Normalize then negate for actor ─────────────────────────────────
+                    if self.use_adv_norm:
+                        # adv = (adv - adv.mean()) / (adv.std() + 1e-5)
+                        adv_mean = adv_c.mean()
+                        adv_std  = adv_c.std()
+                        # Always normalize, but SCALE DOWN smoothly when signal is small.
+                        # This avoids the bang-bang switching at the 1e-2 threshold.
+                        adv_c = (adv_c - adv_mean) / (adv_std + 1e-5)
+                        adv_c = torch.clamp(adv_c, -3.0, 3.0)
+                        # Soft gate: multiply by tanh(std / threshold) so near-zero std → near-zero adv
+                        # but there is NO hard discontinuity
+                        # soft_gate = torch.tanh(adv_std / 0.05)   # smooth 0→1 around std=0.05
+                        # adv = adv * soft_gate
+                    adv = -adv_c  # minimize cost = maximize negative cost advantage
+                else:
+                    
+                    if self.use_adv_norm:  # Trick 1:advantage normalization
+                        adv =  (adv_r - adv_r.mean()) / (adv_r.std() + 1e-5)
 
-                # Reward critic target
-                v_target_r = adv_r + vs
-
-                # Optional reward critic regularization on target
-                if self.weight_reg > 0:
-                    linear_layers_r = [
-                        layer for layer in self.Rcritic.children()
-                        if isinstance(layer, nn.Linear)
-                    ]
-                    if len(linear_layers_r) == 0:
-                        raise ValueError("Rcritic has no nn.Linear layer")
-
-                    reg_norm_r = torch.norm(linear_layers_r[-1].weight, p=2)
-                    v_target_r = v_target_r + self.weight_reg * reg_norm_r
-
-                #============================================================
-                # Advantage normalization
-                # ============================================================
-                if self.use_adv_norm:
-                    adv_r = (adv_r - adv_r.mean()) / (adv_r.std() + 1e-5)
-                    adv_c = (adv_c - adv_c.mean()) / (adv_c.std() + 1e-5)
-
-                    adv_r = torch.clamp(adv_r, -3.0, 3.0)
-                    adv_c = torch.clamp(adv_c, -3.0, 3.0)
-
-                # ============================================================
-                # Primal-Dual actor advantage
-                #
-                # Maximize:
-                # reward - lambda * cost
-                # ============================================================
-                adv = adv_r - self.dual_lambda.detach() * adv_c
-
-                if self.use_adv_norm:
-                    adv = (adv - adv.mean()) / (adv.std() + 1e-5)
-
-
+        # # Optimize policy for K epochs:
+        # for _ in range(self.K_epochs):
+            # Random sampling and no repetition. 'False' indicates that training will continue even if the number of samples in the last time is less than mini_batch_size
             for index in BatchSampler(
                 SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False
             ):
@@ -741,16 +749,12 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
                 action = a
             s_, r, c, truncated, terminated, info = env.step(action)
             done = truncated or terminated
-            incremental_max_cost = info["incremental_max_cost"]
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
 
             episode_reward += r
-            #shilpa cmdp plot
-            # episode_cost += c
-            # max_cost = max(max_cost, c)
-            episode_cost +=incremental_max_cost
-            max_cost = max(max_cost, incremental_max_cost)
+            episode_cost += c
+            max_cost = max(max_cost, c)
 
             # if args.use_reward_norm:
             #     r = reward_norm(r, update=False)
@@ -814,13 +818,13 @@ def plot_eval_metrics(
 
     # ── Subplot 2: Evaluate Max Cost (with safety threshold line) ────────────
     axes[1].plot(evals, evaluate_max_costs, color="red", label="Eval Max Cost")
-    # axes[1].axhline(
-    #     y=persistent_eps,
-    #     color="black",
-    #     linestyle="--",
-    #     linewidth=1.5,
-    #     label=f"Safety threshold ({persistent_eps})",
-    # )
+    axes[1].axhline(
+        y=persistent_eps,
+        color="black",
+        linestyle="--",
+        linewidth=1.5,
+        label=f"Safety threshold ({persistent_eps})",
+    )
     axes[1].set_xlabel("Evaluation #")
     axes[1].set_ylabel("Max Cost")
     axes[1].set_title("Evaluation Max Cost per Checkpoint")
@@ -829,13 +833,6 @@ def plot_eval_metrics(
 
     # ── Subplot 3: Evaluate Total Cost ───────────────────────────────────────
     axes[2].plot(evals, evaluate_costs, color="green", label="Eval Total Cost")
-    axes[2].axhline(
-            y=persistent_eps,
-            color="black",
-            linestyle="--",
-            linewidth=1.5,
-            label=f"Safety threshold ({persistent_eps})",
-        )
     axes[2].set_xlabel("Evaluation #")
     axes[2].set_ylabel("Total Cost")
     axes[2].set_title("Evaluation Total Cost per Checkpoint")
@@ -910,17 +907,16 @@ def main(args, run_number):
     os.makedirs(data_train_dir, exist_ok=True)
     os.makedirs(plot_data_dir, exist_ok=True)
 
-    if args.env == "HalfCheetahCMDP":
+    if args.env == "HalfCheetahForwardObstacleCMDP":
         env = (
-            HalfCheetahCMDP()
+            HalfCheetahForwardObstacleCMDP()
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
-            HalfCheetahCMDP() #HalfCheetahWithPostest()
+            HalfCheetahForwardObstacleCMDP() #HalfCheetahWithPostest()
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = HalfCheetahCMDP()
+        env_reset = HalfCheetahForwardObstacleCMDP()
 
-    
-
+   
     # Set random seed
     # env.reset(seed=seed)
     # env.seed(seed)
@@ -958,7 +954,7 @@ def main(args, run_number):
     evaluate_max_costs = []
 
     replay_buffer = ReplayBuffer(args)
-    agent = PrimalDual(args)
+    agent = RPCRL(args)
 
     # Build a tensorboard
     writer = SummaryWriter(
@@ -989,7 +985,6 @@ def main(args, run_number):
         # if total_steps > args.warm_start_episode:
         #             agent.entropy_coef = 0.0
         s = env.reset()[0]#[0]
-        # print("Initial state:", s)  # Debugging: Print the initial state
         # print ("Initial state:", s)  # Debugging: Print the initial state
         # s_org = copy.deepcopy(s)
         if args.use_state_norm:
@@ -1003,7 +998,9 @@ def main(args, run_number):
         total_cost = 0
         max_cost = float("-inf")
 
-        
+        agent.beta = (
+            args.beta
+        )  # 50.0 #min(max_beta, min_beta * np.exp(total_steps / scale))
         if total_steps > args.warm_start_episode:
             agent.warm_start_flag = 1
         else:
@@ -1069,13 +1066,8 @@ def main(args, run_number):
                 s_, r, c, truncated, terminated, info = env.step(action)
                 done = truncated or terminated
                 total_reward += r
-                #shilpa cmdp plot
-                # total_cost += c
-                # max_cost = max(max_cost, c)
-                incremental_max_cost = info["incremental_max_cost"]
-                total_cost +=incremental_max_cost
-                max_cost = max(max_cost, incremental_max_cost)
-                # print("cost:", c, "max_cost:", max_cost)  # Debugging: Print the cost and max cost
+                total_cost += c
+                max_cost = max(max_cost, c)
             # x_pos = np.array([info["x_position"]])
             if args.use_state_norm:
                 # nexts = state_norm(nexts, update=False)
@@ -1217,9 +1209,8 @@ if __name__ == "__main__":
         "--env",
         type=str,
         # default="CartPolePerturbedEnv",
-        default="HalfCheetahCMDP",
-        help="CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv/PendulumCostEnv/HalfCheetahWithPos/HalfCheetahWithPosPerturbed",
-    )
+        default="HalfCheetahForwardObstacleCMDP",
+        help="HalfCheetahForwardObstacleCMDP")
     parser.add_argument("--uncer_set", type=str, default="IPM", help="DS/IPM")
     parser.add_argument(
         "--next_steps", type=int, default=2, help="Number of next states"
@@ -1343,6 +1334,7 @@ if __name__ == "__main__":
     parser.add_argument("--GAMMA", type=str, default="0", help="file name")
     parser.add_argument("--baseline", type=int, default=9, help="baseline")
     parser.add_argument("--lambda_", type=int, default=50, help="lambda")
+    parser.add_argument("--beta", type=float, default=3e4, help="beta 600")
     parser.add_argument("--run", type=int, default=5, help="run_number")
     parser.add_argument(
         "--warm_start_flag", type=int, default=0, help="warm_start_flag"

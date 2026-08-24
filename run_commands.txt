@@ -30,7 +30,7 @@ HALFCHEETAH ENV:
 python code_ipm_rcmdp_rcrl_max_hc.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahWithPos --lr_c 5e-3 
 python code_ipm_rcmdp_rcrl_max_hc.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --seed 5 --env HalfCheetahWithPosPerturbed --lr_c 5e-3 --sigma_gravity 2.0
 python code_ipm_rcmdp_rcrl_max_hc_PD.py --run 1 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 5e-4 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahWithPos --lr_c 5e-4
-nohup python code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py --run 105 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 5e-4 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahCMDP --lr_c 5e-4 > 105_hc_CMDP.log 2>&1 &
+nohup python code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py --run 502 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 5e-4 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahCMDP --lr_c 5e-4 > 2_hc_cmdp.log 2>&1 &
 nohup python code_ipm_rcmdp_rcrl_max_hc_nstepGAE.py --run 201 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahWithPos --lr_c 5e-3 > 201_hc_NstepRPCRL.log 2>&1 &
 
 

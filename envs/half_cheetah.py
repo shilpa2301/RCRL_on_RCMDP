@@ -558,28 +558,20 @@ class HalfCheetahCMDP(HalfCheetahEnv):
         # Use previous max_cost before updating it.
         # ============================================================
         # previous_max_cost = self.max_cost
-
         # raw_cost = np.maximum(float(current_c - previous_max_cost), 0.0)
-
         # tau = 5e-2  # choose your temperature
-
         # cost = float(tau * np.log1p(np.exp(raw_cost / tau)))
-
         # # Update max_cost after computing returned cost.
         # self.max_cost = float(max(previous_max_cost, current_c))
 
+        #working version
         previous_max_cost = self.max_cost
-
         incremental_max_cost = max(current_c - previous_max_cost, 0.0)
-
         dense_cost = current_c
-
         alpha = 0.1
         beta = 1.0
         # print(dense_cost, incremental_max_cost, alpha, beta)
-
         cost = beta * dense_cost + alpha * incremental_max_cost
-
         self.max_cost = float(max(previous_max_cost, current_c))
 
 
@@ -604,9 +596,366 @@ class HalfCheetahCMDP(HalfCheetahEnv):
 
             "max_action_abs": float(np.max(np.abs(action))),
             "action_torque_threshold": ACTION_TORQUE_THRESHOLD,
+            "incremental_max_cost": incremental_max_cost,
         })
 
         # Return 6-tuple expected by your training loop:
         # obs, reward, cost, truncated, terminated, info
         return ob, reward, cost, truncated, terminated, info
 
+
+class HalfCheetahForwardObstacleCMDP(HalfCheetahEnv):
+    """
+    HalfCheetah CMDP with one forward obstacle/state constraint.
+
+    Constraint:
+        Hard unsafe obstacle region:
+            x in [obstacle_x_min, obstacle_x_max]
+            default: [2.0, 4.0]
+
+        Dense warning region:
+            x in [warning_x_min, obstacle_x_max]
+            default: [1.0, 4.0]
+
+    Reward:
+        Forward velocity reward:
+            reward_run = (xposafter - xposbefore) / dt
+
+        This encourages moving forward, not backward.
+
+    Observation:
+        [qpos, qvel, max_cost]
+        qpos = 9
+        qvel = 9
+        max_cost = 1
+        total = 19
+
+    Cost:
+        current_c:
+            hard obstacle violation.
+
+        dense_cost:
+            dense proxy cost that starts before the obstacle.
+
+        incremental_max_cost:
+            max(current_c - previous_max_cost, 0)
+
+        returned cost:
+            cost = beta * dense_cost + alpha * incremental_max_cost
+
+    Step return:
+        obs, reward, cost, truncated, terminated, info
+
+    This matches your custom 6-tuple training loop.
+    """
+
+    OBS_DIM = 19
+
+    def __init__(
+        self,
+        obstacle_x_min=2.0,
+        obstacle_x_max=4.0,
+        warning_x_min=1.0,
+        max_steps=1000,
+        alpha=0.1,
+        beta=1.0,
+        squared_dense=False,
+    ):
+        # Needed before super because reset_model can call _get_obs
+        self._elapsed_steps = 0
+        self.max_cost = 0.0
+
+        self.obstacle_x_min = float(obstacle_x_min)
+        self.obstacle_x_max = float(obstacle_x_max)
+        self.warning_x_min = float(warning_x_min)
+
+        self.max_steps = int(max_steps)
+
+        self.alpha = float(alpha)
+        self.beta = float(beta)
+        self.squared_dense = bool(squared_dense)
+
+        if self.warning_x_min > self.obstacle_x_min:
+            raise ValueError("warning_x_min must be <= obstacle_x_min.")
+
+        if self.obstacle_x_min >= self.obstacle_x_max:
+            raise ValueError("obstacle_x_min must be < obstacle_x_max.")
+
+        super().__init__()
+
+        obs_high = np.inf * np.ones(self.OBS_DIM, dtype=np.float32)
+        self.observation_space = gym.spaces.Box(
+            low=-obs_high,
+            high=obs_high,
+            dtype=np.float32,
+        )
+
+    # ------------------------------------------------------------------ #
+    # Observation
+    # ------------------------------------------------------------------ #
+
+    def _get_base_obs(self):
+        """
+        Full HalfCheetah state:
+            qpos = 9
+            qvel = 9
+            total = 18
+        """
+        return np.concatenate([
+            self.sim.data.qpos.flat,
+            self.sim.data.qvel.flat,
+        ]).astype(np.float32)
+
+    def _get_obs(self):
+        """
+        Augmented observation:
+            [qpos, qvel, max_cost]
+        """
+        base_obs = self._get_base_obs()
+
+        return np.concatenate([
+            base_obs,
+            np.array([self.max_cost], dtype=np.float32),
+        ]).astype(np.float32)
+
+    # ------------------------------------------------------------------ #
+    # Reset
+    # ------------------------------------------------------------------ #
+
+    def reset(self, seed=None, **kwargs):
+        """
+        Old Gym compatibility, but returns:
+            obs, info
+        because your training loop expects that.
+        """
+        if seed is not None:
+            self.np_random, _ = gym.utils.seeding.np_random(seed)
+
+        super().reset()
+
+        self._elapsed_steps = 0
+        self.max_cost = 0.0
+
+        obs = self._get_obs()
+        info = {}
+
+        return obs, info
+
+    def reset_model(self):
+        qpos = self.init_qpos + self.np_random.uniform(
+            low=-0.1,
+            high=0.1,
+            size=self.model.nq,
+        )
+
+        qvel = self.init_qvel + self.np_random.normal(
+            loc=0.0,
+            scale=0.1,
+            size=self.model.nv,
+        )
+
+        self.set_state(qpos, qvel)
+
+        return self._get_obs()
+
+    # ------------------------------------------------------------------ #
+    # Reward
+    # ------------------------------------------------------------------ #
+
+    def _forward_reward(self, xposbefore, xposafter, action):
+        """
+        Forward-only reward.
+
+        Unlike your old reward:
+            abs(xposafter - xposbefore) / dt
+
+        this rewards only forward movement:
+            (xposafter - xposbefore) / dt
+        """
+        reward_ctrl = -0.1 * np.square(action).sum()
+        reward_run = abs(xposafter - xposbefore) / self.dt
+
+        reward = reward_run + reward_ctrl
+
+        info = {
+            "reward_run": reward_run,
+            "reward_ctrl": reward_ctrl,
+            "xpos": xposafter,
+        }
+
+        return float(reward), info
+
+    # ------------------------------------------------------------------ #
+    # Constraint
+    # ------------------------------------------------------------------ #
+
+    def _hard_obstacle_violation(self, x):
+        """
+        Hard unsafe-state violation for obstacle region:
+            x in [obstacle_x_min, obstacle_x_max]
+
+        Returns:
+            0 outside obstacle.
+            Positive inside obstacle.
+
+        The cost is highest near the center of the obstacle.
+        """
+        x = float(x)
+
+        if not (self.obstacle_x_min <= x <= self.obstacle_x_max):
+            return 0.0
+
+        center = 0.5 * (self.obstacle_x_min + self.obstacle_x_max)
+        half_width = 0.5 * (self.obstacle_x_max - self.obstacle_x_min)
+
+        # Ranges from 0 at edges to 1 at center.
+        violation = 1.0 - abs(x - center) / max(half_width, 1e-6)
+
+        return float(max(violation, 0.0))
+
+    def _dense_obstacle_cost(self, x):
+        """
+        Dense proxy cost.
+
+        Regions:
+            x < warning_x_min:
+                cost = 0
+
+            warning_x_min <= x < obstacle_x_min:
+                warning cost ramps from 0 to 1
+
+            obstacle_x_min <= x <= obstacle_x_max:
+                unsafe cost is >= 1 and highest near center
+
+            x > obstacle_x_max:
+                cost = 0
+
+        With defaults:
+            warning region: [1, 2)
+            obstacle region: [2, 4]
+            total dense-cost-active region: [1, 4]
+        """
+        x = float(x)
+
+        # Region 1: before warning starts
+        if x < self.warning_x_min:
+            return 0.0
+
+        # Region 2: warning ramp, [warning_x_min, obstacle_x_min)
+        if self.warning_x_min <= x < self.obstacle_x_min:
+            denom = max(self.obstacle_x_min - self.warning_x_min, 1e-6)
+            dense = (x - self.warning_x_min) / denom
+
+            if self.squared_dense:
+                dense = dense ** 2
+
+            return float(dense)
+
+        # Region 3: inside obstacle, [obstacle_x_min, obstacle_x_max]
+        if self.obstacle_x_min <= x <= self.obstacle_x_max:
+            hard = self._hard_obstacle_violation(x)
+
+            # At edges: 1
+            # At center: 2
+            dense = 1.0 + hard
+
+            if self.squared_dense:
+                dense = dense ** 2
+
+            return float(dense)
+
+        # Region 4: after obstacle
+        return 0.0
+
+    def _compute_constraint_cost(self, x):
+        """
+        Computes:
+            current_c:
+                hard obstacle violation.
+
+            dense_cost:
+                proxy dense cost.
+
+            incremental_max_cost:
+                increase in trajectory max violation.
+
+            returned cost:
+                beta * dense_cost + alpha * incremental_max_cost
+        """
+        current_c = self._hard_obstacle_violation(x)
+        dense_cost = self._dense_obstacle_cost(x)
+
+        previous_max_cost = self.max_cost
+
+        incremental_max_cost = float(
+            max(current_c - previous_max_cost, 0.0)
+        )
+
+        cost = float(
+            self.beta * dense_cost
+            + self.alpha * incremental_max_cost
+        )
+
+        self.max_cost = float(max(previous_max_cost, current_c))
+
+        info = {
+            "cost": cost,
+            "current_c": current_c,
+            "dense_cost": dense_cost,
+            "previous_max_cost": previous_max_cost,
+            "max_cost": self.max_cost,
+            "incremental_max_cost": incremental_max_cost,
+            "obstacle_x_min": self.obstacle_x_min,
+            "obstacle_x_max": self.obstacle_x_max,
+            "warning_x_min": self.warning_x_min,
+            "alpha": self.alpha,
+            "beta": self.beta,
+        }
+
+        return cost, info
+
+    # ------------------------------------------------------------------ #
+    # Step
+    # ------------------------------------------------------------------ #
+
+    def step(self, action):
+        xposbefore = float(self.sim.data.qpos[0])
+
+        self.do_simulation(action, self.frame_skip)
+
+        xposafter = float(self.sim.data.qpos[0])
+
+        reward, reward_info = self._forward_reward(
+            xposbefore,
+            xposafter,
+            action,
+        )
+
+        self._elapsed_steps += 1
+
+        cost, constraint_info = self._compute_constraint_cost(xposafter)
+
+        obs = self._get_obs()
+
+        truncated = self._elapsed_steps >= self.max_steps
+
+        # HalfCheetah usually has no terminal death condition.
+        terminated = False
+
+        info = {}
+        info.update(reward_info)
+        info.update(constraint_info)
+        info.update({
+            "xposbefore": xposbefore,
+            "xposafter": xposafter,
+            "in_warning_region": bool(
+                self.warning_x_min <= xposafter < self.obstacle_x_min
+            ),
+            "in_obstacle_region": bool(
+                self.obstacle_x_min <= xposafter <= self.obstacle_x_max
+            ),
+        })
+
+        # Your custom 6-tuple format:
+        # obs, reward, cost, truncated, terminated, info
+        return obs, reward, cost, truncated, terminated, info
