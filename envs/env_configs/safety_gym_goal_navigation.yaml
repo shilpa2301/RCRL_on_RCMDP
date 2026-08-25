@@ -1,0 +1,56 @@
+# configs/rpcrl_goal.yaml
+
+task: goal
+
+env_id: SafetyCarGoal1-v0
+terminate_on_collision: true
+render_mode: null
+
+seed: 1
+run: 1
+
+max_train_steps: 16000
+evaluate_freq: 100
+save_freq: 20
+
+policy_dist: Gaussian
+uncer_set: IPM
+next_steps: 2
+random_steps: 25000
+
+batch_size: 2048
+mini_batch_size: 128
+hidden_width: 64
+
+lr_a: 0.001
+lr_c: 0.0005
+lr_cost: 0.0005
+
+gamma: 0.99
+GAMMA: "0"
+lamda: 0.95
+epsilon: 0.2
+
+persistent_eps: 0.1
+K_epochs: 5
+
+use_adv_norm: true
+use_state_norm: false
+use_reward_norm: false
+use_reward_scaling: false
+
+entropy_coef: 0.001
+use_lr_decay: true
+use_grad_clip: true
+use_orthogonal_init: true
+set_adam_eps: true
+use_tanh: true
+adaptive_alpha: false
+
+weight_reg: 0.0
+baseline: 9
+lambda_: 50
+beta: 30000.0
+
+warm_start_flag: 0
+warm_start_episode: 500

@@ -24,7 +24,7 @@ from gym import utils
 from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
-from envs.half_cheetah import HalfCheetahForwardObstacleCMDP
+from envs.half_cheetah import HalfCheetahForwardObstacleCMDP, HalfCheetahForwardObstaclePerturbed
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -337,6 +337,8 @@ class RPCRL:
     def __init__(self, args):
         if args.env == "HalfCheetahForwardObstacleCMDP":
             self.env = HalfCheetahForwardObstacleCMDP()
+        elif args.env == "HalfCheetahForwardObstaclePerturbed":
+            self.env = HalfCheetahForwardObstaclePerturbed(sigma_gravity=args.sigma_gravity)
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -916,6 +918,11 @@ def main(args, run_number):
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = HalfCheetahForwardObstacleCMDP()
 
+    elif args.env == "HalfCheetahForwardObstaclePerturbed":
+        env = HalfCheetahForwardObstaclePerturbed(sigma_gravity=args.sigma_gravity)
+        env_evaluate = HalfCheetahForwardObstaclePerturbed(sigma_gravity=args.sigma_gravity)
+        env_reset = HalfCheetahForwardObstaclePerturbed(sigma_gravity=args.sigma_gravity)
+
    
     # Set random seed
     # env.reset(seed=seed)
@@ -1210,7 +1217,7 @@ if __name__ == "__main__":
         type=str,
         # default="CartPolePerturbedEnv",
         default="HalfCheetahForwardObstacleCMDP",
-        help="HalfCheetahForwardObstacleCMDP")
+        help="HalfCheetahForwardObstacleCMDP/HalfCheetahForwardObstaclePerturbed")
     parser.add_argument("--uncer_set", type=str, default="IPM", help="DS/IPM")
     parser.add_argument(
         "--next_steps", type=int, default=2, help="Number of next states"
@@ -1341,9 +1348,6 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--warm_start_episode", type=int, default=500, help="warm_start_episode"
-    )
-    parser.add_argument(
-        "--gravity_std", type=float, default=0.5, help="gravity perturbation"
     )
     parser.add_argument(
         "--sigma_gravity", type=float, default=0.0, help="gravity perturbation"
