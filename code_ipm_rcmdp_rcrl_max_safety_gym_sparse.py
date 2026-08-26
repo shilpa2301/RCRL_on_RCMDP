@@ -797,6 +797,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
             # done = truncated or terminated
             s_, r, terminated, truncated, info = env.step(action)
             c = get_cost_from_info(info)
+            c= 0.0
             done = truncated or terminated
 
             if args.use_state_norm:
@@ -1119,6 +1120,7 @@ def main(args, run_number):
             # done = truncated or terminated
             s_, r, terminated, truncated, info = env.step(action)
             c = get_cost_from_info(info)
+            c= 0.0
             done = truncated or terminated
             total_reward += r
             total_cost += c
