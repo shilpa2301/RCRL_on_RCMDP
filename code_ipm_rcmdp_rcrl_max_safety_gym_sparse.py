@@ -28,40 +28,34 @@ import matplotlib.pyplot as plt  # Import for plotting
 import yaml
 import safety_gymnasium
 from safety_gymnasium.safety_envs.terminate_on_collision import TerminateOnCollisionWrapper
-
+from safety_gymnasium.safety_envs.safety_circle_margin import SafetyCircleMargin, make_env
 
 PAPER_ENVS = {
     "SafetyCarCircle2-v0": {
         "task": "circle",
         "fig_code": "circle",
-        "safety_clearance": 0.02,
+        "safety_clearance": 0.2,
     },
     "SafetyCarGoal1-v0": {
         "task": "goal",
         "fig_code": "pillar",
-        "safety_clearance": 0.02,
+        "safety_clearance": 0.2,
     },
 }
 
 
-def make_task_env(env_id: str, terminate_on_collision: bool = True, render_mode=None):
-    """
-    Safety Gymnasium task environment.
-
-    Wrapper stack:
-        safety_gymnasium.make(env_id)
-            -> optional TerminateOnCollisionWrapper
-            -> SafetyGymnasium2Gymnasium
-
-    Returns a standard Gymnasium-style env.
-    """
-    env = safety_gymnasium.make(env_id, render_mode=render_mode)
+def make_task_env(env_id: str, terminate_on_collision: bool = True, render_mode=None, safety_clearance=0.4):
+    if "Circle" in env_id:  # Assuming your task is based on circles
+        agent = "Car"  # or whatever agent type you need
+        env = make_env(agent=agent, level=2, render_mode=render_mode, safety_clearance=safety_clearance)
+    else:
+        env = safety_gymnasium.make(env_id, render_mode=render_mode)
 
     if terminate_on_collision:
         env = TerminateOnCollisionWrapper(env)
 
-    env = safety_gymnasium.wrappers.SafetyGymnasium2Gymnasium(env)
     return env
+
 
 
 def load_config(path: str) -> dict:
@@ -425,14 +419,7 @@ class RPCRL:
         self.Rcritic = Critic(args)
         self.Ccritic = CostCritic(args)
 
-        #shilpa target critic
-        # Initialize target critics
-        # self.target_Rcritic = Critic(args)  # Target reward critic
-        # self.target_Ccritic = CostCritic(args)  # Target cost critic        
-        # # # Copy initial weights from critics to target critics
-        # self.target_Rcritic.load_state_dict(self.Rcritic.state_dict())
-        # self.target_Ccritic.load_state_dict(self.Ccritic.state_dict())
-
+        
         self.beta = args.beta
         # self.persistent_eps = 0.0
         self.warm_start_flag = args.warm_start_flag
@@ -458,21 +445,7 @@ class RPCRL:
                 self.Ccritic.parameters(), lr=self.lr_cost
             )
 
-        #shilpa target critic 
-        # Target networks are not optimized directly
-        # self.target_Rcritic.eval()
-        # self.target_Ccritic.eval()
-        # for p in self.target_Rcritic.parameters():
-        #     p.requires_grad = False
-        # for p in self.target_Ccritic.parameters():
-        #     p.requires_grad = False
-        # self.tau = getattr(args, "tau", 0.005)
-
-        # In __init__, add:
-        # self.ch = 0                        # current mode: 0=reward, 1=cost
-        # self.enter_cost_threshold  = self.persistent_eps          # enter cost mode if max > this
-        # self.exit_cost_threshold   = self.persistent_eps * 0.8   # exit cost mode only if max < this (more lenient)
-
+      
 
     def evaluate(
         self, s
@@ -574,19 +547,13 @@ class RPCRL:
                 vs_ = self.Rcritic(s_)
                 vcs = self.Ccritic(s)
                 vcs_ = self.Ccritic(s_)
-                # vs = self.Rcritic(s)
-                # vcs = self.Ccritic(s)
-                # vs_ = self.target_Rcritic(s_)
-                # vcs_ = self.target_Ccritic(s_)
-
+               
 
                 # Construct trajectory dynamically from replay buffer
 
                 trajectory = {"states": s, "actions": a, "next_states": s_, "costs": c}
 
-                # with torch.no_grad():
-                    # Compute robust value function and V_L^pi
-                
+               
                 vl_pi = vcs.max()
                 # penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
                 penalty_term = vl_pi - torch.tensor(self.persistent_eps)
@@ -626,16 +593,7 @@ class RPCRL:
 
 
                 reg_norm, weight_norm, bias_norm = 0, [], []
-                # for layer in self.Rcritic.children():
-                #         if isinstance(layer, nn.Linear):
-                #             weight_norm.append(
-                #                 torch.norm(layer.state_dict()["weight"]) ** 2
-                #             )
-                #             bias_norm.append(torch.norm(layer.state_dict()["bias"]) ** 2)
-                # reg_norm = torch.sqrt(
-                #     torch.sum(torch.stack(weight_norm))
-                #     + torch.sum(torch.stack(bias_norm[0:-1]))
-                # )
+              
                 linear_layers = [layer for layer in self.Rcritic.children() if isinstance(layer, nn.Linear)]
                 if len(linear_layers) == 0:
                     raise ValueError("Rcritic has no nn.Linear layer")
@@ -669,18 +627,13 @@ class RPCRL:
                         # This avoids the bang-bang switching at the 1e-2 threshold.
                         adv_c = (adv_c - adv_mean) / (adv_std + 1e-5)
                         adv_c = torch.clamp(adv_c, -3.0, 3.0)
-                        # Soft gate: multiply by tanh(std / threshold) so near-zero std → near-zero adv
-                        # but there is NO hard discontinuity
-                        # soft_gate = torch.tanh(adv_std / 0.05)   # smooth 0→1 around std=0.05
-                        # adv = adv * soft_gate
+                       
                     adv = -adv_c  # minimize cost = maximize negative cost advantage
                 else:
                     
                     if self.use_adv_norm:  # Trick 1:advantage normalization
                         adv =  (adv_r - adv_r.mean()) / (adv_r.std() + 1e-5)
 
-        # # Optimize policy for K epochs:
-        # for _ in range(self.K_epochs):
             # Random sampling and no repetition. 'False' indicates that training will continue even if the number of samples in the last time is less than mini_batch_size
             for index in BatchSampler(
                 SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False
@@ -690,9 +643,7 @@ class RPCRL:
                     1, keepdim=True
                 )  # shape(mini_batch_size X 1)
                 a_logprob_now = dist_now.log_prob(a[index])
-                # print("a_logprob_now shape:", a_logprob_now.shape)  # Debugging: Print the shape of a_logprob_now
-                # print("a_logprob shape:", a_logprob[index].shape)  # Debugging: Print the shape of a_logprob
-
+                
 
                 # a/b=exp(log(a)-log(b))  In multi-dimensional continuous action space，we need to sum up the log_prob
                 ratios = torch.exp(
@@ -711,10 +662,7 @@ class RPCRL:
                     -torch.min(surr1, surr2) - self.entropy_coef * dist_entropy
                 )  # Trick 5: policy entropy
                 
-                #policy gradient
-                # actor_loss = - (a_logprob_now * adv[index])
-                # actor_loss = (-a_logprob_now  * adv[index] - self.entropy_coef * dist_entropy)
-
+                
 
                 # Update actor
                 self.optimizer_actor.zero_grad()
@@ -747,9 +695,7 @@ class RPCRL:
         if self.use_lr_decay:  # Trick 6:learning rate Decay
             self.lr_decay(total_steps)
 
-        #shilpa target critic
-        # Soft update target networks
-        # self.soft_update_target_networks(self.tau)
+       
 
         if self.adaptive_alpha:
             alpha_loss = -(
@@ -795,9 +741,11 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
                 action = a
             # s_, r, c, truncated, terminated, info = env.step(action)
             # done = truncated or terminated
-            s_, r, terminated, truncated, info = env.step(action)
-            c = get_cost_from_info(info)
-            c= 0.0
+            s_, r, _, terminated, truncated, info = env.step(action)
+            # c = get_cost_from_info(info)
+            c = info.get("continuous_cost", 0.0)
+
+            # c= 0.0
             done = truncated or terminated
 
             if args.use_state_norm:
@@ -807,15 +755,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
             episode_cost += c
             max_cost = max(max_cost, c)
 
-            # if args.use_reward_norm:
-            #     r = reward_norm(r, update=False)
-            #     c = reward_norm(c, update=False)
-            # elif args.use_reward_scaling:
-            #     r = reward_scaling(r, update=False)
-            #     c = reward_scaling(c, update=False)
-            # episode_reward += r
-            # episode_cost += c
-            # max_cost = max(max_cost, c)
+          
             s = s_
         evaluate_reward += episode_reward
         evaluate_cost += episode_cost
@@ -996,18 +936,22 @@ def main(args, run_number):
         args.env_id,
         terminate_on_collision=args.terminate_on_collision,
         render_mode=args.render_mode,
+        safety_clearance=args.safety_clearance  # Set your desired safety clearance
     )
 
     env_evaluate = make_task_env(
         args.env_id,
         terminate_on_collision=args.terminate_on_collision,
         render_mode=args.render_mode,
+        safety_clearance=args.safety_clearance  # Set your desired safety clearance
     )
 
     env_reset = make_task_env(
         args.env_id,
         terminate_on_collision=args.terminate_on_collision,
         render_mode=args.render_mode,
+        safety_clearance=args.safety_clearance  # Set your desired safety clearance
+    
     )
 
    
@@ -1082,13 +1026,8 @@ def main(args, run_number):
 
     reward_offset = 0 # 40 #17
     for total_steps in tqdm(range(args.max_train_steps)):
-        # if total_steps > args.max_train_steps // 2:
-        #    agent.gamma = 0.999
-        # if total_steps > args.warm_start_episode:
-        #             agent.entropy_coef = 0.0
+      
         s = env.reset()[0]#[0]
-        # print ("Initial state:", s)  # Debugging: Print the initial state
-        # s_org = copy.deepcopy(s)
         if args.use_state_norm:
             s = state_norm(s)
         if args.use_reward_scaling:
@@ -1116,15 +1055,17 @@ def main(args, run_number):
                 action = a
 
             
-            # s_, r, c, truncated, terminated, info = env.step(action)
-            # done = truncated or terminated
-            s_, r, terminated, truncated, info = env.step(action)
-            c = get_cost_from_info(info)
-            c= 0.0
+            
+            s_, r, _, terminated, truncated, info = env.step(action)
+            # c = get_cost_from_info(info)
+            c = info.get("continuous_cost", 0.0)
+            # c= 0.0
             done = truncated or terminated
             total_reward += r
             total_cost += c
             max_cost = max(max_cost, c)
+            # print(f"Step: total_cost={total_cost}, max_cost={max_cost}, current_cost={c}")
+
 
 
             # x_pos = np.array([info["x_position"]])
@@ -1138,10 +1079,7 @@ def main(args, run_number):
                 r = reward_scaling(r)
                 # c = reward_scaling(c)
 
-            # total_reward += r
-            # total_cost += c
-            # max_cost = max(max_cost, c)
-
+           
             # When dead or win or reaching the max_episode_steps, done will be Ture, we need to distinguish them;
             # dw means dead or win,there is no next state s';
             # but when reaching the max_episode_steps,there is a next state s' actually.
@@ -1272,12 +1210,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--env_id",
-        type=str,
-        default="SafetyCarCircle2-v0",
-        choices=["SafetyCarCircle2-v0", "SafetyCarGoal1-v0"],
-        help="Safety Gymnasium environment id",
-    )
+    "--env_id",
+    type=str,
+    default="SafetyCircle-v0",  # Change this to your SafeCircle environment
+    choices=["SafetyCircle-v0", "SafetyCarCircle2-v0", "SafetyCarGoal1-v0"],
+    help="Safety Gymnasium environment id",
+)
+
 
     parser.add_argument(
         "--terminate_on_collision",
@@ -1302,6 +1241,14 @@ if __name__ == "__main__":
         default=int(25e3),
         help="Uniformlly sample action within random steps",
     )
+
+    parser.add_argument(
+            "--safety_clearance",
+            type=float,
+            default=0.30,
+            help="Safety clearance for the environment",
+        )
+    
     parser.add_argument(
         "--max_train_steps",
         type=int,

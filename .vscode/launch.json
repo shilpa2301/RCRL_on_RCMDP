@@ -37,9 +37,9 @@
             //     "--omega2", "1.0"
             //     // "--sigma_viscosity", "0.7"
             // ],
-            "program": "/home/sm3934/Shilpa/Work/RCRL_on_RCMDP/code_evaluate_ipm_rcmdp_rcrl_pert_quadrotor_multi_constraint.py",
+            "program": "/home/sm3934/Shilpa/Work/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_safety_gym_sparse.py",
             "args": [
-                // "--warm_start_episode", "3",
+                 "--config", "envs/env_configs/safety_gym_circle.yaml",
                 
             ],
             "cwd": "/home/sm3934/Shilpa/Work/RCRL_on_RCMDP", //${workspaceFolder}",
