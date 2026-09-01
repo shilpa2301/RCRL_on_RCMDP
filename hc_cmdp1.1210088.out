@@ -1,0 +1,12 @@
+n0006
+Tue Sep  1 08:24:45 AM EDT 2026
+/home/sm3934/miniconda3/envs/rpcrl_env/bin/python
+run= 101 seed= 5 env= HalfCheetahForwardObstacleCMDP k_epochs 5
+env=HalfCheetahForwardObstacleCMDP
+state_dim=18
+action_dim=6
+max_action=1.0
+max_episode_steps=1000
+------use_orthogonal_init------
+------use_orthogonal_init------
+------use_orthogonal_init------

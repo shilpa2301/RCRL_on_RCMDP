@@ -26,7 +26,7 @@ from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
 from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
 # from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
-from envs.half_cheetah import HalfCheetahWithPos, HalfCheetahWithPosPerturbed, HalfCheetahCMDP
+from envs.half_cheetah import HalfCheetahWithPos, HalfCheetahWithPosPerturbed, HalfCheetahCMDP, HalfCheetahForwardObstacleCMDP
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -337,8 +337,9 @@ class ReplayBuffer:
 
 class PrimalDual:
     def __init__(self, args):
-        if args.env == "HalfCheetahCMDP":
-            self.env = HalfCheetahCMDP()
+        if args.env == "HalfCheetahForwardObstacleCMDP":
+            self.env = HalfCheetahForwardObstacleCMDP()
+        
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -724,7 +725,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     evaluate_cost = 0
     evaluate_max_cost = float("-inf")
     for _ in range(times):
-        s = env.reset()[0]#[0]
+        s, _ = env.reset()#[0]
         if args.use_state_norm:
             s = state_norm(s, update=False)  # During the evaluating,update=False
         done = False
@@ -741,16 +742,16 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
                 action = a
             s_, r, c, truncated, terminated, info = env.step(action)
             done = truncated or terminated
-            incremental_max_cost = info["incremental_max_cost"]
+            # incremental_max_cost = info["incremental_max_cost"]
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
 
             episode_reward += r
             #shilpa cmdp plot
-            # episode_cost += c
-            # max_cost = max(max_cost, c)
-            episode_cost +=incremental_max_cost
-            max_cost = max(max_cost, incremental_max_cost)
+            episode_cost += c
+            max_cost = max(max_cost, c)
+            # episode_cost +=incremental_max_cost
+            # max_cost = max(max_cost, incremental_max_cost)
 
             # if args.use_reward_norm:
             #     r = reward_norm(r, update=False)
@@ -910,15 +911,14 @@ def main(args, run_number):
     os.makedirs(data_train_dir, exist_ok=True)
     os.makedirs(plot_data_dir, exist_ok=True)
 
-    if args.env == "HalfCheetahCMDP":
+    if args.env == "HalfCheetahForwardObstacleCMDP":
         env = (
-            HalfCheetahCMDP()
+            HalfCheetahForwardObstacleCMDP()
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
-            HalfCheetahCMDP() #HalfCheetahWithPostest()
+            HalfCheetahForwardObstacleCMDP() #HalfCheetahWithPostest()
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = HalfCheetahCMDP()
-
+        env_reset = HalfCheetahForwardObstacleCMDP()
     
 
     # Set random seed
@@ -988,7 +988,7 @@ def main(args, run_number):
         #    agent.gamma = 0.999
         # if total_steps > args.warm_start_episode:
         #             agent.entropy_coef = 0.0
-        s = env.reset()[0]#[0]
+        s, _ = env.reset()#[0]
         # print("Initial state:", s)  # Debugging: Print the initial state
         # print ("Initial state:", s)  # Debugging: Print the initial state
         # s_org = copy.deepcopy(s)
@@ -1070,11 +1070,11 @@ def main(args, run_number):
                 done = truncated or terminated
                 total_reward += r
                 #shilpa cmdp plot
-                # total_cost += c
-                # max_cost = max(max_cost, c)
-                incremental_max_cost = info["incremental_max_cost"]
-                total_cost +=incremental_max_cost
-                max_cost = max(max_cost, incremental_max_cost)
+                total_cost += c
+                max_cost = max(max_cost, c)
+                # incremental_max_cost = info["incremental_max_cost"]
+                # total_cost +=incremental_max_cost
+                # max_cost = max(max_cost, incremental_max_cost)
                 # print("cost:", c, "max_cost:", max_cost)  # Debugging: Print the cost and max cost
             # x_pos = np.array([info["x_position"]])
             if args.use_state_norm:

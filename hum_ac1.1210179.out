@@ -1,0 +1,12 @@
+n0006
+Tue Sep  1 10:09:33 AM EDT 2026
+/home/sm3934/miniconda3/envs/rpcrl_env/bin/python
+run= 101 seed= 6 env= HumanoidActionCostCMDP k_epochs 5
+env=HumanoidActionCostCMDP
+state_dim=376
+action_dim=17
+max_action=0.4000000059604645
+max_episode_steps=1000
+------use_orthogonal_init------
+------use_orthogonal_init------
+------use_orthogonal_init------
