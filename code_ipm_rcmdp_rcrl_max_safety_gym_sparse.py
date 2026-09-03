@@ -524,7 +524,44 @@ class RPCRL:
         )
         return lse
 
-  
+    def select_training_regime_hard(self, vs_mean, vl_pi, beta_penalty):
+        if self.warm_start_flag == 1:
+            ch = np.argmax([vs_mean, beta_penalty])
+        else:
+            ch = 0
+        print(
+            "ch, vs_mean, vl_pi, beta penalty=",
+            ch,
+            vs_mean,
+            vl_pi,
+            beta_penalty,
+        )
+        return ch
+
+    def select_training_regime_soft(self, vs_mean, vl_pi, beta_penalty):
+            x1 = vs_mean
+            x2 = beta_penalty
+            p1=np.exp(x1)/(np.exp(x1)+np.exp(x2))
+            p2=np.exp(x2)/(np.exp(x1)+np.exp(x2))
+            grad_p1 = p1+p1*p2*(x1-x2)
+            grad_p2 = p2+p1*p2*(x2-x1)
+
+            if self.warm_start_flag == 1:
+                n = random.uniform(0, 1)
+                if n < grad_p1:
+                    ch = 0
+                else:
+                    ch = 1
+            else:
+                ch = 0
+            print(
+                "ch, vs_mean, vl_pi, beta penalty=",
+                ch,
+                vs_mean,
+                vl_pi,
+                beta_penalty,
+            )
+            return ch
 
     def update(self, replay_buffer, total_steps):
         s, a, a_logprob, r, c, s_, dw, done = (
@@ -559,17 +596,18 @@ class RPCRL:
                 penalty_term = vl_pi - torch.tensor(self.persistent_eps)
                 beta_penalty = self.beta * penalty_term
                 vs_mean = vs.mean().item()
-                if self.warm_start_flag == 1:
-                    ch = np.argmax([vs_mean, beta_penalty])
-                else:
-                    ch = 0
-                print(
-                    "ch, vs_mean, vl_pi, beta penalty=",
-                    ch,
-                    vs_mean,
-                    vl_pi,
-                    beta_penalty,
-                )
+                ch = self.select_training_regime_soft(vs_mean, vl_pi, beta_penalty)
+                # if self.warm_start_flag == 1:
+                #     ch = np.argmax([vs_mean, beta_penalty])
+                # else:
+                #     ch = 0
+                # print(
+                #     "ch, vs_mean, vl_pi, beta penalty=",
+                #     ch,
+                #     vs_mean,
+                #     vl_pi,
+                #     beta_penalty,
+                # )
 
               
                 reg_norm, weight_norm, bias_norm = 0, [], []
