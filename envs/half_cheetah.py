@@ -164,6 +164,7 @@ class HalfCheetahWithPos(HalfCheetahEnv):
             return obs, {}   # (obs, info) tuple expected by your training loop
 
     def _get_obs(self):
+
         return np.concatenate([
             self.sim.data.qpos.flat,
             self.sim.data.qvel.flat,
@@ -367,6 +368,7 @@ class HalfCheetahCMDP(HalfCheetahEnv):
     def __init__(self):
         self._elapsed_steps = 0
         self.max_cost = 0.0
+        self.last_cost = 0.0
         super().__init__()
 
         obs_high = np.inf * np.ones(self.OBS_DIM, dtype=np.float32)
@@ -395,7 +397,7 @@ class HalfCheetahCMDP(HalfCheetahEnv):
         """
         return np.concatenate([
             np.asarray(obs, dtype=np.float32),
-            np.array([self.max_cost], dtype=np.float32),
+            np.array([100.0*self.max_cost], dtype=np.float32),
         ]).astype(np.float32)
 
     def _get_obs(self):
@@ -422,6 +424,7 @@ class HalfCheetahCMDP(HalfCheetahEnv):
 
         # 1. Reset max_cost.
         self.max_cost = 0.0
+        self.last_cost = 0.0
 
         # Because reset_model() may call _get_obs(), make sure final obs
         # uses max_cost = 0.
@@ -513,11 +516,13 @@ class HalfCheetahCMDP(HalfCheetahEnv):
         previous_max_cost = self.max_cost
         incremental_max_cost = max(current_c - previous_max_cost, 0.0)
         dense_cost = current_c
-        alpha = 0.1
-        beta = 1.0
+        beta = 0.01 #0.1
+        alpha = max((self._elapsed_steps-1), 0)/(self._elapsed_steps) #-0.99)#1.0
         # print(dense_cost, incremental_max_cost, alpha, beta)
         cost = beta * dense_cost + alpha * incremental_max_cost
         self.max_cost = float(max(previous_max_cost, current_c))
+        self.last_cost = cost
+        # print("cost=",cost)
 
 
         # State augmented with max_cost observed up to this time step.
@@ -546,7 +551,7 @@ class HalfCheetahCMDP(HalfCheetahEnv):
 
         # Return 6-tuple expected by your training loop:
         # obs, reward, cost, truncated, terminated, info
-        return ob, reward, cost, truncated, terminated, info
+        return ob, reward, 100.0*cost, truncated, terminated, info
 
 
 

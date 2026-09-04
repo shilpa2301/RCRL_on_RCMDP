@@ -25,7 +25,7 @@ from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
 
-from envs.humanoid import HumanoidForwardObstacleCMDP, HumanoidForwardObstaclePerturbed, HumanoidActionCostCMDP, HumanoidActionMaxCMDP
+from envs.humanoid import HumanoidCMDP
 
 
 
@@ -337,14 +337,8 @@ class ReplayBuffer:
 
 class PrimalDual:
     def __init__(self, args):
-        if args.env == "HumanoidForwardObstacleCMDP":
-            self.env = HumanoidForwardObstacleCMDP()
-        elif args.env == "HumanoidForwardObstaclePerturbed":
-            self.env = HumanoidForwardObstaclePerturbed(sigma_gravity=args.sigma_gravity, max_steps=1000)
-        elif args.env == "HumanoidActionCostCMDP":
-            self.env = HumanoidActionCostCMDP()
-        elif args.env == "HumanoidActionMaxCMDP()":
-            self.env = HumanoidActionMaxCMDP()
+        if args.env == "HumanoidCMDPHumanoidCMDP":
+            self.env = HumanoidCMDP()
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -461,7 +455,7 @@ class PrimalDual:
     def lr_decay(self, total_steps):
         lr_a_now = self.lr_a * (1 - total_steps / self.max_train_steps)
         lr_c_now = self.lr_c * (1 - total_steps / self.max_train_steps)
-        lr_cost_now = self.lr_cost * (1 - total_steps / self.max_train_steps)
+        lr_cost_now = self.lr_cost # * (1 - total_steps / self.max_train_steps)
 
         for p in self.optimizer_actor.param_groups:
             p["lr"] = lr_a_now
@@ -533,7 +527,7 @@ class PrimalDual:
 
 
 
-                                # ============================================================
+                # ============================================================
                 # Cost advantage and cost critic target: standard cumulative GAE
                 #
                 # Cost Bellman:
@@ -748,13 +742,14 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
                 action = a
             s_, r, c, truncated, terminated, info = env.step(action)
             done = truncated or terminated
-            incremental_max_cost = info["incremental_max_cost"]
+            
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
 
             episode_reward += r
             # episode_cost += c
             # max_cost = max(max_cost, c)
+            incremental_max_cost = info["incremental_max_cost"]
             episode_cost +=incremental_max_cost
             max_cost = max(max_cost, incremental_max_cost)
             # if args.use_reward_norm:
@@ -835,11 +830,11 @@ def plot_eval_metrics(
     # ── Subplot 3: Evaluate Total Cost ───────────────────────────────────────
     axes[2].plot(evals, evaluate_costs, color="green", label="Eval Total Cost")
     axes[2].axhline(
-            y=persistent_eps,
+            y=1.0, #persistent_eps,
             color="black",
             linestyle="--",
             linewidth=1.5,
-            label=f"Safety threshold ({persistent_eps})",
+            label=f"Safety threshold 1.0)", #({persistent_eps})",
         )
     axes[2].set_xlabel("Evaluation #")
     axes[2].set_ylabel("Total Cost")
@@ -915,22 +910,11 @@ def main(args, run_number):
     os.makedirs(data_train_dir, exist_ok=True)
     os.makedirs(plot_data_dir, exist_ok=True)
 
-    if args.env == "HumanoidForwardObstacleCMDP":
-        env = ( HumanoidForwardObstacleCMDP() )
-        env_evaluate = ( HumanoidForwardObstacleCMDP() )
-        env_reset = HumanoidForwardObstacleCMDP()
-    elif args.env == "HumanoidForwardObstaclePerturbed":
-        env =  HumanoidForwardObstaclePerturbed(sigma_gravity=args.sigma_gravity, max_steps=1000) 
-        env_evaluate =  HumanoidForwardObstaclePerturbed(sigma_gravity=args.sigma_gravity, max_steps=1000) 
-        env_reset = HumanoidForwardObstaclePerturbed(sigma_gravity=args.sigma_gravity, max_steps=1000)
-    elif args.env == "HumanoidActionCostCMDP":
-        env = (HumanoidActionCostCMDP())
-        env_evaluate = (HumanoidActionCostCMDP())
-        env_reset = HumanoidActionCostCMDP()
-    elif args.env == "HumanoidActionMaxCMDP":
-        env = (HumanoidActionMaxCMDP())
-        env_evaluate = (HumanoidActionMaxCMDP())
-        env_reset = HumanoidActionMaxCMDP()
+    if args.env == "HumanoidCMDP":
+        env = ( HumanoidCMDP() )
+        env_evaluate = ( HumanoidCMDP() )
+        env_reset = HumanoidCMDP()
+  
     
     # Set random seed
     # env.reset(seed=seed)
@@ -1226,8 +1210,8 @@ if __name__ == "__main__":
         "--env",
         type=str,
         # default="CartPolePerturbedEnv",
-        default="HumanoidForwardObstacleCMDP",
-        help="HumanoidForwardObstacleCMDP/HumanoidForwardObstaclePerturbed",
+        default="HumanoidCMDP",
+        help="HumanoidCMDP",
     )
     parser.add_argument("--uncer_set", type=str, default="IPM", help="DS/IPM")
     parser.add_argument(

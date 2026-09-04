@@ -339,7 +339,8 @@ class PrimalDual:
     def __init__(self, args):
         if args.env == "HalfCheetahForwardObstacleCMDP":
             self.env = HalfCheetahForwardObstacleCMDP()
-        
+        elif args.env == "HalfCheetahCMDP":
+            self.env = HalfCheetahCMDP()
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -407,7 +408,7 @@ class PrimalDual:
             )
         #shilpa RCRL
         self.dual_lambda = torch.tensor(0.0, dtype=torch.float32)
-        self.dual_lr = 1e-6 #1e-5 #1e-3
+        self.dual_lr = 1e-5 #1e-5 #1e-3
         self.dual_lambda_max = 100.0
 
        
@@ -456,7 +457,7 @@ class PrimalDual:
     def lr_decay(self, total_steps):
         lr_a_now = self.lr_a * (1 - total_steps / self.max_train_steps)
         lr_c_now = self.lr_c * (1 - total_steps / self.max_train_steps)
-        lr_cost_now = self.lr_cost * (1 - total_steps / self.max_train_steps)
+        lr_cost_now = self.lr_cost #* (1 - total_steps / self.max_train_steps)
 
         for p in self.optimizer_actor.param_groups:
             p["lr"] = lr_a_now
@@ -742,16 +743,17 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
                 action = a
             s_, r, c, truncated, terminated, info = env.step(action)
             done = truncated or terminated
-            # incremental_max_cost = info["incremental_max_cost"]
+           
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
 
             episode_reward += r
             #shilpa cmdp plot
-            episode_cost += c
-            max_cost = max(max_cost, c)
-            # episode_cost +=incremental_max_cost
-            # max_cost = max(max_cost, incremental_max_cost)
+            # episode_cost += c
+            # max_cost = max(max_cost, c)
+            incremental_max_cost = info["incremental_max_cost"]
+            episode_cost +=incremental_max_cost
+            max_cost = max(max_cost, incremental_max_cost)
 
             # if args.use_reward_norm:
             #     r = reward_norm(r, update=False)
@@ -831,7 +833,7 @@ def plot_eval_metrics(
     # ── Subplot 3: Evaluate Total Cost ───────────────────────────────────────
     axes[2].plot(evals, evaluate_costs, color="green", label="Eval Total Cost")
     axes[2].axhline(
-            y=persistent_eps,
+            y=0.1, #persistent_eps,
             color="black",
             linestyle="--",
             linewidth=1.5,
@@ -919,7 +921,10 @@ def main(args, run_number):
             HalfCheetahForwardObstacleCMDP() #HalfCheetahWithPostest()
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = HalfCheetahForwardObstacleCMDP()
-    
+    elif args.env == "HalfCheetahCMDP":
+        env = (HalfCheetahCMDP())
+        env_evaluate = (HalfCheetahCMDP())
+        env_reset = HalfCheetahCMDP()
 
     # Set random seed
     # env.reset(seed=seed)
@@ -1070,11 +1075,11 @@ def main(args, run_number):
                 done = truncated or terminated
                 total_reward += r
                 #shilpa cmdp plot
-                total_cost += c
-                max_cost = max(max_cost, c)
-                # incremental_max_cost = info["incremental_max_cost"]
-                # total_cost +=incremental_max_cost
-                # max_cost = max(max_cost, incremental_max_cost)
+                # total_cost += c
+                # max_cost = max(max_cost, c)
+                incremental_max_cost = info["incremental_max_cost"]
+                total_cost +=incremental_max_cost
+                max_cost = max(max_cost, incremental_max_cost)
                 # print("cost:", c, "max_cost:", max_cost)  # Debugging: Print the cost and max cost
             # x_pos = np.array([info["x_position"]])
             if args.use_state_norm:
