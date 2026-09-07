@@ -194,8 +194,8 @@ class SafetyCircleMargin(gym.Wrapper):
         continuous_cost = self._calculate_continuous_cost(min_distance_sigwall)
 
         # Terminate on safety failure (negative margin)
-        if margin < 0.0:
-            terminated = True
+        # if margin < 0.0:
+        #     terminated = True
 
         if self._log_original:
             info = dict(info or {})
@@ -226,4 +226,5 @@ def make_env(agent: str = "Car", level: int = 2, render_mode=None,
     task_id = f"Safety{agent}Circle{level}-v0"
     base = safety_gymnasium.make(task_id, render_mode=render_mode, **kwargs)
     base = TerminateOnCollisionWrapper(base)  # optional: end episode on collision
+    print(f"SafetyCircleMargin: Using safety_clearance={safety_clearance:.4f}")
     return SafetyCircleMargin(base, safety_clearance=safety_clearance)

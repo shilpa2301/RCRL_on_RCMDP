@@ -378,6 +378,7 @@ class RPCRL:
             args.env_id,
             terminate_on_collision=args.terminate_on_collision,
             render_mode=args.render_mode,
+            safety_clearance=args.safety_clearance 
         )
         # self.env.seed(args.seed)
         self.policy_dist = args.policy_dist
@@ -1259,7 +1260,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--terminate_on_collision",
         type=bool,
-        default=True,
+        default=False,
         help="Use TerminateOnCollisionWrapper",
     )
 

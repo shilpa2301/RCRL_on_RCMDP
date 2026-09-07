@@ -3,14 +3,14 @@
 task: circle
 
 env_id: SafetyCarCircle2-v0
-terminate_on_collision: true
+terminate_on_collision: false # this was true during run
 render_mode: null
 safety_clearance: 0.3
 
 seed: 1
-run: 101
+run: 1
 
-max_train_steps: 8000
+max_train_steps: 12000
 evaluate_freq: 100
 save_freq: 20
 
@@ -23,16 +23,16 @@ batch_size: 2048
 mini_batch_size: 128
 hidden_width: 64
 
-lr_a: 0.001
+lr_a: 0.0005
 lr_c: 0.0005
-lr_cost: 0.00005
+lr_cost: 0.00007
 
 gamma: 0.99
 GAMMA: "0"
 lamda: 0.95
 epsilon: 0.2
 
-persistent_eps: 0.5
+persistent_eps: 0.2
 K_epochs: 5
 
 use_adv_norm: true
@@ -51,7 +51,7 @@ adaptive_alpha: false
 weight_reg: 0.0
 baseline: 9
 lambda_: 50
-beta: 30.0 #30000.0
+beta: 30000.0
 
 warm_start_flag: 0
 warm_start_episode: 1300

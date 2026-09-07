@@ -24,17 +24,55 @@ from gym import utils
 from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
-# from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
-# from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
-from envs.half_cheetah import HalfCheetahWithPos, HalfCheetahWithPosPerturbed
+# from envs.half_cheetah import HalfCheetahForwardObstacleCMDP, HalfCheetahForwardObstaclePerturbed
+import yaml
+import safety_gymnasium
+from safety_gymnasium.safety_envs.terminate_on_collision import TerminateOnCollisionWrapper
+# from safety_gymnasium.safety_envs.safety_circle_margin import SafetyCircleMargin, make_env
+from safety_gymnasium.safety_envs.safety_circle_margin_cmdp import SafetyCircleMarginCMDP, make_env
 
-
-DEFAULT_CAMERA_CONFIG = {
-    "trackbodyid": 2,
-    "distance": 3.0,
-    "lookat": np.array((0.0, 0.0, 1.15)),
-    "elevation": -20.0,
+PAPER_ENVS = {
+    "SafetyCarCircle2-v0": {
+        "task": "circle",
+        "fig_code": "circle",
+        "safety_clearance": 0.2,
+    },
+    "SafetyCarGoal1-v0": {
+        "task": "goal",
+        "fig_code": "pillar",
+        "safety_clearance": 0.2,
+    },
 }
+
+
+def make_task_env(env_id: str, terminate_on_collision: bool = True, render_mode=None, safety_clearance=0.4, dense_cost_weight=0.01, cost_scale=1000.0, **kwargs):
+    if "Circle" in env_id:  # Assuming your task is based on circles
+        agent = "Car"  # or whatever agent type you need
+        env = make_env(agent=agent, level=2, render_mode=render_mode, safety_clearance=safety_clearance, dense_cost_weight=dense_cost_weight, cost_scale=cost_scale, **kwargs)
+    else:
+        env = safety_gymnasium.make(env_id, render_mode=render_mode)
+
+    if terminate_on_collision:
+        env = TerminateOnCollisionWrapper(env)
+
+    return env
+
+
+
+def load_config(path: str) -> dict:
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
+
+
+def apply_config_to_args(args, cfg: dict):
+    """
+    Copy config.yaml values into argparse args.
+    CLI values can still override config values if you add custom logic later.
+    """
+    for key, value in cfg.items():
+        setattr(args, key, value)
+    return args
+
 
 
 # Trick 8: orthogonal initialization
@@ -335,28 +373,15 @@ class ReplayBuffer:
         return s, a, a_logprob, r, c, s_, dw, done
 
 
-class Robust_RCAC_NPG:
+class PrimalDual:
     def __init__(self, args):
-        if args.env == "CartPolePerturbedEnv":
-            self.env = CartPolePerturbedEnv(
-                args.gravity_std
-            )  # CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
-        elif args.env == "CartPoleCostEnv":
-            self.env = CartPoleCostEnv()
-        elif args.env == "PendulumEnv":
-            self.env = PendulumEnv()
-        elif args.env == "PendulumCostEnv":
-            self.env = PendulumCostEnv()
-        elif args.env == "PendulumPerturbedEnv":
-            self.env = PendulumPerturbedEnv()
-        elif args.env == "HopperPerturbedEnv":
-            self.env = HopperPerturbedEnv()
-        elif args.env == "HalfCheetahWithPos":
-            self.env = HalfCheetahWithPos()
-        elif args.env == "HalfCheetahWithPosPerturbed":
-            self.env = HalfCheetahWithPosPerturbed(sigma_gravity=args.sigma_gravity)
-        else:
-            print("No env selected")
+        self.env = make_task_env(
+            args.env_id,
+            terminate_on_collision=args.terminate_on_collision,
+            render_mode=args.render_mode,
+            safety_clearance=args.safety_clearance,
+            dense_cost_weight=args.dense_cost_weight 
+        )
         # self.env.seed(args.seed)
         self.policy_dist = args.policy_dist
         self.max_action = args.max_action
@@ -397,15 +422,8 @@ class Robust_RCAC_NPG:
         self.Rcritic = Critic(args)
         self.Ccritic = CostCritic(args)
 
-        #shilpa target critic
-        # Initialize target critics
-        # self.target_Rcritic = Critic(args)  # Target reward critic
-        # self.target_Ccritic = CostCritic(args)  # Target cost critic        
-        # # # Copy initial weights from critics to target critics
-        # self.target_Rcritic.load_state_dict(self.Rcritic.state_dict())
-        # self.target_Ccritic.load_state_dict(self.Ccritic.state_dict())
-
-        self.beta = args.beta
+        
+        # self.beta = args.beta
         # self.persistent_eps = 0.0
         self.warm_start_flag = args.warm_start_flag
 
@@ -429,22 +447,13 @@ class Robust_RCAC_NPG:
             self.optimizer_Ccritic = torch.optim.Adam(
                 self.Ccritic.parameters(), lr=self.lr_cost
             )
-
-        #shilpa target critic 
-        # Target networks are not optimized directly
-        # self.target_Rcritic.eval()
-        # self.target_Ccritic.eval()
-        # for p in self.target_Rcritic.parameters():
-        #     p.requires_grad = False
-        # for p in self.target_Ccritic.parameters():
-        #     p.requires_grad = False
-        # self.tau = getattr(args, "tau", 0.005)
-
-        # In __init__, add:
-        # self.ch = 0                        # current mode: 0=reward, 1=cost
-        # self.enter_cost_threshold  = self.persistent_eps          # enter cost mode if max > this
-        # self.exit_cost_threshold   = self.persistent_eps * 0.8   # exit cost mode only if max < this (more lenient)
-
+        #shilpa RCRL
+        self.dual_lambda = torch.tensor(0.0, dtype=torch.float32)
+        self.dual_lr = 1e-6 #1e-5 #1e-3
+        self.dual_lambda_max = 100.0
+        self.dense_cost_weight = args.dense_cost_weight
+        self.cost_scale = args.cost_scale
+      
 
     def evaluate(
         self, s
@@ -490,7 +499,7 @@ class Robust_RCAC_NPG:
     def lr_decay(self, total_steps):
         lr_a_now = self.lr_a * (1 - total_steps / self.max_train_steps)
         lr_c_now = self.lr_c * (1 - total_steps / self.max_train_steps)
-        lr_cost_now = self.lr_cost * (1 - total_steps / self.max_train_steps)
+        lr_cost_now = self.lr_cost# * (1 - total_steps / self.max_train_steps)
 
         for p in self.optimizer_actor.param_groups:
             p["lr"] = lr_a_now
@@ -499,161 +508,243 @@ class Robust_RCAC_NPG:
         for p in self.optimizer_Ccritic.param_groups:
             p["lr"] = lr_cost_now
 
-    def softmax_fn(self, a, b, temperature=0.1):
-        exp_a = torch.exp(a / temperature)
-        exp_b = torch.exp(b / temperature)
-        softmax_weighted = (a * exp_a + b * exp_b) / (exp_a + exp_b)
-        return softmax_weighted
-
-    def log_sum_exp_fn(self, a, b, eta=0.01): #prev 0.001
-        # Compute the Log-Sum-Exp smooth approximation of max(a, b)
-        # print("a, b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta))= ", a,b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta)))
-        # lse = eta * torch.log(torch.exp(a / eta) + torch.exp(b / eta))
-
-        if not isinstance(a, torch.Tensor):
-            a = torch.tensor(a, dtype=torch.float32)
-        if not isinstance(b, torch.Tensor):
-            b = torch.tensor(b, dtype=torch.float32)
-
-        # Find the maximum value between a and b : else exp(10/0.1) becomes infinity
-        max_val = torch.max(a, b)
-        # Stabilize the log-sum-exp computation
-        lse = max_val + eta * torch.log(
-            torch.exp((a - max_val) / eta) + torch.exp((b - max_val) / eta)
-        )
-        return lse
-
-  
+    
 
     def update(self, replay_buffer, total_steps):
         s, a, a_logprob, r, c, s_, dw, done = (
             replay_buffer.numpy_to_tensor()
         )  # Get training data
-        """
-            Calculate the advantage using GAE
-            'dw=True' means dead or win, there is no next state s'
-            'done=True' represents the terminal of an episode(dead or win or reaching the max_episode_steps). When calculating the adv, if done=True, gae=0
-        """
+
+        #shilpa RCRL
+        # Make sure dual_lambda is on the same device as tensors
+        if not isinstance(self.dual_lambda, torch.Tensor):
+            self.dual_lambda = torch.tensor(
+                self.dual_lambda, 
+                dtype=torch.float32, 
+                device=s.device
+            )
+        else:
+            self.dual_lambda = self.dual_lambda.to(s.device)
         
         # Optimize policy for K epochs:
         for _ in range(self.K_epochs):
            
             adv_r, adv_c = [], []
-            gae = 0
+            gae_r = 0
+            gae_c = 0
             with torch.no_grad():  # adv and v_target have no gradient
                 # shilpa target critic
                 vs = self.Rcritic(s)
                 vs_ = self.Rcritic(s_)
                 vcs = self.Ccritic(s)
                 vcs_ = self.Ccritic(s_)
-                # vs = self.Rcritic(s)
-                # vcs = self.Ccritic(s)
-                # vs_ = self.target_Rcritic(s_)
-                # vcs_ = self.target_Ccritic(s_)
-
-
-                # Construct trajectory dynamically from replay buffer
-
-                trajectory = {"states": s, "actions": a, "next_states": s_, "costs": c}
-
-                # with torch.no_grad():
-                    # Compute robust value function and V_L^pi
                 
-                vl_pi = vcs.max()
-                # penalty_term = max(0, vl_pi - self.persistent_eps)  # Apply penalty only if V_L(pi) > epsilon_tolerance
-                penalty_term = vl_pi - torch.tensor(self.persistent_eps)
-                beta_penalty = self.beta * penalty_term
-                vs_mean = vs.mean().item()
-                if self.warm_start_flag == 1:
-                    ch = np.argmax([vs_mean, beta_penalty])
+                #shilpa adaptive persistent_eps
+                # vl_pi = vcs.max()
+                # constraint_violation = vl_pi - torch.tensor(self.persistent_eps, dtype=torch.float32, device=s.device)
+                
+                # ============================================================
+                # Dual update using adaptive persistent epsilon
+                #
+                # Constraint:
+                # J_C(pi) <= persistent_eps + dense_cost_weight * T
+                #
+                # where T is the sampled episode length.
+                # ============================================================
+
+                cost_returns = []
+                adaptive_eps_returns = []
+
+                running_cost = 0.0
+                discount = 1.0
+                episode_len = 0
+
+                c_np = c.flatten().cpu().numpy()
+                done_np = done.flatten().cpu().numpy()
+
+                for cost_t, done_t in zip(c_np, done_np):
+                    running_cost += discount * cost_t
+                    discount *= self.gamma
+                    episode_len += 1
+
+                    if done_t:
+                        adaptive_eps_t = (
+                            self.persistent_eps
+                            + self.dense_cost_weight * episode_len
+                        )
+
+                        cost_returns.append(running_cost)
+                        adaptive_eps_returns.append(adaptive_eps_t)
+
+                        running_cost = 0.0
+                        discount = 1.0
+                        episode_len = 0
+
+                # Include partial episode if rollout ended before done
+                if episode_len > 0:
+                    adaptive_eps_t = (
+                        self.persistent_eps
+                        + self.dense_cost_weight * episode_len * self.cost_scale
+                    )
+
+                    cost_returns.append(running_cost)
+                    adaptive_eps_returns.append(adaptive_eps_t)
+
+                if len(cost_returns) > 0:
+                    Jc_pi = torch.tensor(
+                        sum(cost_returns) / len(cost_returns),
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+
+                    adaptive_persistent_eps = torch.tensor(
+                        sum(adaptive_eps_returns) / len(adaptive_eps_returns),
+                        dtype=torch.float32,
+                        device=s.device
+                    )
                 else:
-                    ch = 0
+                    Jc_pi = torch.tensor(
+                        0.0,
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+
+                    adaptive_persistent_eps = torch.tensor(
+                        self.persistent_eps,
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+
+                constraint_violation = Jc_pi - self.persistent_eps #adaptive_persistent_eps
+
+                
+                #Dual update:
+                # lambda <- [lambda + dual_lr * (max_cost - eps)]_+
+                if self.warm_start_flag == 1:
+                    self.dual_lambda = self.dual_lambda + self.dual_lr * constraint_violation
+                    self.dual_lambda = torch.clamp(
+                        self.dual_lambda,
+                        min=0.0,
+                        max=self.dual_lambda_max
+                    )
+
+                else:
+                    # Optional: keep lambda zero before warm start
+                    self.dual_lambda = torch.tensor(
+                        0.0,
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+
                 print(
-                    "ch, vs_mean, vl_pi, beta penalty=",
-                    ch,
-                    vs_mean,
-                    vl_pi,
-                    beta_penalty,
+                    "Primal-Dual | lambda, vl_pi, eps, violation =",
+                    self.dual_lambda.item(),
+                    Jc_pi.item(),
+                    adaptive_persistent_eps.item(),
+                    constraint_violation.item()
                 )
 
-              
-                reg_norm, weight_norm, bias_norm = 0, [], []
-
-                linear_layers = [l for l in self.Ccritic.children() if isinstance(l, nn.Linear)]
-                if len(linear_layers) == 0:
-                    raise ValueError("Ccritic has no nn.Linear layer")
-                reg_norm = torch.norm(linear_layers[-1].weight, p=2)
-
-                cost_deltas = (
-                    (1 - self.gamma) * c
-                    + self.gamma * self.log_sum_exp_fn(c, (1.0 - dw) * vcs_)
+                # ============================================================
+                # Cost advantage and cost critic target: standard cumulative GAE
+                #
+                # Cost Bellman:
+                # V_c(s) = c + gamma * V_c(s')
+                # ============================================================
+                deltas_c = (
+                    c
+                    + self.gamma * (1.0 - dw) * vcs_
                     - vcs
-                    # - self.alpha * a_logprob.sum(dim=1, keepdim=True)
-                    
-                    # + self.weight_reg * reg_norm
-                    
-                )  
-                adv_c = cost_deltas.clone()  
-                v_target_c = cost_deltas + vcs + self.weight_reg * reg_norm#- self.weight_reg * reg_norm #+ self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                )
 
+                for delta, d in zip(
+                    reversed(deltas_c.flatten().cpu().numpy()),
+                    reversed(done.flatten().cpu().numpy())
+                ):
+                    gae_c = delta + self.gamma * self.lamda * gae_c * (1.0 - d)
+                    adv_c.insert(0, gae_c)
 
-                reg_norm, weight_norm, bias_norm = 0, [], []
-                # for layer in self.Rcritic.children():
-                #         if isinstance(layer, nn.Linear):
-                #             weight_norm.append(
-                #                 torch.norm(layer.state_dict()["weight"]) ** 2
-                #             )
-                #             bias_norm.append(torch.norm(layer.state_dict()["bias"]) ** 2)
-                # reg_norm = torch.sqrt(
-                #     torch.sum(torch.stack(weight_norm))
-                #     + torch.sum(torch.stack(bias_norm[0:-1]))
-                # )
-                linear_layers = [layer for layer in self.Rcritic.children() if isinstance(layer, nn.Linear)]
-                if len(linear_layers) == 0:
-                    raise ValueError("Rcritic has no nn.Linear layer")
-                last_linear = linear_layers[-1]
-                reg_norm = torch.norm(last_linear.weight, p=2)
-                #ppo
-                deltas = (
+                adv_c = torch.tensor(
+                    adv_c,
+                    dtype=torch.float32,
+                    device=s.device
+                ).view(-1, 1)
+
+                # Cost critic target
+                v_target_c = adv_c + vcs
+
+                # Optional cost critic regularization on target
+                if self.weight_reg > 0:
+                    linear_layers_c = [
+                        layer for layer in self.Ccritic.children()
+                        if isinstance(layer, nn.Linear)
+                    ]
+                    if len(linear_layers_c) == 0:
+                        raise ValueError("Ccritic has no nn.Linear layer")
+
+                    reg_norm_c = torch.norm(linear_layers_c[-1].weight, p=2)
+                    v_target_c = v_target_c + self.weight_reg * reg_norm_c
+
+                
+
+                # ============================================================
+                # Reward advantage and reward critic target: standard GAE
+                # ============================================================
+                deltas_r = (
                     r
                     + self.gamma * (1.0 - dw) * vs_
                     - vs
-                    # - self.alpha * a_logprob.sum(dim=1, keepdim=True)
-                    # + self.weight_reg * reg_norm
                 )
-                
+
                 for delta, d in zip(
-                    reversed(deltas.flatten().numpy()), reversed(done.flatten().numpy())
+                    reversed(deltas_r.flatten().cpu().numpy()),
+                    reversed(done.flatten().cpu().numpy())
                 ):
-                    gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
-                    adv_r.insert(0, gae)
-                adv_r = torch.tensor(adv_r, dtype=torch.float).view(-1, 1)
-                v_target_r = adv_r + vs + self.weight_reg * reg_norm#+ self.alpha * a_logprob.sum(dim=1, keepdim=True)
+                    gae_r = delta + self.gamma * self.lamda * gae_r * (1.0 - d)
+                    adv_r.insert(0, gae_r)
 
-                if ch == 1:
-                    
-                    # ── Normalize then negate for actor ─────────────────────────────────
-                    if self.use_adv_norm:
-                        # adv = (adv - adv.mean()) / (adv.std() + 1e-5)
-                        adv_mean = adv_c.mean()
-                        adv_std  = adv_c.std()
-                        # Always normalize, but SCALE DOWN smoothly when signal is small.
-                        # This avoids the bang-bang switching at the 1e-2 threshold.
-                        adv_c = (adv_c - adv_mean) / (adv_std + 1e-5)
-                        adv_c = torch.clamp(adv_c, -3.0, 3.0)
-                        # Soft gate: multiply by tanh(std / threshold) so near-zero std → near-zero adv
-                        # but there is NO hard discontinuity
-                        # soft_gate = torch.tanh(adv_std / 0.05)   # smooth 0→1 around std=0.05
-                        # adv = adv * soft_gate
-                    adv = -adv_c  # minimize cost = maximize negative cost advantage
-                else:
-                    
-                    if self.use_adv_norm:  # Trick 1:advantage normalization
-                        adv =  (adv_r - adv_r.mean()) / (adv_r.std() + 1e-5)
+                adv_r = torch.tensor(
+                    adv_r,
+                    dtype=torch.float32,
+                    device=s.device
+                ).view(-1, 1)
 
-        # # Optimize policy for K epochs:
-        # for _ in range(self.K_epochs):
-            # Random sampling and no repetition. 'False' indicates that training will continue even if the number of samples in the last time is less than mini_batch_size
+                # Reward critic target
+                v_target_r = adv_r + vs
+
+                # Optional reward critic regularization on target
+                if self.weight_reg > 0:
+                    linear_layers_r = [
+                        layer for layer in self.Rcritic.children()
+                        if isinstance(layer, nn.Linear)
+                    ]
+                    if len(linear_layers_r) == 0:
+                        raise ValueError("Rcritic has no nn.Linear layer")
+
+                    reg_norm_r = torch.norm(linear_layers_r[-1].weight, p=2)
+                    v_target_r = v_target_r + self.weight_reg * reg_norm_r
+
+                #============================================================
+                # Advantage normalization
+                # ============================================================
+                if self.use_adv_norm:
+                    adv_r = (adv_r - adv_r.mean()) / (adv_r.std() + 1e-5)
+                    adv_c = (adv_c - adv_c.mean()) / (adv_c.std() + 1e-5)
+
+                    adv_r = torch.clamp(adv_r, -3.0, 3.0)
+                    adv_c = torch.clamp(adv_c, -3.0, 3.0)
+
+                # ============================================================
+                # Primal-Dual actor advantage
+                #
+                # Maximize:
+                # reward - lambda * cost
+                # ============================================================
+                adv = adv_r - self.dual_lambda.detach() * adv_c
+
+                if self.use_adv_norm:
+                    adv = (adv - adv.mean()) / (adv.std() + 1e-5)
+
+
             for index in BatchSampler(
                 SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False
             ):
@@ -733,6 +824,7 @@ class Robust_RCAC_NPG:
             self.alpha_optimzier.step()
             self.alpha = self.log_alpha.exp()
 
+
     #shilpa target critic
     def soft_update_target_networks(self, tau=None):
         if tau is None:
@@ -750,7 +842,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     evaluate_cost = 0
     evaluate_max_cost = float("-inf")
     for _ in range(times):
-        s = env.reset()[0][0]
+        s = env.reset()[0]#[0]
         if args.use_state_norm:
             s = state_norm(s, update=False)  # During the evaluating,update=False
         done = False
@@ -765,24 +857,26 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
                 action = 2 * (a - 0.5) * args.max_action  # [0,1]->[-max,max]
             else:
                 action = a
-            s_, r, c, truncated, terminated, info = env.step(action)
+            # s_, r, c, truncated, terminated, info = env.step(action)
+            # done = truncated or terminated
+            s_, r, c, terminated, truncated, info = env.step(action)
+            # c = get_cost_from_info(info)
+            # c = info.get("continuous_cost", 0.0)
+
+            # c= 0.0
             done = truncated or terminated
+
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
 
             episode_reward += r
-            episode_cost += c
-            max_cost = max(max_cost, c)
-
-            # if args.use_reward_norm:
-            #     r = reward_norm(r, update=False)
-            #     c = reward_norm(c, update=False)
-            # elif args.use_reward_scaling:
-            #     r = reward_scaling(r, update=False)
-            #     c = reward_scaling(c, update=False)
-            # episode_reward += r
             # episode_cost += c
             # max_cost = max(max_cost, c)
+            incremental_max_cost = info["incremental_max_cost"]
+            episode_cost +=incremental_max_cost
+            max_cost = max(max_cost, incremental_max_cost)
+
+          
             s = s_
         evaluate_reward += episode_reward
         evaluate_cost += episode_cost
@@ -836,13 +930,13 @@ def plot_eval_metrics(
 
     # ── Subplot 2: Evaluate Max Cost (with safety threshold line) ────────────
     axes[1].plot(evals, evaluate_max_costs, color="red", label="Eval Max Cost")
-    axes[1].axhline(
-        y=persistent_eps,
-        color="black",
-        linestyle="--",
-        linewidth=1.5,
-        label=f"Safety threshold ({persistent_eps})",
-    )
+    # axes[1].axhline(
+    #     y=0.2, #persistent_eps,
+    #     color="black",
+    #     linestyle="--",
+    #     linewidth=1.5,
+    #     label=f"Safety threshold 0.2", # ({persistent_eps})",
+    # )
     axes[1].set_xlabel("Evaluation #")
     axes[1].set_ylabel("Max Cost")
     axes[1].set_title("Evaluation Max Cost per Checkpoint")
@@ -851,6 +945,13 @@ def plot_eval_metrics(
 
     # ── Subplot 3: Evaluate Total Cost ───────────────────────────────────────
     axes[2].plot(evals, evaluate_costs, color="green", label="Eval Total Cost")
+    axes[2].axhline(
+            y=persistent_eps,
+            color="black",
+            linestyle="--",
+            linewidth=1.5,
+            label=f"Safety threshold ({persistent_eps})",
+        )
     axes[2].set_xlabel("Evaluation #")
     axes[2].set_ylabel("Total Cost")
     axes[2].set_title("Evaluation Total Cost per Checkpoint")
@@ -914,91 +1015,48 @@ def plot_metrics(
     plt.close()
 
 
+
+
 def main(args, run_number):
     seed, GAMMA = args.seed, args.GAMMA
 
     # Create directories for the current run
-    model_dir = f"./models/{args.env}/run{run_number}/"
-    data_train_dir = f"./data_train/{args.env}/run{run_number}/"
-    plot_data_dir = f"./plot_data/{args.env}/run{run_number}/"
+    env_name = args.env_id.replace("/", "_")
+
+    model_dir = f"./models/{env_name}/run{run_number}/"
+    data_train_dir = f"./data_train/{env_name}/run{run_number}/"
+    plot_data_dir = f"./plot_data/{env_name}/run{run_number}/"
+
+
     os.makedirs(model_dir, exist_ok=True)
     os.makedirs(data_train_dir, exist_ok=True)
     os.makedirs(plot_data_dir, exist_ok=True)
 
-    if args.env == "CartPolePerturbedEnv":
-        env = CartPolePerturbedEnv(
-            args.gravity_std
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            CartPolePerturbedEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = (
-            CartPolePerturbedEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == "CartPoleCostEnv":
-        env = (
-            CartPoleCostEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            CartPoleCostEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = (
-            CartPoleCostEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == "HopperPerturbed":
-        env = (
-            HopperPerturbed()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            HopperPerturbed()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = (
-            HopperPerturbed()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == "PendulumEnv":
-        env = (
-            PendulumEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            PendulumEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = PendulumEnv()
+    env = make_task_env(
+        args.env_id,
+        terminate_on_collision=args.terminate_on_collision,
+        render_mode=args.render_mode,
+        safety_clearance=args.safety_clearance,  # Set your desired safety clearance
+        dense_cost_weight=args.dense_cost_weight  # Set your desired dense cost weight
+    )
 
-    elif args.env == "PendulumCostEnv":
-        env = (
-            PendulumCostEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            PendulumCostEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = PendulumCostEnv()
-    elif args.env == "PendulumPerturbedEnv":
-        env = (
-            PendulumPerturbedEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            PendulumPerturbedEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = PendulumPerturbedEnv()
-    elif args.env == "HalfCheetahWithPos":
-        env = (
-            HalfCheetahWithPos()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            HalfCheetahWithPos() #HalfCheetahWithPostest()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = HalfCheetahWithPos()
+    env_evaluate = make_task_env(
+        args.env_id,
+        terminate_on_collision=args.terminate_on_collision,
+        render_mode=args.render_mode,
+        safety_clearance=args.safety_clearance,  # Set your desired safety clearance
+        dense_cost_weight=args.dense_cost_weight  # Set your desired dense cost weight
+    )
 
-    elif args.env == "HalfCheetahWithPosPerturbed":
-        env = (
-            HalfCheetahWithPosPerturbed(sigma_gravity=args.sigma_gravity)
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            HalfCheetahWithPosPerturbed(sigma_gravity=args.sigma_gravity) #HalfCheetahWithPostest()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = HalfCheetahWithPosPerturbed(sigma_gravity=args.sigma_gravity)
+    env_reset = make_task_env(
+        args.env_id,
+        terminate_on_collision=args.terminate_on_collision,
+        render_mode=args.render_mode,
+        safety_clearance=args.safety_clearance,  # Set your desired safety clearance
+        dense_cost_weight=args.dense_cost_weight  # Set your desired dense cost weight
+    )
 
-
+   
     # Set random seed
     # env.reset(seed=seed)
     # env.seed(seed)
@@ -1019,10 +1077,18 @@ def main(args, run_number):
     args.state_dim = env.observation_space.shape[0]
     args.action_dim = env.action_space.shape[0]
     args.max_action = float(env.action_space.high[0])
-    args.max_episode_steps = env.max_steps  # Must match environment's truncation limit
+    # args.max_episode_steps = env.max_steps  # Must match environment's truncation limit
+    
+    if hasattr(env, "max_steps"):
+        args.max_episode_steps = env.max_steps
+    elif hasattr(env, "spec") and env.spec is not None and env.spec.max_episode_steps is not None:
+        args.max_episode_steps = env.spec.max_episode_steps
+    else:
+        args.max_episode_steps = getattr(args, "max_episode_steps", 1000)
+
     lambda_ = args.lambda_
     b = args.baseline
-    print("env={}".format(args.env))
+    print("env_id={}".format(args.env_id))
     print("state_dim={}".format(args.state_dim))
     print("action_dim={}".format(args.action_dim))
     print("max_action={}".format(args.max_action))
@@ -1036,12 +1102,12 @@ def main(args, run_number):
     evaluate_max_costs = []
 
     replay_buffer = ReplayBuffer(args)
-    agent = Robust_RCAC_NPG(args)
+    agent = PrimalDual(args)
 
-    # Build a tensorboard
     writer = SummaryWriter(
-        log_dir=f"runs/RNAC/env_{args.env}_{args.policy_dist}_run{run_number}_seed_{seed}_GAMMA_{GAMMA}"
+        log_dir=f"runs/RNAC/env_{env_name}_{args.policy_dist}_run{run_number}_seed_{seed}_GAMMA_{GAMMA}"
     )
+
 
     state_norm = Normalization(shape=args.state_dim)  # Trick 2:state normalization
     if args.use_reward_norm:  # Trick 3:reward normalization
@@ -1062,13 +1128,8 @@ def main(args, run_number):
 
     reward_offset = 0 # 40 #17
     for total_steps in tqdm(range(args.max_train_steps)):
-        # if total_steps > args.max_train_steps // 2:
-        #    agent.gamma = 0.999
-        # if total_steps > args.warm_start_episode:
-        #             agent.entropy_coef = 0.0
-        s = env.reset()[0][0]
-        # print ("Initial state:", s)  # Debugging: Print the initial state
-        # s_org = copy.deepcopy(s)
+      
+        s = env.reset()[0]#[0]
         if args.use_state_norm:
             s = state_norm(s)
         if args.use_reward_scaling:
@@ -1080,9 +1141,9 @@ def main(args, run_number):
         total_cost = 0
         max_cost = float("-inf")
 
-        agent.beta = (
-            args.beta
-        )  # 50.0 #min(max_beta, min_beta * np.exp(total_steps / scale))
+        # agent.beta = (
+        #     args.beta
+        # )  # 50.0 #min(max_beta, min_beta * np.exp(total_steps / scale))
         if total_steps > args.warm_start_episode:
             agent.warm_start_flag = 1
         else:
@@ -1095,61 +1156,24 @@ def main(args, run_number):
             else:
                 action = a
 
-            if args.uncer_set == "DS":
-                # Multi-run
-                v_min, index = torch.tensor(float("inf")), 0
-                v_candidate, index_candidate = torch.tensor(float("inf")), 0
-                flag = 0
-                noise_list, nexts_list, r_list, c_list = [], [], [], []
-                for i in range(args.next_steps):
-                    obs = env_reset.reset(state=s_org, x_pos=x_pos)
-                    s_, r, c, done, info = env_reset.step(action)
-                    # total_reward += r
-                    # total_cost += c
-                    r_list.append(r)
-                    c_list.append(c)
-                    noise_list.append(info["noise"])
-                    if args.use_state_norm:
-                        s_ = state_norm(s_, update=False)
-                    nexts_list.append(s_)
+            
+            
+            s_, r, c, terminated, truncated, info = env.step(action)
+            # c = get_cost_from_info(info)
+            # c = info.get("continuous_cost", 0.0)
+            # c= 0.0
+            done = truncated or terminated
+            total_reward += r
+            # total_cost += c
+            # max_cost = max(max_cost, c)
+            incremental_max_cost = info["incremental_max_cost"]
+            total_cost +=incremental_max_cost
+            max_cost = max(max_cost, incremental_max_cost)
+                
+            # print(f"Step: total_cost={total_cost}, max_cost={max_cost}, current_cost={c}")
 
-                    #########################Please check this part if USING Double Sampling ############################################
-                    with torch.no_grad():
-                        if agent.Rcritic(torch.tensor(s_, dtype=torch.float)) < v_min:
-                            v_min = agent.Rcritic(torch.tensor(s_, dtype=torch.float))
-                            index = i
-                        if (
-                            agent.Rcritic(
-                                torch.tensor(nexts_list[i], dtype=torch.float)
-                            )
-                            < v_candidate
-                            and lambda_
-                            * (agent.Ccritic(torch.tensor(s_, dtype=torch.float)) - b)
-                            < 0
-                        ):
-                            v_candidate = agent.Rcritic(
-                                torch.tensor(nexts_list[i], dtype=torch.float)
-                            )
-                            index_candidate = i
-                            flag = 1
-                if flag == 1:
-                    index = index_candidate
-                ############################# UP UNTIL HERE ################################################################
-                # pick next state for robust critic update
-                ridx = random.randint(0, args.next_steps)
-                if ridx == args.next_steps:
-                    ridx = index
-                s_, r, c, done, info = env.step(
-                    np.concatenate((action, noise_list[ridx]))
-                )
-                total_reward += r
-                total_cost += c
-            else:
-                s_, r, c, truncated, terminated, info = env.step(action)
-                done = truncated or terminated
-                total_reward += r
-                total_cost += c
-                max_cost = max(max_cost, c)
+
+
             # x_pos = np.array([info["x_position"]])
             if args.use_state_norm:
                 # nexts = state_norm(nexts, update=False)
@@ -1161,10 +1185,7 @@ def main(args, run_number):
                 r = reward_scaling(r)
                 # c = reward_scaling(c)
 
-            # total_reward += r
-            # total_cost += c
-            # max_cost = max(max_cost, c)
-
+           
             # When dead or win or reaching the max_episode_steps, done will be Ture, we need to distinguish them;
             # dw means dead or win,there is no next state s';
             # but when reaching the max_episode_steps,there is a next state s' actually.
@@ -1221,22 +1242,22 @@ def main(args, run_number):
             # ─────────────────────────────────────────────────────────────────
 
             writer.add_scalar(
-                "step_rewards_{}".format(args.env),
+                "step_rewards_{}".format(args.env_id),
                 evaluate_rewards[-1],
                 global_step=total_steps,
             )
             # Save the rewards
             # if evaluate_num % args.save_freq == 0:
             np.save(
-                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_rewards.npy",
+                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{env_name}_seed_{seed}_GAMMA_{GAMMA}_rewards.npy",
                 np.array(evaluate_rewards),
             )
             np.save(
-                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy",
+                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{env_name}_seed_{seed}_GAMMA_{GAMMA}_costs.npy",
                 np.array(evaluate_costs),
             )
             np.save(
-                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy",
+                f"{data_train_dir}/RNAC_{args.policy_dist}_env_{env_name}_seed_{seed}_GAMMA_{GAMMA}_max_costs.npy",
                 np.array(evaluate_max_cost),
             )
 
@@ -1288,13 +1309,35 @@ def main(args, run_number):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
     parser.add_argument(
-        "--env",
+        "--config",
         type=str,
-        # default="CartPolePerturbedEnv",
-        default="HalfCheetahWithPos",
-        help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv/PendulumCostEnv/HalfCheetahWithPos/HalfCheetahWithPosPerturbed",
+        required=True,
+        help="Path to config YAML file, e.g. configs/rpcrl_circle.yaml",
     )
-    parser.add_argument("--uncer_set", type=str, default="IPM", help="DS/IPM")
+
+    parser.add_argument(
+    "--env_id",
+    type=str,
+    default="SafetyCircle-v0",  # Change this to your SafeCircle environment
+    choices=["SafetyCircle-v0", "SafetyCarCircle2-v0", "SafetyCarGoal1-v0"],
+    help="Safety Gymnasium environment id",
+)
+
+
+    parser.add_argument(
+        "--terminate_on_collision",
+        type=bool,
+        default=False,
+        help="Use TerminateOnCollisionWrapper",
+    )
+
+    parser.add_argument(
+        "--render_mode",
+        type=str,
+        default=None,
+        help="Render mode for Safety Gymnasium",
+    )
+
     parser.add_argument(
         "--next_steps", type=int, default=2, help="Number of next states"
     )
@@ -1304,6 +1347,14 @@ if __name__ == "__main__":
         default=int(25e3),
         help="Uniformlly sample action within random steps",
     )
+
+    parser.add_argument(
+            "--safety_clearance",
+            type=float,
+            default=0.30,
+            help="Safety clearance for the environment",
+        )
+    
     parser.add_argument(
         "--max_train_steps",
         type=int,
@@ -1426,21 +1477,26 @@ if __name__ == "__main__":
         "--warm_start_episode", type=int, default=500, help="warm_start_episode"
     )
     parser.add_argument(
-        "--gravity_std", type=float, default=0.5, help="gravity perturbation"
+        "--dense_cost_weight",
+        type=float,
+        default=0.01,
+        help="Weight for dense cost in the environment",
     )
-    parser.add_argument(
-        "--sigma_gravity", type=float, default=0.0, help="gravity perturbation"
-    )
+    parser.add_argument("--cost_scale", type=float, default=1000.0, help="Scale for cost advantage")
 
 
 
     args = parser.parse_args()
+
+    cfg = load_config(args.config)
+    args = apply_config_to_args(args, cfg)
+
     # make folders to dump results
     if not os.path.exists("./models"):
         os.makedirs("./models")
     if not os.path.exists("./data_train"):
         os.makedirs("./data_train")
 
-    print("run=", args.run, "seed=", args.seed, "env=", args.env,  "k_epochs", args.K_epochs)
+    print("run=", args.run, "seed=", args.seed, "env=", args.env_id,  "k_epochs", args.K_epochs)
 
     main(args, run_number=args.run)
