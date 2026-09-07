@@ -340,7 +340,7 @@ class PrimalDual:
         if args.env == "HalfCheetahForwardObstacleCMDP":
             self.env = HalfCheetahForwardObstacleCMDP()
         elif args.env == "HalfCheetahCMDP":
-            self.env = HalfCheetahCMDP()
+            self.env = HalfCheetahCMDP(dense_cost_weight=args.dense_cost_weight, cost_scale=args.cost_scale)
         else:
             print("No env selected")
         # self.env.seed(args.seed)
@@ -408,8 +408,12 @@ class PrimalDual:
             )
         #shilpa RCRL
         self.dual_lambda = torch.tensor(0.0, dtype=torch.float32)
-        self.dual_lr = 1e-5 #1e-5 #1e-3
+        self.dual_lr = 5e-5 #1e-5 #1e-3
         self.dual_lambda_max = 100.0
+        self.max_action_env = args.max_action
+        self.cost_scale=args.cost_scale
+        self.dense_cost_weight = args.dense_cost_weight
+
 
        
 
@@ -457,7 +461,7 @@ class PrimalDual:
     def lr_decay(self, total_steps):
         lr_a_now = self.lr_a * (1 - total_steps / self.max_train_steps)
         lr_c_now = self.lr_c * (1 - total_steps / self.max_train_steps)
-        lr_cost_now = self.lr_cost #* (1 - total_steps / self.max_train_steps)
+        lr_cost_now = self.lr_cost# * (1 - total_steps / self.max_train_steps)
 
         for p in self.optimizer_actor.param_groups:
             p["lr"] = lr_a_now
@@ -475,6 +479,7 @@ class PrimalDual:
         s, a, a_logprob, r, c, s_, dw, done = (
             replay_buffer.numpy_to_tensor()
         )  # Get training data
+        
 
         #shilpa RCRL
         # Make sure dual_lambda is on the same device as tensors
@@ -499,10 +504,102 @@ class PrimalDual:
                 vs_ = self.Rcritic(s_)
                 vcs = self.Ccritic(s)
                 vcs_ = self.Ccritic(s_)
+                # print("actual cost =", c)
+                # print("predicted cost=", vcs)
                 
                 
-                vl_pi = vcs.max()
-                constraint_violation = vl_pi - torch.tensor(self.persistent_eps, dtype=torch.float32, device=s.device)
+                # vl_pi = vcs.max()
+                #shilpa threshold adaptation
+                # constraint_violation = vl_pi - torch.tensor(self.persistent_eps, dtype=torch.float32, device=s.device)
+
+                cost_returns = []
+                adaptive_eps_returns = []
+
+                running_cost = 0.0
+                discount = 1.0
+                episode_len = 0
+
+                c_np = c.flatten().cpu().numpy()
+                done_np = done.flatten().cpu().numpy()
+
+                for cost_t, done_t in zip(c_np, done_np):
+                    running_cost += discount * cost_t
+                    # discount *= self.gamma
+                    episode_len += 1
+
+                    if done_t:
+                        adaptive_eps_t = (
+                            self.cost_scale*self.persistent_eps
+                            + (self.dense_cost_weight * episode_len*self.max_action_env)*self.cost_scale/(self.max_action_env*100.0/self.persistent_eps)
+                        )
+
+                        cost_returns.append(running_cost)
+                        # print("cost returns=", cost_returns)
+
+                        adaptive_eps_returns.append(adaptive_eps_t)
+                        # print("pers_ep, dense cost weight, ep len=", self.persistent_eps, self.dense_cost_weight, episode_len)
+
+                        running_cost = 0.0
+                        discount = 1.0
+                        episode_len = 0
+
+                # Include partial episode if rollout ended before done
+                if episode_len > 0:
+                    adaptive_eps_t = (
+                            self.cost_scale*self.persistent_eps
+                            + (self.dense_cost_weight * episode_len*self.max_action_env)*self.cost_scale/(self.max_action_env/self.persistent_eps)
+                        )
+                    # print("pers_ep, dense cost weight, ep len=", self.persistent_eps, self.dense_cost_weight, episode_len)
+
+                    cost_returns.append(running_cost)
+                    # print("cost returns=", cost_returns)
+                    adaptive_eps_returns.append(adaptive_eps_t)
+
+                if len(cost_returns) > 0:
+                    cost_returns_tensor = torch.tensor(
+                        cost_returns,
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+
+                    adaptive_eps_tensor = torch.tensor(
+                        adaptive_eps_returns,
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+
+                    individual_violations = cost_returns_tensor - self.persistent_eps #adaptive_eps_tensor
+
+                    constraint_violation = individual_violations.mean()
+
+                    Jc_pi = cost_returns_tensor.mean()
+                    adaptive_persistent_eps = adaptive_eps_tensor.mean()
+
+                else:
+                    Jc_pi = torch.tensor(
+                        0.0,
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+
+                    adaptive_persistent_eps = torch.tensor(
+                        self.persistent_eps,
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+
+                    constraint_violation = torch.tensor(
+                        0.0,
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+
+                # print("individual violations =", individual_violations.detach().cpu().numpy() if len(cost_returns) > 0 else [])
+                # print("Jc_pi mean =", Jc_pi.item())
+                # print("adaptive_persistent_eps mean =", adaptive_persistent_eps.item())
+                # print("mean violation =", constraint_violation.item())
+
+
                 #Dual update:
                 # lambda <- [lambda + dual_lr * (max_cost - eps)]_+
                 if self.warm_start_flag == 1:
@@ -524,8 +621,8 @@ class PrimalDual:
                 print(
                     "Primal-Dual | lambda, vl_pi, eps, violation =",
                     self.dual_lambda.item(),
-                    vl_pi.item(),
-                    self.persistent_eps,
+                    Jc_pi.item(),
+                    adaptive_persistent_eps.item(),
                     constraint_violation.item()
                 )
 
@@ -684,6 +781,7 @@ class PrimalDual:
                 
                 v_cs = self.Ccritic(s[index])
                 Ccritic_loss = F.mse_loss(v_target_c[index], v_cs)
+                print("Critic Loss = ", Ccritic_loss)
                 # Update Cost critic
                 self.optimizer_Ccritic.zero_grad()
                 Ccritic_loss.backward()
@@ -833,7 +931,7 @@ def plot_eval_metrics(
     # ── Subplot 3: Evaluate Total Cost ───────────────────────────────────────
     axes[2].plot(evals, evaluate_costs, color="green", label="Eval Total Cost")
     axes[2].axhline(
-            y=0.1, #persistent_eps,
+            y=persistent_eps,
             color="black",
             linestyle="--",
             linewidth=1.5,
@@ -922,9 +1020,9 @@ def main(args, run_number):
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
         env_reset = HalfCheetahForwardObstacleCMDP()
     elif args.env == "HalfCheetahCMDP":
-        env = (HalfCheetahCMDP())
-        env_evaluate = (HalfCheetahCMDP())
-        env_reset = HalfCheetahCMDP()
+        env = (HalfCheetahCMDP(dense_cost_weight=args.dense_cost_weight, cost_scale=args.cost_scale))
+        env_evaluate = (HalfCheetahCMDP(dense_cost_weight=args.dense_cost_weight, cost_scale=args.cost_scale))
+        env_reset = HalfCheetahCMDP(dense_cost_weight=args.dense_cost_weight, cost_scale=args.cost_scale)
 
     # Set random seed
     # env.reset(seed=seed)
@@ -1361,6 +1459,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sigma_gravity", type=float, default=0.0, help="gravity perturbation"
     )
+    parser.add_argument("--dense_cost_weight", type=float, default=0.01, help="should be same as beta in shaped cost in MDP")
+    parser.add_argument("--cost_scale", type=float, default=100.0, help="should be same as beta in shaped cost in MDP")
+    # parser.add_argument("--dense_cost_weight", type=float, default=0.01, help="should be same as beta in shaped cost in MDP")
+
+
 
 
 

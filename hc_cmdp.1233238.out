@@ -1,0 +1,14 @@
+n0054
+Fri Sep  4 02:38:46 PM EDT 2026
+/home/sm3934/miniconda3/envs/rpcrl_env/bin/python
+run= 701 seed= 1 env= HalfCheetahCMDP k_epochs 5
+env=HalfCheetahCMDP
+state_dim=19
+action_dim=6
+max_action=1.0
+max_episode_steps=1000
+------use_orthogonal_init------
+------use_orthogonal_init------
+------use_orthogonal_init------
+evaluate_num:1 	 evaluate_reward:4.725817244352644 	 evaluate_cost:0.0 	 evaluate_max_cost:0.0
+New best model found! Saving model with reward: 4.725817244352644 and max cost: 0.0

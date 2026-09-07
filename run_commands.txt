@@ -33,6 +33,8 @@ python code_ipm_rcmdp_rcrl_max_hc_PD.py --run 1 --persistent_eps 0.1 --K_epochs 
 code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py --run 511 --persistent_eps 1.0 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 5e-4 --entropy_coef 0.001 --weight_reg 0.0 --seed 1 --env HalfCheetahCMDP --lr_c 5e-4
 nohup python code_ipm_rcmdp_rcrl_max_hc_nstepGAE.py --run 201 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahWithPos --lr_c 5e-3 > 201_hc_NstepRPCRL.log 2>&1 &
 nohup python code_ipm_rcmdp_rcrl_max_hc_sparse.py --run 1 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 500 --lr_cost 5e-4 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahForwardObstacleCMDP --lr_c 5e-4 > 2_hc_cmdp.log 2>&1 &
+code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py --run 701 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 5e-4 --entropy_coef 0.001 --weight_reg 0.0 --seed 1 --env HalfCheetahCMDP --lr_c 5e-4
+/home/sm3934/miniconda3/envs/rpcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py --run 703 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 7e-5 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahCMDP --lr_c 5e-4 --lr_a 5e-4
 
 
 

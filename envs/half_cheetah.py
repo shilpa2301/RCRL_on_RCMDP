@@ -365,7 +365,7 @@ class HalfCheetahCMDP(HalfCheetahEnv):
     max_steps = 1000
     
 
-    def __init__(self):
+    def __init__(self, dense_cost_weight, cost_scale):
         self._elapsed_steps = 0
         self.max_cost = 0.0
         self.last_cost = 0.0
@@ -378,6 +378,8 @@ class HalfCheetahCMDP(HalfCheetahEnv):
             high=obs_high,
             dtype=np.float32,
         )
+        self.beta = dense_cost_weight
+        self.cost_scale=cost_scale
 
 
     def _get_base_obs(self):
@@ -397,7 +399,7 @@ class HalfCheetahCMDP(HalfCheetahEnv):
         """
         return np.concatenate([
             np.asarray(obs, dtype=np.float32),
-            np.array([100.0*self.max_cost], dtype=np.float32),
+            np.array([self.cost_scale*self.max_cost], dtype=np.float32),
         ]).astype(np.float32)
 
     def _get_obs(self):
@@ -516,10 +518,10 @@ class HalfCheetahCMDP(HalfCheetahEnv):
         previous_max_cost = self.max_cost
         incremental_max_cost = max(current_c - previous_max_cost, 0.0)
         dense_cost = current_c
-        beta = 0.01 #0.1
+        # beta = 0.01 #0.1
         alpha = max((self._elapsed_steps-1), 0)/(self._elapsed_steps) #-0.99)#1.0
         # print(dense_cost, incremental_max_cost, alpha, beta)
-        cost = beta * dense_cost + alpha * incremental_max_cost
+        cost = self.beta * dense_cost + alpha * incremental_max_cost
         self.max_cost = float(max(previous_max_cost, current_c))
         self.last_cost = cost
         # print("cost=",cost)
@@ -551,7 +553,7 @@ class HalfCheetahCMDP(HalfCheetahEnv):
 
         # Return 6-tuple expected by your training loop:
         # obs, reward, cost, truncated, terminated, info
-        return ob, reward, 100.0*cost, truncated, terminated, info
+        return ob, reward, self.cost_scale*cost, truncated, terminated, info
 
 
 

@@ -1,0 +1,15 @@
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+/home/sm3934/miniconda3/envs/rpcrl_env/lib/python3.10/site-packages/gym/envs/mujoco/mujoco_env.py:190: UserWarning: [33mWARN: This version of the mujoco environments depends on the mujoco-py bindings, which are no longer maintained and may stop working. Please upgrade to the v4 versions of the environments (which depend on the mujoco python bindings instead), unless you are trying to precisely replicate previous works).[0m
+  logger.warn(
+  0%|          | 0/16000 [00:00<?, ?it/s]  0%|          | 1/16000 [00:03<16:45:22,  3.77s/it]  0%|          | 2/16000 [00:04<8:57:10,  2.01s/it]   0%|          | 2/16000 [00:04<10:11:04,  2.29s/it]
+Traceback (most recent call last):
+  File "/project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py", line 1445, in <module>
+    main(args, run_number=args.run)
+  File "/project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py", line 1184, in main
+    agent.update(replay_buffer, total_steps)
+  File "/project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py", line 595, in update
+    vl_pi.item(),
+NameError: name 'vl_pi' is not defined. Did you mean: 'Jc_pi'?
