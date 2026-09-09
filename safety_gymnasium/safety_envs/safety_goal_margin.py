@@ -43,13 +43,13 @@ class SafetyGoalMargin(gym.Wrapper):
         for name, space in d.spaces.items() if hasattr(d, "spaces") else d.items():
             size = int(np.prod(space.shape))
             
-            if name == "hazards_lidar":
-                self._hazards_lidar_slice = slice(start, start + size)
-                hazards_found = True
-            elif name == "vases_lidar":
-                self._vases_lidar_slice = slice(start, start + size)
-                vases_found = True
-            elif name == "sigwalls_lidar":
+            # if name == "hazards_lidar":
+            #     self._hazards_lidar_slice = slice(start, start + size)
+            #     hazards_found = True
+            # elif name == "vases_lidar":
+            #     self._vases_lidar_slice = slice(start, start + size)
+            #     vases_found = True
+            if name == "sigwalls_lidar":
                 self._sigwalls_lidar_slice = slice(start, start + size)
                 sigwalls_found = True
             elif name == "pillars_lidar":
@@ -100,29 +100,69 @@ class SafetyGoalMargin(gym.Wrapper):
         min_safety_distance = float(np.min(all_safety_dists))
         
         # Compute safety margin
-        g = min_safety_distance - self.safety_clearance
+        g = min_safety_distance #- self.safety_clearance
         return g
+
+    def _calculate_continuous_cost(self, min_safety_distance: float) -> float:
+        """
+        Calculate dense continuous cost based on distance to nearest safety object.
+
+        Regions:
+
+            1. Safe region:
+                min_safety_distance > safety_clearance
+                cost = 0
+
+            2. Warning / violation region:
+                safety_clearance >= min_safety_distance > 0
+                cost ramps from 0 to 1
+
+            3. Collision / invalid region:
+                min_safety_distance <= 0
+                cost is high
+        """
+
+        d = float(min_safety_distance)
+        c = float(self.safety_clearance)
+
+        # Region 1: Safe
+        if d > c:
+            return 0.0
+
+        # Region 2: Inside safety clearance
+        elif 0.0 < d <= c:
+            cost = (c - d) / max(c, 1e-6)
+            return 1.0 * float(max(0.0, min(cost, 1.0)))
+
+        # Region 3: Collision / penetration / invalid
+        else:
+            return 1.0 * float(1.0 + 10.0 * (-d))
 
     def step(self, action):
         # Safety-Gymnasium step returns: obs, reward, cost, terminated, truncated, info
         obs, _reward, cost, terminated, truncated, info = self.env.step(action)
-        g = self._margin_from_obs(obs)
+        min_safety_distance = self._margin_from_obs(obs)
+
+        continuous_cost = self._calculate_continuous_cost(min_safety_distance)
 
         # Terminate on safety failure (negative margin)
-        if g < 0.0:
-            terminated = True
+        # if g < 0.0:
+        #     terminated = True
 
         if self._log_original:
             info = dict(info or {})
-            info.update({
-                "orig_reward": float(_reward),
-                "orig_cost": float(cost),
-                "margin_g": float(g),
-                "safe": float(g >= 0.0),
-            })
-        
-        # Replace reward with the margin
-        return obs, g, terminated, truncated, info
+            info.update(
+                {
+                    "orig_reward": float(_reward),
+                    "orig_cost": float(cost),
+                    "margin_g": float(margin),
+                    "safe": float(margin >= self.safety_clearance),
+                    "min_safety_distance": float(min_safety_distance),
+                    "continuous_cost": float(continuous_cost),
+                }
+            )
+
+        return obs, _reward, continuous_cost, terminated, truncated, info
 
     def reset(self, **kwargs):
         """Reset environment with rejection sampling to avoid starting in unsafe states."""

@@ -1,0 +1,15 @@
+name: rpcrl_env
+channels:
+  - defaults
+dependencies:
+  - wheel
+  - zlib
+  - xz
+  - setuptools
+  - pip
+  - python=3.10
+  - sqlite
+  - openssl
+  - tk
+  - packaging
+prefix: /home/sm3934/miniconda3/envs/rpcrl_env

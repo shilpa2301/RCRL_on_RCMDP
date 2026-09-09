@@ -8,9 +8,9 @@ render_mode: null
 safety_clearance: 0.3
 
 seed: 1
-run: 1
+run: 2
 
-max_train_steps: 12000
+max_train_steps: 16000
 evaluate_freq: 100
 save_freq: 20
 
@@ -20,12 +20,12 @@ next_steps: 2
 random_steps: 25000
 
 batch_size: 2048
-mini_batch_size: 128
+mini_batch_size: 256 #128
 hidden_width: 64
 
-lr_a: 0.0005
-lr_c: 0.0005
-lr_cost: 0.00007
+lr_a: 0.003 #0.0008
+lr_c: 0.0003 #0.00007
+lr_cost: 0.0003 #0.00007
 
 gamma: 0.99
 GAMMA: "0"

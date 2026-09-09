@@ -44,6 +44,9 @@ PAPER_ENVS = {
     },
 }
 
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# print(f"Using device: {device}")
+
 
 def make_task_env(env_id: str, terminate_on_collision: bool = True, render_mode=None, safety_clearance=0.4, dense_cost_weight=0.01, cost_scale=1000.0, **kwargs):
     if "Circle" in env_id:  # Assuming your task is based on circles
@@ -125,20 +128,89 @@ class Actor_Beta(nn.Module):
         self.load_state_dict(torch.load(filename, map_location=torch.device(device)))
 
 
+# class Actor_Gaussian(nn.Module):
+#     def __init__(self, args):
+#         super(Actor_Gaussian, self).__init__()
+#         self.max_action = args.max_action
+#         self.fc1 = nn.Linear(args.state_dim, args.hidden_width)
+#         self.fc2 = nn.Linear(args.hidden_width, args.hidden_width)
+#         self.fc3 = nn.Linear(args.hidden_width, args.hidden_width)
+#         self.mean_layer = nn.Linear(args.hidden_width, args.action_dim)
+#         self.log_std = nn.Parameter(
+#             torch.zeros(1, args.action_dim)
+#         )  # We use 'nn.Parameter' to train log_std automatically
+#         # self.log_std = nn.Parameter(torch.full((1, args.action_dim), -2.0))
+
+#         self.activate_func = [nn.ReLU(), nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
+
+#         if args.use_orthogonal_init:
+#             print("------use_orthogonal_init------")
+#             orthogonal_init(self.fc1)
+#             orthogonal_init(self.fc2)
+#             orthogonal_init(self.fc3)
+#             orthogonal_init(self.mean_layer, gain=0.01)
+
+#     def forward(self, s):
+#         s = self.activate_func(self.fc1(s))
+#         s = self.activate_func(self.fc2(s))
+#         s = self.activate_func(self.fc3(s))
+#         mean = self.max_action * torch.tanh(
+#             self.mean_layer(s)
+#         )  # [-1,1]->[-max_action,max_action]
+#         return mean
+
+#     # def get_dist(self, s):
+#     #     mean = self.forward(s)
+#     #     log_std = self.log_std.expand_as(mean)  # To make 'log_std' have the same dimension as 'mean'
+#     #     std = torch.exp(log_std)  # The reason we train the 'log_std' is to ensure std=exp(log_std)>0
+#     #     dist = Normal(mean, std)  # Get the Gaussian distribution
+#     #     return dist
+
+#     def get_dist(self, s):
+#         mean = self.forward(s)
+#         # print(f"mean shape: {mean.shape}")  # Debugging: Print the shape of mean
+#         # print(f"log_std shape before expand: {self.log_std.shape}")  # Debugging: Print the shape of log_std
+#         log_std = self.log_std.expand(
+#             mean.shape[0], -1
+#         )  # Expand log_std to match the shape of mean
+        
+#         # log_std = torch.clamp(log_std, min=-4.0, max=-1.0)
+
+#         # print(f"log_std shape after expand: {log_std.shape}")  # Debugging: Print the shape of expanded log_std
+#         std = torch.exp(log_std)
+#         dist = Normal(mean, std)
+#         return dist
+
+#     def save(self, filename):
+#         torch.save(self.state_dict(), filename)
+
+#     def load(self, filename, device="cpu"):
+#         self.to(device)
+#         self.load_state_dict(torch.load(filename, map_location=torch.device(device)))
+
+
+#shilpa squashed gaussian
 class Actor_Gaussian(nn.Module):
     def __init__(self, args):
         super(Actor_Gaussian, self).__init__()
+
         self.max_action = args.max_action
+        self.action_dim = args.action_dim
+
         self.fc1 = nn.Linear(args.state_dim, args.hidden_width)
         self.fc2 = nn.Linear(args.hidden_width, args.hidden_width)
         self.fc3 = nn.Linear(args.hidden_width, args.hidden_width)
-        self.mean_layer = nn.Linear(args.hidden_width, args.action_dim)
-        self.log_std = nn.Parameter(
-            torch.zeros(1, args.action_dim)
-        )  # We use 'nn.Parameter' to train log_std automatically
-        # self.log_std = nn.Parameter(torch.full((1, args.action_dim), -2.0))
 
-        self.activate_func = [nn.ReLU(), nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
+        self.mean_layer = nn.Linear(args.hidden_width, args.action_dim)
+
+        # State-independent trainable log_std
+        # Start smaller than std=1 for stability
+        self.log_std = nn.Parameter(torch.full((1, args.action_dim), -1.0))
+
+        self.LOG_STD_MIN = -5.0
+        self.LOG_STD_MAX = 1.0
+
+        self.activate_func = [nn.ReLU(), nn.ReLU(), nn.Tanh()][args.use_tanh]
 
         if args.use_orthogonal_init:
             print("------use_orthogonal_init------")
@@ -147,36 +219,125 @@ class Actor_Gaussian(nn.Module):
             orthogonal_init(self.fc3)
             orthogonal_init(self.mean_layer, gain=0.01)
 
-    def forward(self, s):
-        s = self.activate_func(self.fc1(s))
-        s = self.activate_func(self.fc2(s))
-        s = self.activate_func(self.fc3(s))
-        mean = self.max_action * torch.tanh(
-            self.mean_layer(s)
-        )  # [-1,1]->[-max_action,max_action]
-        return mean
+    def get_features(self, s):
+        x = self.activate_func(self.fc1(s))
+        x = self.activate_func(self.fc2(x))
+        x = self.activate_func(self.fc3(x))
+        return x
 
-    # def get_dist(self, s):
-    #     mean = self.forward(s)
-    #     log_std = self.log_std.expand_as(mean)  # To make 'log_std' have the same dimension as 'mean'
-    #     std = torch.exp(log_std)  # The reason we train the 'log_std' is to ensure std=exp(log_std)>0
-    #     dist = Normal(mean, std)  # Get the Gaussian distribution
-    #     return dist
+    def get_raw_mean(self, s):
+        x = self.get_features(s)
+        raw_mean = self.mean_layer(x)
+
+        # Optional but useful for numerical stability
+        raw_mean = torch.clamp(raw_mean, -10.0, 10.0)
+
+        return raw_mean
+
+    def forward(self, s):
+        """
+        Deterministic bounded action for evaluation.
+
+        This keeps old code like self.actor(s) working.
+        """
+        raw_mean = self.get_raw_mean(s)
+        action = self.max_action * torch.tanh(raw_mean)
+        return action
 
     def get_dist(self, s):
-        mean = self.forward(s)
-        # print(f"mean shape: {mean.shape}")  # Debugging: Print the shape of mean
-        # print(f"log_std shape before expand: {self.log_std.shape}")  # Debugging: Print the shape of log_std
-        log_std = self.log_std.expand(
-            mean.shape[0], -1
-        )  # Expand log_std to match the shape of mean
-        
-        # log_std = torch.clamp(log_std, min=-4.0, max=-1.0)
+        """
+        Distribution over pre-tanh action u.
 
-        # print(f"log_std shape after expand: {log_std.shape}")  # Debugging: Print the shape of expanded log_std
+        Important:
+        This is NOT the distribution of final environment action a.
+        It is the distribution of latent action u.
+        """
+        raw_mean = self.get_raw_mean(s)
+
+        log_std = self.log_std.expand_as(raw_mean)
+        log_std = torch.clamp(log_std, self.LOG_STD_MIN, self.LOG_STD_MAX)
+
         std = torch.exp(log_std)
-        dist = Normal(mean, std)
-        return dist
+        std = torch.clamp(std, min=1e-6, max=10.0)
+
+        return Normal(raw_mean, std)
+
+    def sample_with_pre_tanh(self, s, deterministic=False):
+        """
+        Sample from squashed Gaussian.
+
+        Returns:
+            pre_tanh_action: u
+            action: a = max_action * tanh(u)
+            log_prob: corrected log pi(a|s)
+
+        Store pre_tanh_action in replay/buffer for PPO-style update.
+        """
+        dist = self.get_dist(s)
+
+        if deterministic:
+            pre_tanh_action = dist.mean
+        else:
+            pre_tanh_action = dist.rsample()
+
+        action = self.max_action * torch.tanh(pre_tanh_action)
+
+        log_prob = self.squashed_log_prob_from_pre_tanh(
+            dist=dist,
+            pre_tanh_action=pre_tanh_action,
+        )
+
+        return pre_tanh_action, action, log_prob
+
+    def squashed_log_prob_from_pre_tanh(self, dist, pre_tanh_action, tanh_action=None):
+        """
+        Correct log probability for tanh-squashed Gaussian.
+
+        a = max_action * tanh(u)
+
+        log pi(a|s) = log N(u|mean,std)
+                      - sum log |da/du|
+
+        da/du = max_action * (1 - tanh(u)^2)
+        """
+        log_prob = dist.log_prob(pre_tanh_action)
+
+        # Stable formula for log(1 - tanh(u)^2)
+        correction = 2.0 * (
+            math.log(2.0)
+            - pre_tanh_action
+            - F.softplus(-2.0 * pre_tanh_action)
+        )
+
+        # Include action scaling: a = max_action * tanh(u)
+        correction = correction + math.log(self.max_action)
+
+        log_prob = log_prob - correction
+
+        return log_prob.sum(dim=-1, keepdim=True)
+
+    def get_logprob_from_pre_tanh(self, s, pre_tanh_action):
+        """
+        Recompute corrected squashed log probability during PPO/RCRL update.
+        """
+        dist = self.get_dist(s)
+
+        log_prob = self.squashed_log_prob_from_pre_tanh(
+            dist=dist,
+            pre_tanh_action=pre_tanh_action,
+        )
+
+        return log_prob
+
+    def entropy(self, s):
+        """
+        Approximate entropy using pre-tanh Gaussian entropy.
+
+        Exact squashed entropy is more complicated.
+        This approximation is commonly used.
+        """
+        dist = self.get_dist(s)
+        return dist.entropy().sum(dim=-1, keepdim=True)
 
     def save(self, filename):
         torch.save(self.state_dict(), filename)
@@ -339,17 +500,20 @@ class CostCritic(nn.Module):
 
 class ReplayBuffer:
     def __init__(self, args):
-        self.s = np.zeros((args.batch_size, args.state_dim))
-        self.a = np.zeros((args.batch_size, args.action_dim))
-        self.a_logprob = np.zeros((args.batch_size, args.action_dim))
-        self.r = np.zeros((args.batch_size, 1))
-        self.c = np.zeros((args.batch_size, 1))
-        self.s_ = np.zeros((args.batch_size, args.state_dim))
-        self.dw = np.zeros((args.batch_size, 1))
-        self.done = np.zeros((args.batch_size, 1))
+        self.s = np.zeros((args.batch_size, args.state_dim), dtype=np.float32)
+        self.a = np.zeros((args.batch_size, args.action_dim), dtype=np.float32)
+        #shilpa squashed gaussian
+        self.a_logprob = np.zeros((args.batch_size, 1), dtype=np.float32)
+        # self.a_logprob = np.zeros((args.batch_size, args.action_dim), dtype=np.float32)
+        self.r = np.zeros((args.batch_size, 1), dtype=np.float32)
+        self.c = np.zeros((args.batch_size, 1), dtype=np.float32)
+        self.s_ = np.zeros((args.batch_size, args.state_dim), dtype=np.float32)
+        self.dw = np.zeros((args.batch_size, 1), dtype=np.float32)
+        self.done = np.zeros((args.batch_size, 1), dtype=np.float32)
+        self.incremental_max_cost = np.zeros((args.batch_size, 1), dtype=np.float32)
         self.count = 0
 
-    def store(self, s, a, a_logprob, r, c, s_, dw, done):
+    def store(self, s, a, a_logprob, r, c, s_, dw, done, incremental_max_cost):
         self.s[self.count] = s
         self.a[self.count] = a
         self.a_logprob[self.count] = a_logprob
@@ -358,19 +522,21 @@ class ReplayBuffer:
         self.s_[self.count] = s_
         self.dw[self.count] = dw
         self.done[self.count] = done
+        self.incremental_max_cost[self.count] = incremental_max_cost
         self.count += 1
 
-    def numpy_to_tensor(self):
-        s = torch.tensor(self.s, dtype=torch.float)
-        a = torch.tensor(self.a, dtype=torch.float)
-        a_logprob = torch.tensor(self.a_logprob, dtype=torch.float)
-        r = torch.tensor(self.r, dtype=torch.float)
-        c = torch.tensor(self.c, dtype=torch.float)
-        s_ = torch.tensor(self.s_, dtype=torch.float)
-        dw = torch.tensor(self.dw, dtype=torch.float)
-        done = torch.tensor(self.done, dtype=torch.float)
+    def numpy_to_tensor(self, device):
+        s = torch.as_tensor(self.s, dtype=torch.float32, device=device)
+        a = torch.as_tensor(self.a, dtype=torch.float32, device=device)
+        a_logprob = torch.as_tensor(self.a_logprob, dtype=torch.float32, device=device)
+        r = torch.as_tensor(self.r, dtype=torch.float32, device=device)
+        c = torch.as_tensor(self.c, dtype=torch.float32, device=device)
+        s_ = torch.as_tensor(self.s_, dtype=torch.float32, device=device)
+        dw = torch.as_tensor(self.dw, dtype=torch.float32, device=device)
+        done = torch.as_tensor(self.done, dtype=torch.float32, device=device)
+        incremental_max_cost = torch.as_tensor(self.incremental_max_cost, dtype=torch.float32, device=device)
+        return s, a, a_logprob, r, c, s_, dw, done, incremental_max_cost
 
-        return s, a, a_logprob, r, c, s_, dw, done
 
 
 class PrimalDual:
@@ -449,27 +615,51 @@ class PrimalDual:
             )
         #shilpa RCRL
         self.dual_lambda = torch.tensor(0.0, dtype=torch.float32)
-        self.dual_lr = 1e-6 #1e-5 #1e-3
+        self.dual_lr = 1e-1 #5e-6 #1e-5 #1e-3
         self.dual_lambda_max = 100.0
         self.dense_cost_weight = args.dense_cost_weight
         self.cost_scale = args.cost_scale
+
+        #shilpa gpu
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Using device: {self.device}")
+        self.actor.to(self.device)
+        self.Rcritic.to(self.device)
+        self.Ccritic.to(self.device)
+
       
 
     def evaluate(
         self, s
     ):  # When evaluating the policy, we only use the mean in Beta and gaussian and simply the action for Discrete
-        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
+        # s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
+        s = torch.as_tensor(s, dtype=torch.float32).unsqueeze(0)
+        #shilpa gpu
+        s = s.to(self.device)
+
+        #shilpa gpu
+        # with torch.no_grad():
+        #     if self.policy_dist == "Beta":
+        #         a = self.actor.mean(s).detach().numpy().flatten()
+        #     elif self.policy_dist == "Gaussian":
+        #         a = self.actor(s).detach().numpy().flatten()
+        #     else:
+        #         a = self.actor(s).detach().numpy().flatten()
         with torch.no_grad():
             if self.policy_dist == "Beta":
-                a = self.actor.mean(s).detach().numpy().flatten()
+                a = self.actor.mean(s).detach().cpu().numpy().flatten()
             elif self.policy_dist == "Gaussian":
-                a = self.actor(s).detach().numpy().flatten()
+                a = self.actor(s).detach().cpu().numpy().flatten()
             else:
-                a = self.actor(s).detach().numpy().flatten()
+                a = self.actor(s).detach().cpu().numpy().flatten()
         return a
 
     def choose_action(self, s):
-        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
+        # s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
+        s = torch.as_tensor(s, dtype=torch.float32).unsqueeze(0)
+        #shilpa gpu
+        s = s.to(self.device)
+
         if self.policy_dist == "Beta":
             with torch.no_grad():
                 dist = self.actor.get_dist(s)
@@ -480,26 +670,39 @@ class PrimalDual:
                     a
                 )  # The log probability density of the action
         elif self.policy_dist == "Gaussian":
+            #shilpa squashed gaussian
+            # with torch.no_grad():
+            #     dist = self.actor.get_dist(s)
+            #     a = (
+            #         dist.sample()
+            #     )  # Sample the action according to the probability distribution
+            #     a = torch.clamp(a, -self.max_action, self.max_action)  # [-max,max]
+            #     a_logprob = dist.log_prob(
+            #         a
+            #     )  # The log probability density of the action
+
             with torch.no_grad():
-                dist = self.actor.get_dist(s)
-                a = (
-                    dist.sample()
-                )  # Sample the action according to the probability distribution
-                a = torch.clamp(a, -self.max_action, self.max_action)  # [-max,max]
-                a_logprob = dist.log_prob(
-                    a
-                )  # The log probability density of the action
+                pre_tanh_a, env_a, a_logprob = self.actor.sample_with_pre_tanh(s)
+
+            return (
+                pre_tanh_a.detach().cpu().numpy().flatten(),   # store this in buffer
+                env_a.detach().cpu().numpy().flatten(),        # send this to environment
+                a_logprob.detach().cpu().numpy().flatten(),    # scalar log prob
+    )
         else:
             with torch.no_grad():
                 dist = self.actor.get_dist(s)
                 a = dist.sample()
                 a_logprob = dist.log_prob(a)
-        return a.numpy().flatten(), a_logprob.numpy().flatten()
+        #shilpa gpu
+        # return a.numpy().flatten(), a_logprob.numpy().flatten()
+        return a.detach().cpu().numpy().flatten(), a_logprob.detach().cpu().numpy().flatten()
+
 
     def lr_decay(self, total_steps):
         lr_a_now = self.lr_a * (1 - total_steps / self.max_train_steps)
         lr_c_now = self.lr_c * (1 - total_steps / self.max_train_steps)
-        lr_cost_now = self.lr_cost# * (1 - total_steps / self.max_train_steps)
+        lr_cost_now = self.lr_cost * (1 - total_steps / self.max_train_steps)
 
         for p in self.optimizer_actor.param_groups:
             p["lr"] = lr_a_now
@@ -511,9 +714,13 @@ class PrimalDual:
     
 
     def update(self, replay_buffer, total_steps):
-        s, a, a_logprob, r, c, s_, dw, done = (
-            replay_buffer.numpy_to_tensor()
-        )  # Get training data
+        #shilpa gpu
+        # s, a, a_logprob, r, c, s_, dw, done = (
+        #     replay_buffer.numpy_to_tensor()
+        # )  # Get training data
+
+        s, a, a_logprob, r, c, s_, dw, done, incremental_max_cost = replay_buffer.numpy_to_tensor(self.device)
+
 
         #shilpa RCRL
         # Make sure dual_lambda is on the same device as tensors
@@ -543,15 +750,7 @@ class PrimalDual:
                 # vl_pi = vcs.max()
                 # constraint_violation = vl_pi - torch.tensor(self.persistent_eps, dtype=torch.float32, device=s.device)
                 
-                # ============================================================
-                # Dual update using adaptive persistent epsilon
-                #
-                # Constraint:
-                # J_C(pi) <= persistent_eps + dense_cost_weight * T
-                #
-                # where T is the sampled episode length.
-                # ============================================================
-
+                
                 cost_returns = []
                 adaptive_eps_returns = []
 
@@ -617,7 +816,44 @@ class PrimalDual:
 
                 constraint_violation = Jc_pi - self.persistent_eps #adaptive_persistent_eps
 
-                
+                # inc_cost_np = incremental_max_cost.flatten().cpu().numpy()
+                # done_np = done.flatten().cpu().numpy()
+
+                # episode_cost_sums = []
+                # running_sum = 0.0
+
+                # for inc_cost_t, done_t in zip(inc_cost_np, done_np):
+                #     running_sum += inc_cost_t
+
+                #     if done_t:
+                #         episode_cost_sums.append(running_sum)
+                #         running_sum = 0.0
+
+                # # Include partial trajectory if buffer ended before done=True
+                # if running_sum > 0.0:
+                #     episode_cost_sums.append(running_sum)
+
+                # if len(episode_cost_sums) > 0:
+                #     Jc_pi = torch.tensor(
+                #         np.mean(episode_cost_sums),
+                #         dtype=torch.float32,
+                #         device=s.device
+                #     )
+                # else:
+                #     Jc_pi = torch.tensor(
+                #         0.0,
+                #         dtype=torch.float32,
+                #         device=s.device
+                #     )
+
+                # persistent_eps_tensor = torch.tensor(
+                #     self.persistent_eps,
+                #     dtype=torch.float32,
+                #     device=s.device
+                # )
+
+                # constraint_violation = Jc_pi - persistent_eps_tensor
+
                 #Dual update:
                 # lambda <- [lambda + dual_lr * (max_cost - eps)]_+
                 if self.warm_start_flag == 1:
@@ -640,7 +876,7 @@ class PrimalDual:
                     "Primal-Dual | lambda, vl_pi, eps, violation =",
                     self.dual_lambda.item(),
                     Jc_pi.item(),
-                    adaptive_persistent_eps.item(),
+                    self.persistent_eps,
                     constraint_violation.item()
                 )
 
@@ -748,20 +984,44 @@ class PrimalDual:
             for index in BatchSampler(
                 SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False
             ):
-                dist_now = self.actor.get_dist(s[index])
-                dist_entropy = dist_now.entropy().sum(
-                    1, keepdim=True
-                )  # shape(mini_batch_size X 1)
-                a_logprob_now = dist_now.log_prob(a[index])
-                # print("a_logprob_now shape:", a_logprob_now.shape)  # Debugging: Print the shape of a_logprob_now
-                # print("a_logprob shape:", a_logprob[index].shape)  # Debugging: Print the shape of a_logprob
+                #shilpa squashed gaussian
+                # dist_now = self.actor.get_dist(s[index])
+                # dist_entropy = dist_now.entropy().sum(
+                #     1, keepdim=True
+                # )  # shape(mini_batch_size X 1)
+                # a_logprob_now = dist_now.log_prob(a[index])
 
+                if self.policy_dist == "Gaussian":
+                    # a[index] is pre_tanh_action
+                    a_logprob_now = self.actor.get_logprob_from_pre_tanh(
+                        s[index],
+                        a[index],
+                    )
 
+                    # Approximate entropy using base Gaussian entropy
+                    dist_entropy = self.actor.entropy(s[index])
+
+                elif self.policy_dist == "Beta":
+                    dist_now = self.actor.get_dist(s[index])
+                    dist_entropy = dist_now.entropy().sum(1, keepdim=True)
+                    a_logprob_now = dist_now.log_prob(a[index]).sum(1, keepdim=True)
+
+                else:
+                    dist_now = self.actor.get_dist(s[index])
+                    dist_entropy = dist_now.entropy().view(-1, 1)
+                    a_logprob_now = dist_now.log_prob(a[index]).view(-1, 1)
+
+                
+
+                #shilpa squashed gaussian
                 # a/b=exp(log(a)-log(b))  In multi-dimensional continuous action space，we need to sum up the log_prob
-                ratios = torch.exp(
-                    a_logprob_now.sum(1, keepdim=True)
-                    - a_logprob[index].sum(1, keepdim=True)
-                )  # shape(mini_batch_size X 1)
+                # ratios = torch.exp(
+                #     a_logprob_now.sum(1, keepdim=True)
+                #     - a_logprob[index].sum(1, keepdim=True)
+                # )  # shape(mini_batch_size X 1)
+
+                ratios = torch.exp(a_logprob_now - a_logprob[index])
+
 
                 surr1 = (
                     ratios * adv[index]
@@ -785,6 +1045,12 @@ class PrimalDual:
                 if self.use_grad_clip:  # Trick 7: Gradient clip
                     torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
                 self.optimizer_actor.step()
+                #shilpa squashed gaussian temporary check
+                for name, p in self.actor.named_parameters():
+                    if torch.isnan(p).any() or torch.isinf(p).any():
+                        print("NaN/Inf in actor parameter after update:", name)
+                        raise RuntimeError("Actor became NaN/Inf after optimizer step")
+
 
                 # if ch == 0:
                 v_s = self.Rcritic(s[index])
@@ -1150,11 +1416,19 @@ def main(args, run_number):
             agent.warm_start_flag = 0
         while not done:
             episode_steps += 1
-            a, a_logprob = agent.choose_action(s)
+
+            #shilpa squashed gaussian
+            # a, a_logprob = agent.choose_action(s)
+            # if args.policy_dist == "Beta":
+            #     action = 2 * (a - 0.5) * args.max_action  # [0,1]->[-max,max]
+            # else:
+            #     action = a
+
+            buffer_a, env_a, a_logprob = agent.choose_action(s)
             if args.policy_dist == "Beta":
-                action = 2 * (a - 0.5) * args.max_action  # [0,1]->[-max,max]
+                action = 2 * (env_a - 0.5) * args.max_action
             else:
-                action = a
+                action = env_a
 
             
             
@@ -1197,8 +1471,12 @@ def main(args, run_number):
             # dw = done
 
             # Take the 'action'，but store the original 'a'（especially for Beta）
-            replay_buffer.store(s, a, a_logprob, r + reward_offset, c, s_, dw, done)
-            s = copy.deepcopy(s_)
+
+            #shipa squashed gaussian
+            # replay_buffer.store(s, a, a_logprob, r + reward_offset, c, s_, dw, done)
+            replay_buffer.store(s,buffer_a, a_logprob,r + reward_offset,c,s_,dw,done, incremental_max_cost)
+            # s = copy.deepcopy(s_)
+            s = s_.copy()
             # s_org = copy.deepcopy(state_norm.denormal(s_, update=False))
 
             # When the number of transitions in buffer reaches batch_size,then update
