@@ -7,8 +7,8 @@ terminate_on_collision: false # this was true during run
 render_mode: null
 safety_clearance: 0.3
 
-seed: 1
-run: 2
+seed: 5
+run: 3
 
 max_train_steps: 16000
 evaluate_freq: 100

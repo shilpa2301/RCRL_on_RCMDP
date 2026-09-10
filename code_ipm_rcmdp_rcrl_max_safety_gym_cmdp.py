@@ -751,91 +751,53 @@ class PrimalDual:
                 # constraint_violation = vl_pi - torch.tensor(self.persistent_eps, dtype=torch.float32, device=s.device)
                 
                 
-                cost_returns = []
-                adaptive_eps_returns = []
+                # cost_returns = []
+                # adaptive_eps_returns = []
 
-                running_cost = 0.0
-                discount = 1.0
-                episode_len = 0
+                # running_cost = 0.0
+                # discount = 1.0
+                # episode_len = 0
 
-                c_np = c.flatten().cpu().numpy()
-                done_np = done.flatten().cpu().numpy()
-
-                for cost_t, done_t in zip(c_np, done_np):
-                    running_cost += discount * cost_t
-                    discount *= self.gamma
-                    episode_len += 1
-
-                    if done_t:
-                        adaptive_eps_t = (
-                            self.persistent_eps
-                            + self.dense_cost_weight * episode_len
-                        )
-
-                        cost_returns.append(running_cost)
-                        adaptive_eps_returns.append(adaptive_eps_t)
-
-                        running_cost = 0.0
-                        discount = 1.0
-                        episode_len = 0
-
-                # Include partial episode if rollout ended before done
-                if episode_len > 0:
-                    adaptive_eps_t = (
-                        self.persistent_eps
-                        + self.dense_cost_weight * episode_len * self.cost_scale
-                    )
-
-                    cost_returns.append(running_cost)
-                    adaptive_eps_returns.append(adaptive_eps_t)
-
-                if len(cost_returns) > 0:
-                    Jc_pi = torch.tensor(
-                        sum(cost_returns) / len(cost_returns),
-                        dtype=torch.float32,
-                        device=s.device
-                    )
-
-                    adaptive_persistent_eps = torch.tensor(
-                        sum(adaptive_eps_returns) / len(adaptive_eps_returns),
-                        dtype=torch.float32,
-                        device=s.device
-                    )
-                else:
-                    Jc_pi = torch.tensor(
-                        0.0,
-                        dtype=torch.float32,
-                        device=s.device
-                    )
-
-                    adaptive_persistent_eps = torch.tensor(
-                        self.persistent_eps,
-                        dtype=torch.float32,
-                        device=s.device
-                    )
-
-                constraint_violation = Jc_pi - self.persistent_eps #adaptive_persistent_eps
-
-                # inc_cost_np = incremental_max_cost.flatten().cpu().numpy()
+                # c_np = c.flatten().cpu().numpy()
                 # done_np = done.flatten().cpu().numpy()
 
-                # episode_cost_sums = []
-                # running_sum = 0.0
-
-                # for inc_cost_t, done_t in zip(inc_cost_np, done_np):
-                #     running_sum += inc_cost_t
+                # for cost_t, done_t in zip(c_np, done_np):
+                #     running_cost += discount * cost_t
+                #     discount *= self.gamma
+                #     episode_len += 1
 
                 #     if done_t:
-                #         episode_cost_sums.append(running_sum)
-                #         running_sum = 0.0
+                #         adaptive_eps_t = (
+                #             self.persistent_eps
+                #             + self.dense_cost_weight * episode_len
+                #         )
 
-                # # Include partial trajectory if buffer ended before done=True
-                # if running_sum > 0.0:
-                #     episode_cost_sums.append(running_sum)
+                #         cost_returns.append(running_cost)
+                #         adaptive_eps_returns.append(adaptive_eps_t)
 
-                # if len(episode_cost_sums) > 0:
+                #         running_cost = 0.0
+                #         discount = 1.0
+                #         episode_len = 0
+
+                # # Include partial episode if rollout ended before done
+                # if episode_len > 0:
+                #     adaptive_eps_t = (
+                #         self.persistent_eps
+                #         + self.dense_cost_weight * episode_len * self.cost_scale
+                #     )
+
+                #     cost_returns.append(running_cost)
+                #     adaptive_eps_returns.append(adaptive_eps_t)
+
+                # if len(cost_returns) > 0:
                 #     Jc_pi = torch.tensor(
-                #         np.mean(episode_cost_sums),
+                #         sum(cost_returns) / len(cost_returns),
+                #         dtype=torch.float32,
+                #         device=s.device
+                #     )
+
+                #     adaptive_persistent_eps = torch.tensor(
+                #         sum(adaptive_eps_returns) / len(adaptive_eps_returns),
                 #         dtype=torch.float32,
                 #         device=s.device
                 #     )
@@ -846,13 +808,51 @@ class PrimalDual:
                 #         device=s.device
                 #     )
 
-                # persistent_eps_tensor = torch.tensor(
-                #     self.persistent_eps,
-                #     dtype=torch.float32,
-                #     device=s.device
-                # )
+                #     adaptive_persistent_eps = torch.tensor(
+                #         self.persistent_eps,
+                #         dtype=torch.float32,
+                #         device=s.device
+                #     )
 
-                # constraint_violation = Jc_pi - persistent_eps_tensor
+                # constraint_violation = Jc_pi - self.persistent_eps #adaptive_persistent_eps
+
+                inc_cost_np = incremental_max_cost.flatten().cpu().numpy()
+                done_np = done.flatten().cpu().numpy()
+
+                episode_cost_sums = []
+                running_sum = 0.0
+
+                for inc_cost_t, done_t in zip(inc_cost_np, done_np):
+                    running_sum += inc_cost_t
+
+                    if done_t:
+                        episode_cost_sums.append(running_sum)
+                        running_sum = 0.0
+
+                # Include partial trajectory if buffer ended before done=True
+                if running_sum > 0.0:
+                    episode_cost_sums.append(running_sum)
+
+                if len(episode_cost_sums) > 0:
+                    Jc_pi = torch.tensor(
+                        np.mean(episode_cost_sums),
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+                else:
+                    Jc_pi = torch.tensor(
+                        0.0,
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+
+                persistent_eps_tensor = torch.tensor(
+                    self.persistent_eps,
+                    dtype=torch.float32,
+                    device=s.device
+                )
+
+                constraint_violation = Jc_pi - persistent_eps_tensor
 
                 #Dual update:
                 # lambda <- [lambda + dual_lr * (max_cost - eps)]_+
