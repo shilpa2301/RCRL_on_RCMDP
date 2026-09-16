@@ -25,9 +25,9 @@ from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
 from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
-from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
+# from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
 from envs.half_cheetah import HalfCheetahWithPos
-from envs.swimmer import SwimmerWithPos, SwimmerWithPosPerturbed
+# from envs.swimmer import SwimmerWithPos, SwimmerWithPosPerturbed
 from envs.humanoid import HumanoidWithCost, HumanoidWithCostPerturbed
 
 
@@ -340,17 +340,7 @@ class ReplayBuffer:
 
 class Robust_RCAC_NPG:
     def __init__(self, args):
-        if args.env == "CartPolePerturbedEnv":
-            self.env = CartPolePerturbedEnv(
-                args.gravity_std
-            )  # CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
-        elif args.env == "HalfCheetahWithPos":
-            self.env = HalfCheetahWithPos()
-        elif args.env == "SwimmerWithPos":
-            self.env = SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
-        elif args.env == "SwimmerWithPosPerturbed":
-            self.env = SwimmerWithPosPerturbed(sigma_viscosity=0.0, max_steps=1000)
-        elif args.env == "HumanoidWithCost":
+        if args.env == "HumanoidWithCost":
             self.env = HumanoidWithCost()
         elif args.env == "HumanoidWithCostPerturbed":
             self.env = HumanoidWithCostPerturbed(sigma_gravity=args.sigma_gravity, max_steps=1000)
@@ -941,82 +931,7 @@ def main(args, run_number):
     os.makedirs(data_train_dir, exist_ok=True)
     os.makedirs(plot_data_dir, exist_ok=True)
 
-    if args.env == "CartPolePerturbedEnv":
-        env = CartPolePerturbedEnv(
-            args.gravity_std
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            CartPolePerturbedEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = (
-            CartPolePerturbedEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == "CartPoleCostEnv":
-        env = (
-            CartPoleCostEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            CartPoleCostEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = (
-            CartPoleCostEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == "HopperPerturbed":
-        env = (
-            HopperPerturbed()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            HopperPerturbed()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = (
-            HopperPerturbed()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == "PendulumEnv":
-        env = (
-            PendulumEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            PendulumEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = PendulumEnv()
-
-    elif args.env == "PendulumCostEnv":
-        env = (
-            PendulumCostEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            PendulumCostEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = PendulumCostEnv()
-    elif args.env == "PendulumPerturbedEnv":
-        env = (
-            PendulumPerturbedEnv()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            PendulumPerturbedEnv()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = PendulumPerturbedEnv()
-    elif args.env == "HalfCheetahWithPos":
-        env = (
-            HalfCheetahWithPos()
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            HalfCheetahWithPos() #HalfCheetahWithPostest()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = HalfCheetahWithPos()
-    elif args.env == "SwimmerWithPos":
-        env = (
-            SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
-        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = (
-            SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000) #SwimmerWithPostest()
-        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
-    elif args.env == "SwimmerWithPosPerturbed":
-        env = ( SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000) )  
-        env_evaluate = ( SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000) )  
-        env_reset = SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
-    elif args.env == "HumanoidWithCost":
+    if args.env == "HumanoidWithCost":
         env = ( HumanoidWithCost() )
         env_evaluate = ( HumanoidWithCost() )
         env_reset = HumanoidWithCost()

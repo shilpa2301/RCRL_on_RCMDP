@@ -242,16 +242,23 @@ class HalfCheetahWithPosPerturbed(HalfCheetahEnv):
     # ── FIX 2: episode length (matches MuJoCo HalfCheetah default) ───────────
     max_steps = 1000
     def __init__(self, sigma_gravity: float = 0.7, max_steps: int = 1000):
+        self._mujoco_initializing = True
+        self._elapsed_steps = 0
+        self.sigma_gravity = sigma_gravity
+        self.max_steps       = max_steps
+        self._grav_axis = 2
+        self._base_grav = -9.81
+        
+        
         super().__init__()
+
+        self._mujoco_initializing = False
         # Override observation_space to match the 18-dim obs we actually return
         obs_high = np.inf * np.ones(self.OBS_DIM, dtype=np.float32)
         self.observation_space = gym.spaces.Box(
             low=-obs_high, high=obs_high, dtype=np.float32
         )
-        self._elapsed_steps = 0
-        self.sigma_gravity = sigma_gravity
-        self.max_steps       = max_steps
-        self._grav_axis = 2
+        
         self._base_grav = float(self.model.opt.gravity[self._grav_axis])
     
     def reset(self, seed=None, **kwargs):
@@ -333,6 +340,9 @@ class HalfCheetahWithPosPerturbed(HalfCheetahEnv):
         truncated  = self._elapsed_steps >= self.max_steps
         terminated = False                  # HalfCheetah never "dies"
 
+        #shilpa windows only
+        if getattr(self, "_mujoco_initializing", False):
+            return ob, reward, truncated or terminated, info
 
     
         # cost = 0
@@ -589,7 +599,7 @@ class HalfCheetahCMDPPerturbed(HalfCheetahEnv):
     max_steps = 1000
     
 
-    def __init__(self, dense_cost_weight, cost_scale, sigma_gravity: float = 0.7):
+    def __init__(self, dense_cost_weight=0.01, cost_scale=100.0, sigma_gravity: float = 0.7):
         #shilpa windows only
         self._mujoco_initializing = True
 
@@ -806,7 +816,329 @@ class HalfCheetahCMDPPerturbed(HalfCheetahEnv):
         # obs, reward, cost, truncated, terminated, info
         return ob, reward, self.cost_scale*cost, truncated, terminated, info
 
+class HalfCheetahWithPosPerturbedTest(HalfCheetahWithPos):
+    """
+    Test-time perturbed HalfCheetahWithPos.
 
+    Samples one gravity perturbation once during __init__ and keeps it fixed
+    for all episodes and all steps.
+
+    If shared_gravity_perturbation is given, uses that exact perturbation.
+    """
+
+    OBS_DIM = 18
+    max_steps = 1000
+
+    def __init__(
+        self,
+        sigma_gravity: float = 0.7,
+        max_steps: int = 1000,
+        shared_gravity_perturbation=None,
+        seed=None,
+    ):
+        # Important: old Gym MujocoEnv calls self.step() inside __init__.
+        self._mujoco_initializing = True
+
+        self._elapsed_steps = 0
+        self.sigma_gravity = float(sigma_gravity)
+        self.max_steps = int(max_steps)
+
+        self._grav_axis = 2
+        self._base_grav = -9.81
+
+        self.shared_gravity_perturbation = shared_gravity_perturbation
+        self.fixed_gravity_perturbation = 0.0
+        self.fixed_gravity_value = -9.81
+
+        if seed is not None:
+            self.np_random, _ = gym.utils.seeding.np_random(seed)
+        else:
+            self.np_random, _ = gym.utils.seeding.np_random(None)
+
+        super().__init__()
+
+        # Now MuJoCo model exists.
+        self._base_grav = float(self.model.opt.gravity[self._grav_axis])
+
+        if self.shared_gravity_perturbation is None:
+            if self.sigma_gravity > 0.0:
+                self.fixed_gravity_perturbation = float(
+                    self.np_random.normal(0.0, self.sigma_gravity)
+                )
+            else:
+                self.fixed_gravity_perturbation = 0.0
+        else:
+            self.fixed_gravity_perturbation = float(self.shared_gravity_perturbation)
+
+        self.fixed_gravity_value = self._base_grav + self.fixed_gravity_perturbation
+
+        self.model.opt.gravity[self._grav_axis] = self.fixed_gravity_value
+
+        self._mujoco_initializing = False
+
+        obs_high = np.inf * np.ones(self.OBS_DIM, dtype=np.float32)
+        self.observation_space = gym.spaces.Box(
+            low=-obs_high,
+            high=obs_high,
+            dtype=np.float32,
+        )
+
+        print(
+            f"[HalfCheetahWithPosPerturbedTest] "
+            f"base_gravity={self._base_grav}, "
+            f"fixed_perturbation={self.fixed_gravity_perturbation}, "
+            f"fixed_gravity={self.fixed_gravity_value}"
+        )
+
+    def reset(self, seed=None, **kwargs):
+        if seed is not None:
+            self.np_random, _ = gym.utils.seeding.np_random(seed)
+
+        obs, info = super().reset(seed=seed, **kwargs)
+
+        self._elapsed_steps = 0
+
+        # Keep same fixed gravity every episode.
+        self.model.opt.gravity[self._grav_axis] = self.fixed_gravity_value
+
+        return obs, info
+
+    def step(self, action):
+        # ------------------------------------------------------------
+        # CRITICAL:
+        # Old Gym MujocoEnv calls self.step(action) inside __init__.
+        # During that phase, return old-style 4-tuple and do NOT apply
+        # custom perturbation logic.
+        # ------------------------------------------------------------
+        if getattr(self, "_mujoco_initializing", False):
+            xposbefore = self.sim.data.qpos[0]
+            self.do_simulation(action, self.frame_skip)
+            xposafter = self.sim.data.qpos[0]
+            ob = self._get_obs()
+
+            reward_ctrl = -0.1 * np.square(action).sum()
+            reward_run = abs(xposafter - xposbefore) / self.dt
+            reward = reward_ctrl + reward_run
+
+            done = False
+            info = {
+                "reward_run": reward_run,
+                "reward_ctrl": reward_ctrl,
+                "xpos": xposafter,
+            }
+
+            return ob, reward, done, info
+
+        # Keep same gravity every step.
+        self.model.opt.gravity[self._grav_axis] = self.fixed_gravity_value
+
+        xposbefore = self.sim.data.qpos[0]
+
+        self.do_simulation(action, self.frame_skip)
+
+        xposafter = self.sim.data.qpos[0]
+        ob = self._get_obs()
+
+        if REWARD_TYPE == "new":
+            reward, info = self.new_reward(xposbefore, xposafter, action)
+        else:
+            reward, info = self.old_reward(xposbefore, xposafter, action)
+
+        self._elapsed_steps += 1
+
+        cost = float(
+            np.maximum(
+                np.max(np.abs(action)) - ACTION_TORQUE_THRESHOLD,
+                0.0,
+            )
+        )
+
+        truncated = self._elapsed_steps >= self.max_steps
+        terminated = False
+
+        info.update({
+            "gravity": float(self.model.opt.gravity[self._grav_axis]),
+            "base_gravity": float(self._base_grav),
+            "fixed_gravity_perturbation": float(self.fixed_gravity_perturbation),
+            "sigma_gravity": float(self.sigma_gravity),
+        })
+
+        return ob, reward, cost, truncated, terminated, info
+
+class HalfCheetahCMDPPerturbedTest(HalfCheetahCMDP):
+    """
+    Test-time perturbed HalfCheetah CMDP.
+
+    Samples one gravity perturbation once during __init__ and keeps it fixed
+    for all episodes and all steps.
+
+    If shared_gravity_perturbation is given, uses that exact perturbation.
+    """
+
+    OBS_DIM = 19
+    max_steps = 1000
+
+    def __init__(
+        self,
+        dense_cost_weight=0.01,
+        cost_scale=100.0,
+        sigma_gravity: float = 0.7,
+        shared_gravity_perturbation=None,
+        seed=None,
+    ):
+        # Important: old Gym MujocoEnv calls self.step() inside __init__.
+        self._mujoco_initializing = True
+
+        self._elapsed_steps = 0
+        self.max_cost = 0.0
+        self.last_cost = 0.0
+
+        self.beta = dense_cost_weight
+        self.cost_scale = cost_scale
+
+        self.sigma_gravity = float(sigma_gravity)
+        self._grav_axis = 2
+        self._base_grav = -9.81
+
+        self.shared_gravity_perturbation = shared_gravity_perturbation
+        self.fixed_gravity_perturbation = 0.0
+        self.fixed_gravity_value = -9.81
+
+        if seed is not None:
+            self.np_random, _ = gym.utils.seeding.np_random(seed)
+        else:
+            self.np_random, _ = gym.utils.seeding.np_random(None)
+
+        super().__init__(
+            dense_cost_weight=dense_cost_weight,
+            cost_scale=cost_scale,
+        )
+
+        # Now MuJoCo model exists.
+        self._base_grav = float(self.model.opt.gravity[self._grav_axis])
+
+        if self.shared_gravity_perturbation is None:
+            if self.sigma_gravity > 0.0:
+                self.fixed_gravity_perturbation = float(
+                    self.np_random.normal(0.0, self.sigma_gravity)
+                )
+            else:
+                self.fixed_gravity_perturbation = 0.0
+        else:
+            self.fixed_gravity_perturbation = float(self.shared_gravity_perturbation)
+
+        self.fixed_gravity_value = self._base_grav + self.fixed_gravity_perturbation
+
+        self.model.opt.gravity[self._grav_axis] = self.fixed_gravity_value
+
+        self._mujoco_initializing = False
+
+        print(
+            f"[HalfCheetahCMDPPerturbedTest] "
+            f"base_gravity={self._base_grav}, "
+            f"fixed_perturbation={self.fixed_gravity_perturbation}, "
+            f"fixed_gravity={self.fixed_gravity_value}"
+        )
+
+    def reset(self, seed=None, **kwargs):
+        if seed is not None:
+            self.np_random, _ = gym.utils.seeding.np_random(seed)
+
+        obs, info = super().reset(seed=seed, **kwargs)
+
+        self._elapsed_steps = 0
+        self.max_cost = 0.0
+        self.last_cost = 0.0
+
+        # Keep same fixed gravity every episode.
+        self.model.opt.gravity[self._grav_axis] = self.fixed_gravity_value
+
+        # Make sure observation reflects reset max_cost = 0.
+        obs = self._get_obs()
+
+        return obs, info
+
+    def step(self, action):
+        # ------------------------------------------------------------
+        # CRITICAL:
+        # Old Gym MujocoEnv calls self.step(action) inside __init__.
+        # During that phase, return old-style 4-tuple and do NOT apply
+        # custom CMDP/perturbation logic.
+        # ------------------------------------------------------------
+        if getattr(self, "_mujoco_initializing", False):
+            xposbefore = self.sim.data.qpos[0]
+            self.do_simulation(action, self.frame_skip)
+            xposafter = self.sim.data.qpos[0]
+            ob = self._get_obs()
+
+            reward_ctrl = -0.1 * np.square(action).sum()
+            reward_run = abs(xposafter - xposbefore) / self.dt
+            reward = reward_ctrl + reward_run
+
+            done = False
+            info = {
+                "reward_run": reward_run,
+                "reward_ctrl": reward_ctrl,
+                "xpos": xposafter,
+            }
+
+            return ob, reward, done, info
+
+        # Keep same gravity every step.
+        self.model.opt.gravity[self._grav_axis] = self.fixed_gravity_value
+
+        xposbefore = self.sim.data.qpos[0]
+
+        self.do_simulation(action, self.frame_skip)
+
+        xposafter = self.sim.data.qpos[0]
+
+        if REWARD_TYPE == "new":
+            reward, info = self.new_reward(xposbefore, xposafter, action)
+        else:
+            reward, info = self.old_reward(xposbefore, xposafter, action)
+
+        self._elapsed_steps += 1
+
+        current_c = float(
+            np.maximum(
+                np.max(np.abs(action)) - ACTION_TORQUE_THRESHOLD,
+                0.0,
+            )
+        )
+
+        previous_max_cost = self.max_cost
+        incremental_max_cost = max(current_c - previous_max_cost, 0.0)
+
+        dense_cost = current_c
+        alpha = max((self._elapsed_steps - 1), 0) / self._elapsed_steps
+
+        cost = self.beta * dense_cost + alpha * incremental_max_cost
+
+        self.max_cost = float(max(previous_max_cost, current_c))
+        self.last_cost = cost
+
+        ob = self._get_obs()
+
+        truncated = self._elapsed_steps >= self.max_steps
+        terminated = False
+
+        info.update({
+            "cost": cost,
+            "current_c": current_c,
+            "previous_max_cost": previous_max_cost,
+            "max_cost": self.max_cost,
+            "max_action_abs": float(np.max(np.abs(action))),
+            "action_torque_threshold": ACTION_TORQUE_THRESHOLD,
+            "incremental_max_cost": incremental_max_cost,
+
+            "gravity": float(self.model.opt.gravity[self._grav_axis]),
+            "base_gravity": float(self._base_grav),
+            "fixed_gravity_perturbation": float(self.fixed_gravity_perturbation),
+            "sigma_gravity": float(self.sigma_gravity),
+        })
+
+        return ob, reward, self.cost_scale * cost, truncated, terminated, info
 
 
 

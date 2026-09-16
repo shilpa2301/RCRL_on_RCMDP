@@ -7,8 +7,8 @@ terminate_on_collision: false # this was true during run
 render_mode: null
 safety_clearance: 0.3
 
-seed: 3 #1
-run: 5
+seed: 1 #1
+run: 10
 
 max_train_steps: 16000
 evaluate_freq: 100
@@ -32,7 +32,7 @@ GAMMA: "0"
 lamda: 0.95
 epsilon: 0.2
 
-persistent_eps: 0.2
+persistent_eps: 0.2 #0.6
 K_epochs: 5
 
 use_adv_norm: true
@@ -48,7 +48,7 @@ set_adam_eps: true
 use_tanh: true
 adaptive_alpha: false
 
-weight_reg: 0.0
+weight_reg: 0.001
 baseline: 9
 lambda_: 50
 beta: 30000.0

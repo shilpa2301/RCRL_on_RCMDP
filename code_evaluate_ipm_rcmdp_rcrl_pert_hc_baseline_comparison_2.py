@@ -1,3 +1,11 @@
+import os
+
+if os.name == "nt":
+    os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+    os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+
+os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+
 import torch
 import numpy as np
 from code_ipm_rcmdp_rcrl_max_hc import Actor_Beta, Actor_Gaussian, Actor_Discrete, Critic, CostCritic, Robust_RCAC_NPG, Normalization, RunningMeanStd, RewardScaling
@@ -7,7 +15,7 @@ import matplotlib.pyplot as plt
 import os
 # from envs.cartpole import CartPolePerturbedEnv
 import glob
-from envs.half_cheetah import HalfCheetahWithPos, HalfCheetahWithPosPerturbed
+from envs.half_cheetah import HalfCheetahWithPos, HalfCheetahWithPosPerturbed, HalfCheetahCMDPPerturbed
 # from envs.reacher import ReacherWithCost
 # from envs.swimmer import SwimmerWithPos
 
@@ -55,21 +63,13 @@ def test_single_models(args, model_specs, perturbation_stds, num_episodes=100):
     """
     Test one model per method across perturbation stds.
 
-    model_specs format:
-        [
-            {
-                "label": "Ours",
-                "model_path": "./models/HalfCheetahWithPosPerturbed/run2/Best_RCAC"
-            },
-            ...
-        ]
+    For CMDP models:
+        env = HalfCheetahCMDPPerturbed(sigma_gravity=std)
+        max_cost = sum(info["incremental_max_cost"] over trajectory)
 
-    Returns:
-        results[label][std_index] = {
-            'rewards': rewards,
-            'costs': costs,
-            'max_costs': max_costs
-        }
+    For non-CMDP models:
+        env = HalfCheetahWithPosPerturbed(sigma_gravity=std)
+        max_cost = max(cost over trajectory)
     """
 
     results = {}
@@ -77,6 +77,9 @@ def test_single_models(args, model_specs, perturbation_stds, num_episodes=100):
     for spec in model_specs:
         label = spec["label"]
         model_path = spec["model_path"]
+        env_type = spec.get("env_type", "pos")
+
+        is_cmdp = env_type == "cmdp"
 
         results[label] = []
 
@@ -84,11 +87,12 @@ def test_single_models(args, model_specs, perturbation_stds, num_episodes=100):
             print(f"\nTesting method: {label}, perturbation std = {std}")
             print(f"  Loading model: {model_path}")
 
-            # Evaluation environment
-            env = HalfCheetahWithPosPerturbed(sigma_gravity=std)
-
-            # If you want nominal evaluation instead, use:
-            # env = HalfCheetahWithPos()
+            # CMDP models use CMDP perturbed env.
+            # It takes all default init params except sigma_gravity.
+            if is_cmdp:
+                env = HalfCheetahCMDPPerturbed(sigma_gravity=std)
+            else:
+                env = HalfCheetahWithPosPerturbed(sigma_gravity=std)
 
             env.reset(seed=args.seed)
             env.action_space.seed(args.seed)
@@ -101,7 +105,8 @@ def test_single_models(args, model_specs, perturbation_stds, num_episodes=100):
                 args,
                 model_path,
                 env,
-                num_episodes=num_episodes
+                num_episodes=num_episodes,
+                is_cmdp=is_cmdp
             )
 
             results[label].append({
@@ -111,6 +116,8 @@ def test_single_models(args, model_specs, perturbation_stds, num_episodes=100):
             })
 
     return results
+
+
 
 
 def test_multiple_model_groups(args, model_specs, perturbation_stds, num_episodes=100):
@@ -191,7 +198,7 @@ def smooth(data, window_size):
     smoothed_data = np.convolve(data, np.ones(window_size) / window_size, mode='valid')
     return smoothed_data
 
-def test_agent_multiple_models(args, save_paths, env, num_episodes=100):
+def test_agent_multiple_models(args, save_paths, env, num_episodes=100, is_cmdp=False):
 
     rewards = []
     costs = []
@@ -199,19 +206,36 @@ def test_agent_multiple_models(args, save_paths, env, num_episodes=100):
 
     # Load all agents ahead of time
     agents = []
+
     if isinstance(save_paths, str):
         save_paths = [save_paths]
+
     for save_path in save_paths:
         agent, state_norm, reward_scaling = load_agent(args, save_path)
         agents.append((agent, state_norm, reward_scaling))
 
     for episode in range(num_episodes):
-        state = env.reset()[0][0]
+        reset_out = env.reset()
+
+        # Gymnasium usually returns: obs, info
+        # Some custom envs may return differently, so handle safely.
+        if isinstance(reset_out, tuple):
+            state = reset_out[0]
+        else:
+            state = reset_out
+
         if args.use_state_norm:
             state = state_norm(state, update=False)
-        total_reward = 0
-        total_cost = 0
-        max_cost = float('-inf')
+
+        total_reward = 0.0
+        total_cost = 0.0
+
+        if is_cmdp:
+            # For CMDP, requested max cost is accumulated incremental_max_cost.
+            max_cost = 0.0
+        else:
+            # For non-CMDP, keep previous definition: max over step costs.
+            max_cost = float("-inf")
 
         done = False
 
@@ -220,34 +244,60 @@ def test_agent_multiple_models(args, save_paths, env, num_episodes=100):
 
             # Get actions from all loaded agents
             for agent, _, _ in agents:
-                # Get action from the policy
                 action = agent.evaluate(state)
+
                 if agent.policy_dist == "Beta":
-                    action = 2 * (action - 0.5) * agent.max_action  # Map [0, 1] to [-max_action, max_action]
+                    action = 2 * (action - 0.5) * agent.max_action
 
                 actions.append(action)
 
-            # Calculate the mean action
             mean_action = np.mean(actions, axis=0)
 
-            # Step in the environment with the mean action
-            next_state, reward, cost, truncated, terminated, _ = env.step(mean_action)
+            step_out = env.step(mean_action)
+
+            # Expected:
+            # next_state, reward, cost, truncated, terminated, info
+            next_state, reward, cost, truncated, terminated, info = step_out
+
             done = truncated or terminated
-            
+
             if args.use_state_norm:
                 next_state = state_norm(next_state, update=False)
 
             total_reward += reward
             total_cost += cost
-            max_cost = max(max_cost, cost)
+
+            if is_cmdp:
+                # For CMDP models:
+                # max cost = total info["incremental_max_cost"] over trajectory.
+                incremental_max_cost = info.get("incremental_max_cost", 0.0)
+                max_cost += incremental_max_cost
+            else:
+                # For non-CMDP models:
+                # max cost = max returned cost over trajectory.
+                max_cost = max(max_cost, cost)
+
             state = next_state
 
         rewards.append(total_reward)
         costs.append(total_cost)
         max_costs.append(max_cost)
-        print(f"Episode {episode + 1}: Total Reward = {total_reward}, Max Cost= {max_cost}, Total Cost = {total_cost}")
+
+        if is_cmdp:
+            print(
+                f"Episode {episode + 1}: "
+                f"Total Reward = {total_reward}, "
+                f"CMDP Max Cost from sum(incremental_max_cost) = {max_cost}"
+            )
+        else:
+            print(
+                f"Episode {episode + 1}: "
+                f"Total Reward = {total_reward}, "
+                f"Max Cost = {max_cost}"
+            )
 
     return rewards, costs, max_costs
+
 
 
 
@@ -329,13 +379,19 @@ def plot_evaluation_single(
     results,
     labels,
     perturbation_stds,
+    color_map=None,
     save=False,
     base_filename="evaluation_plot",
     smooth_window=10
 ):
     """
     Plot evaluation results for one model per method.
-    No mean/std shading.
+    Plots only:
+        1. Cumulative Reward
+        2. Max Cost
+
+    Total cost plot is removed.
+    Uses fixed colors from color_map.
     """
 
     plt.rcParams.update({
@@ -347,6 +403,9 @@ def plot_evaluation_single(
     fig_size = 28
     label_font = 130
 
+    if color_map is None:
+        color_map = {}
+
     def style_axes():
         plt.grid(False)
         for spine in plt.gca().spines.values():
@@ -354,7 +413,12 @@ def plot_evaluation_single(
 
     def get_metric(label, std_index, metric_name):
         metric = np.array(results[label][std_index][metric_name])
-        smoothed_metric = smooth(metric, smooth_window)
+
+        if len(metric) < smooth_window:
+            smoothed_metric = metric
+        else:
+            smoothed_metric = smooth(metric, smooth_window)
+
         x = range(len(smoothed_metric))
         return x, smoothed_metric
 
@@ -375,7 +439,13 @@ def plot_evaluation_single(
             else:
                 plot_label = f"{label} (std={std})"
 
-            line, = plt.plot(x, rewards, label=plot_label)
+            line, = plt.plot(
+                x,
+                rewards,
+                label=plot_label,
+                color=color_map.get(label, None)
+            )
+
             legend_elements.append(line)
             legend_labels.append(plot_label)
 
@@ -416,7 +486,12 @@ def plot_evaluation_single(
             else:
                 plot_label = f"{label} (std={std})"
 
-            plt.plot(x, max_costs, label=plot_label)
+            plt.plot(
+                x,
+                max_costs,
+                label=plot_label,
+                color=color_map.get(label, None)
+            )
 
     y_min, y_max = plt.gca().get_ylim()
 
@@ -440,30 +515,7 @@ def plot_evaluation_single(
 
     plt.close()
 
-    # =====================
-    # Plot Total Costs
-    # =====================
-    plt.figure(figsize=(fig_size, fig_size))
 
-    for label in labels:
-        for std_index, std in enumerate(perturbation_stds):
-            x, costs = get_metric(label, std_index, "costs")
-
-            if len(perturbation_stds) == 1:
-                plot_label = label
-            else:
-                plot_label = f"{label} (std={std})"
-
-            plt.plot(x, costs, label=plot_label)
-
-    plt.xlabel("Episode", fontweight='bold', fontsize=label_font)
-    plt.ylabel("Cumulative Cost", fontweight='bold', fontsize=label_font)
-    style_axes()
-
-    if save:
-        plt.savefig(f"{base_filename}_total_costs.png", bbox_inches="tight")
-
-    plt.close()
 
 
 def plot_evaluation_grouped(
@@ -692,7 +744,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_tanh", type=float, default=True, help="Trick 10: tanh activation function")
     parser.add_argument("--adaptive_alpha", type=float, default=False, help="Trick 11: adaptive entropy regularization")
     parser.add_argument("--weight_reg", type=float, default=0.001, help="Regularization for weight of critic")
-    parser.add_argument("--seed", type=int, default=4, help="seed 2, 5, 7, 11, 17") 
+    parser.add_argument("--seed", type=int, default=4, help="seed 5, 5, 7, 11, 17") 
     parser.add_argument("--GAMMA", type=str, default='0', help="file name")
     parser.add_argument("--baseline",type=int,default=9,help="baseline")
     parser.add_argument("--lambda_",type=int,default=1.0,help="lambda")
@@ -761,24 +813,51 @@ if __name__ == "__main__":
 
 
     #################### Single Model Evaluation #######################
+    #################### Single Model Evaluation #######################
+
+    #################### Single Model Evaluation #######################
     model_specs = [
         {
             "label": "Surrogate Obj(NP)",
-            "model_path": "./models/HalfCheetahWithPos/run3/Best_RCAC"
+            "model_path": "./models/HalfCheetahWithPos/run3/Best_RCAC",
+            "env_type": "pos"
         },
         {
             "label": "Ours",
-            "model_path": "./models/HalfCheetahWithPosPerturbed/run1/Best_RCAC"
+            "model_path": "./models/HalfCheetahWithPosPerturbed/run1/Best_RCAC",
+            "env_type": "pos"
         },
         {
             "label": "RCRL",
-            "model_path": "./models/HalfCheetahWithPos/run102/Best_RCAC"
+            "model_path": "./models/HalfCheetahWithPos/run102/Best_RCAC",
+            "env_type": "pos"
         },
         {
             "label": "Primal Dual",
-            "model_path": "./models/HalfCheetahWithPos/run104/Best_RCAC"
+            "model_path": "./models/HalfCheetahWithPos/run104/Best_RCAC",
+            "env_type": "pos"
+        },
+        {
+            "label": "SO-CMDP",
+            "model_path": "./models/HalfCheetahCMDP/run2/Best_RCAC",
+            "env_type": "cmdp"
+        },
+        {
+            "label": "RPCRL-CMDP",
+            "model_path": "./models/HalfCheetahCMDPPerturbed/run2/Best_RCAC",
+            "env_type": "cmdp"
         }
     ]
+
+    # Fixed colors for each label
+    color_map = {
+        "Surrogate Obj(NP)": "tab:blue",
+        "Ours": "tab:orange",
+        "RCRL": "tab:green",
+        "Primal Dual": "tab:red",
+        "SO-CMDP": "tab:purple",
+        "RPCRL-CMDP": "tab:brown"
+    }
 
     labels = [spec["label"] for spec in model_specs]
 
@@ -796,8 +875,8 @@ if __name__ == "__main__":
         results,
         labels,
         perturbation_stds,
+        color_map=color_map,
         save=True,
-        base_filename="plot_inference/HC_baseline_comparison_all",
+        base_filename="plot_inference/HC_comparison_CMDP",
         smooth_window=20
     )
-
