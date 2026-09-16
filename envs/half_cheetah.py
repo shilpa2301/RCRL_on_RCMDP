@@ -145,13 +145,16 @@ class HalfCheetahWithPos(HalfCheetahEnv):
     # ── FIX 2: episode length (matches MuJoCo HalfCheetah default) ───────────
     max_steps = 1000
     def __init__(self):
+        self._mujoco_initializing = True
+        self._elapsed_steps = 0
         super().__init__()
+        self._mujoco_initializing = False
         # Override observation_space to match the 18-dim obs we actually return
         obs_high = np.inf * np.ones(self.OBS_DIM, dtype=np.float32)
         self.observation_space = gym.spaces.Box(
             low=-obs_high, high=obs_high, dtype=np.float32
         )
-        self._elapsed_steps = 0
+        
     
     def reset(self, seed=None, **kwargs):
             # Handle seed for reproducibility
@@ -228,6 +231,9 @@ class HalfCheetahWithPos(HalfCheetahEnv):
         truncated  = self._elapsed_steps >= self.max_steps
         terminated = False                  # HalfCheetah never "dies"
 
+        #shilpa windows only
+        if getattr(self, "_mujoco_initializing", False):
+            return ob, reward, truncated or terminated, info
 
     
         # cost = 0

@@ -11,10 +11,18 @@ class HopperCostEnv(hopper.HopperEnv):
     max_steps = 500
 
     def __init__(self, max_steps: int = 500, **kwargs):
-        super().__init__(**kwargs)
+        #shilpa windows only
+        self._mujoco_initializing = True
 
         self.max_steps = max_steps
         self._elapsed_steps = 0
+
+        super().__init__(**kwargs)
+        #shilpa windows only
+        self._mujoco_initializing = False
+
+        # self.max_steps = max_steps
+        # self._elapsed_steps = 0
 
         # Use whatever the parent HopperEnv defines.
         self.OBS_DIM = self.observation_space.shape[0]
@@ -95,6 +103,10 @@ class HopperCostEnv(hopper.HopperEnv):
             "max_action_abs": float(np.max(np.abs(action))),
             "action_torque_threshold": ACTION_TORQUE_THRESHOLD,
         })
+
+        #shilpa windows only
+        if getattr(self, "_mujoco_initializing", False):
+            return ob, reward, truncated or terminated, info
 
         return ob, reward, cost, truncated, terminated, info
 
