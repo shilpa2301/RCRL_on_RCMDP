@@ -1,4 +1,4 @@
-#shilpa Windows only
+# #shilpa Windows only
 import os
 
 if os.name == "nt":
@@ -504,10 +504,10 @@ class RESPO:
                 'dw=True' means dead or win, there is no next state s'
                 'done=True' represents the terminal of an episode(dead or win or reaching the max_episode_steps). When calculating the adv, if done=True, gae=0
             """
-            adv_r = []
-            adv_c = []
-            adv_p = []
-            gae_r, gae_c, gae_p = 0, 0, 0
+            # adv_r = []
+            # adv_c = []
+            # adv_p = []
+            # gae_r, gae_c, gae_p = 0, 0, 0
             V_r_pred = self.V_r(s)
             V_r_next = self.V_r(s_)
             V_c_pred = self.V_c(s)
@@ -515,33 +515,24 @@ class RESPO:
             V_p_pred = self.V_p(s)
             V_p_next = self.V_p(s_)
 
-            p = (c>0.0).float()
+            p_indicator = (c > 0.0).float()
 
-            deltas_r = r + self.gamma * (1 - dw) * V_r_next - V_r_pred
-            # deltas_c = c + self.gamma * (1 - dw) * V_c_next - V_c_pred
-            deltas_c = c + self.gamma * (1 - dw) * V_c_next - V_c_pred
-            deltas_p = (1-self.gamma)* p + self.gamma*self.log_sum_exp_fn(p, (1 - dw) * V_p_next) - V_p_pred
-            # deltas_p = max(p, (1 - dw) * V_p_next) - V_p_pred
+            # ============================================================
+            # Reward and cost GAE
+            # ============================================================
+            adv_r = []
+            adv_c = []
 
-            print(
-                f"lambda={self.lambda_.item():.5f}, "
-                f"eps={self.persistent_eps:.5f}, "
-                f"c_mean={c.mean().item():.5f}, "
-                f"c_max={c.max().item():.5f}, "
-                f"Vc_mean={V_c_pred.mean().item():.5f}, "
-                f"Vc_max={V_c_pred.max().item():.5f}, "
-                f"Vp_mean={V_p_pred.mean().item():.5f}, "
-                f"Vp_max={V_p_pred.max().item():.5f}, "
-                f"viol_c_mean={c.mean().item() - self.persistent_eps:.5f}, "
-                f"viol_Vp_max={V_p_pred.max().item() - self.persistent_eps:.5f}"
-            )
+            gae_r = 0.0
+            gae_c = 0.0
 
+            deltas_r = r + self.gamma * (1.0 - dw) * V_r_next - V_r_pred
+            deltas_c = c + self.gamma * (1.0 - dw) * V_c_next - V_c_pred
 
-            for delta_r, delta_c, delta_p, d in zip(
-                reversed(deltas_r.flatten().detach().numpy()), 
-                reversed(deltas_c.flatten().detach().numpy()), 
-                reversed(deltas_p.flatten().detach().numpy()), 
-                reversed(done.flatten().numpy())
+            for delta_r, delta_c, d in zip(
+                reversed(deltas_r.flatten().detach().cpu().numpy()),
+                reversed(deltas_c.flatten().detach().cpu().numpy()),
+                reversed(done.flatten().detach().cpu().numpy())
             ):
                 gae_r = delta_r + self.gamma * self.lamda * gae_r * (1.0 - d)
                 adv_r.insert(0, gae_r)
@@ -549,36 +540,64 @@ class RESPO:
                 gae_c = delta_c + self.gamma * self.lamda * gae_c * (1.0 - d)
                 adv_c.insert(0, gae_c)
 
-                gae_p = delta_p + self.gamma * self.lamda * gae_p * (1.0 - d)
-                adv_p.insert(0, gae_p)
-
             adv_r = torch.tensor(adv_r, dtype=torch.float32).view(-1, 1)
             adv_c = torch.tensor(adv_c, dtype=torch.float32).view(-1, 1)
-            adv_p = torch.tensor(adv_p, dtype=torch.float32).view(-1, 1)
 
+            # Move to same device if needed
+            adv_r = adv_r.to(s.device)
+            adv_c = adv_c.to(s.device)
 
-            # Normalize advantages
+            # Value targets for reward and cost critics
+            with torch.no_grad():
+                V_r_target = adv_r + V_r_pred
+                V_c_target = adv_c + V_c_pred
+
+                # ========================================================
+                # REF target:
+                # p(s) = max{1_{c>0}, gamma * p(s')}
+                # If dw == 1, there is no next state contribution.
+                # ========================================================
+                p_target = torch.maximum(
+                    p_indicator,
+                    self.gamma * (1.0 - dw) * V_p_next.detach()
+                )
+
+            # ============================================================
+            # Normalize reward and cost advantages only
+            # Do NOT normalize p target.
+            # ============================================================
             if self.use_adv_norm:
                 adv_r = (adv_r - adv_r.mean()) / (adv_r.std() + 1e-8)
                 adv_c = (adv_c - adv_c.mean()) / (adv_c.std() + 1e-8)
-                # adv_p = (adv_p - adv_p.mean()) / (adv_p.std() + 1e-8)
 
-
-
-            # ==================== Actor Update ====================
-            dist = self.actor.get_dist(s)
-            entropy = dist.entropy().sum(dim=1, keepdim=True)
-            log_probs = dist.log_prob(a).sum(dim=1, keepdim=True)
-
-            # Primal-Dual actor loss
-            # adv = adv_r - self.lambda_ * adv_c
-            # actor_loss = -(log_probs * adv).mean() - self.entropy_coef * entropy.mean()
-
-            # ==================== Dual Variable Update ====================
-            # cost_mean = c.sum().item()  # Episodic cost
-            # self.lambda_ = max(0.0, self.lambda_ + self.lr_lambda * (cost_mean - self.baseline))
+            # ============================================================
+            # Debug print
+            # ============================================================
+            # if total_steps % 10 == 0:
+            with torch.no_grad():
+                constraint_value_dbg = (
+                    V_c_pred.detach() * (1.0 - V_p_pred.detach())
+                ).mean()
+                constraint_violation_dbg = constraint_value_dbg - self.persistent_eps
+               
+            # ============================================================
+            # Dual Variable / Lambda Update
+            # ============================================================
+            # Keep baseline part:
+            # constraint_violation = constraint_value - persistent_eps
+            #
+            # RESPO-style constraint value:
+            # use cost value only in predicted feasible region, i.e. weighted by 1 - p(s)
+            # ============================================================
             if self.warm_start_flag == 1:
-                loss_lambda = -self.lambda_ * (c.mean().detach() - self.persistent_eps)
+                with torch.no_grad():
+                    constraint_value = (
+                        V_c_pred.detach() * (1.0 - V_p_pred.detach())
+                    ).mean()
+
+                    constraint_violation = constraint_value - self.persistent_eps
+
+                loss_lambda = -self.lambda_ * constraint_violation
 
                 self.lambda_optimizer.zero_grad()
                 loss_lambda.backward()
@@ -590,82 +609,139 @@ class RESPO:
             else:
                 with torch.no_grad():
                     self.lambda_.fill_(0.0)
+                constraint_value = torch.tensor(0.0)
+                constraint_violation = torch.tensor(0.0)
 
-            #------------------------------------------
+            with torch.no_grad():
+                print(
+                    f"lambda={self.lambda_.item():.5f}, "
+                    f"eps={self.persistent_eps:.5f}, "
+                    f"pred_cost={V_c_pred.mean().item():.5f}, "
+                    f"p_value={V_p_pred.mean().item():.5f}, "
+                    f"constraint_value={constraint_value.item():.5f}, "
+                    f"constraint_violation={constraint_violation.item():.5f}"
+                )
 
+
+            # ============================================================
+            # Actor Update
+            # ============================================================
             for _ in range(self.K_epochs):
-             # Random sampling and no repetition. 'False' indicates that training will continue even if the number of samples in the last time is less than mini_batch_size
-             for index in BatchSampler(SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False):
-                dist_now = self.actor.get_dist(s[index])
-                dist_entropy = dist_now.entropy().sum(1, keepdim=True)  # shape(mini_batch_size X 1)
-                a_logprob_now = dist_now.log_prob(a[index])
-                # a/b=exp(log(a)-log(b))  In multi-dimensional continuous action space，we need to sum up the log_prob
-                ratios = torch.exp(a_logprob_now.sum(1, keepdim=True) - a_logprob[index].sum(1,
-                                                                                             keepdim=True))  # shape(mini_batch_size X 1)
 
-                # surr1 = ratios * adv_r[index] * (1.0 - V_p_pred[index])   # Only calculate the gradient of 'a_logprob_now' in ratios
-                # surr2 = torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * adv_r[index] * (1.0-V_p_pred[index])
-                # loss_rpi = -torch.min(surr1, surr2)  - self.entropy_coef * dist_entropy  # Trick 5: policy entropy
+                for index in BatchSampler(
+                    SubsetRandomSampler(range(self.batch_size)),
+                    self.mini_batch_size,
+                    False
+                ):
+                    dist_now = self.actor.get_dist(s[index])
+                    dist_entropy = dist_now.entropy().sum(1, keepdim=True)
 
+                    a_logprob_now = dist_now.log_prob(a[index])
 
-                # loss_cpi = ratios * adv_c[index] * (self.lambda_.item()*(1.0 - V_p_pred[index])+ V_p_pred[index])  - self.persistent_eps*V_p_pred[index]
-                # actor_loss = (loss_rpi + loss_cpi)/ (1.0 + self.lambda_.item())
-
-                if self.warm_start_flag == 0:
-                    # ============================================================
-                    # Warm start: train reward only
-                    # ============================================================
-                    surr1 = ratios * adv_r[index]
-                    surr2 = (
-                        torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon)
-                        * adv_r[index]
+                    ratios = torch.exp(
+                        a_logprob_now.sum(1, keepdim=True)
+                        - a_logprob[index].sum(1, keepdim=True)
                     )
 
-                    actor_loss = (
-                        -torch.min(surr1, surr2)
-                        - self.entropy_coef * dist_entropy
-                    )
+                    # ====================================================
+                    # Warm start: reward-only PPO
+                    # ====================================================
+                    if self.warm_start_flag == 0:
+                        surr1 = ratios * adv_r[index]
+                        surr2 = (
+                            torch.clamp(ratios, 1.0 - self.epsilon, 1.0 + self.epsilon)
+                            * adv_r[index]
+                        )
 
-                else:
-                    # ============================================================
-                    # After warm start: use your current RESPO loss
-                    # ============================================================
-                    Vp = V_p_pred[index].detach()
-                    lam = self.lambda_.detach()
+                        actor_loss = (
+                            -torch.min(surr1, surr2)
+                            - self.entropy_coef * dist_entropy
+                        )
 
-                    surr1 = ratios * adv_r[index] * (1.0 - Vp)
-                    surr2 = (
-                        torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon)
-                        * adv_r[index]
-                        * (1.0 - Vp)
-                    )
+                    # ====================================================
+                    # After warm start: RESPO-style actor update
+                    # ====================================================
+                    else:
+                        Vp = V_p_pred[index].detach()
+                        lam = self.lambda_.detach()
 
-                    loss_rpi = (
-                        -torch.min(surr1, surr2)
-                        - self.entropy_coef * dist_entropy
-                    )
+                        feasible_weight = 1.0 - Vp
+                        infeasible_weight = Vp
 
-                    loss_cpi = (
-                        ratios
-                        * adv_c[index]
-                        * (lam * (1.0 - Vp) + Vp)
-                        - self.persistent_eps * Vp
-                    )
+                        # cost weight from RESPO:
+                        # lambda * (1 - p) + p
+                        cost_weight = lam * feasible_weight + infeasible_weight
 
-                    actor_loss = (loss_rpi + loss_cpi) / (1.0 + lam)
+                        # ------------------------------------------------
+                        # Reward term:
+                        # maximize reward only in feasible region
+                        # ------------------------------------------------
+                        surr1_r = ratios * adv_r[index] * feasible_weight
+                        surr2_r = (
+                            torch.clamp(ratios, 1.0 - self.epsilon, 1.0 + self.epsilon)
+                            * adv_r[index]
+                            * feasible_weight
+                        )
 
-                # Update actor
-                self.optimizer_actor.zero_grad()
-                actor_loss.mean().backward(retain_graph=True)
-                if self.use_grad_clip:  # Trick 7: Gradient clip
-                    torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
-                self.optimizer_actor.step()
+                        loss_rpi = -torch.min(surr1_r, surr2_r)
 
-            # ==================== Critic Updates ====================
-            reward_critic_loss = F.mse_loss(V_r_pred, adv_r + V_r_pred)
-            cost_critic_loss = F.mse_loss(V_c_pred, adv_c + V_c_pred)
-            ref_critic_loss = F.mse_loss(V_p_pred, adv_p + V_p_pred )
+                        # ------------------------------------------------
+                        # Cost term:
+                        # minimize cost.
+                        #
+                        # PPO-style conservative clipping for minimization:
+                        # use max instead of min.
+                        # ------------------------------------------------
+                        surr1_c = ratios * adv_c[index] * cost_weight
+                        surr2_c = (
+                            torch.clamp(ratios, 1.0 - self.epsilon, 1.0 + self.epsilon)
+                            * adv_c[index]
+                            * cost_weight
+                        )
 
+                        loss_cpi = torch.max(surr1_c, surr2_c)
+
+                        # ------------------------------------------------
+                        # Total actor loss.
+                        # No division by 1 + lambda because that is not in RESPO.
+                        # ------------------------------------------------
+                        actor_loss = (
+                            loss_rpi
+                            + loss_cpi
+                            - self.entropy_coef * dist_entropy
+                        )
+
+                    # ====================================================
+                    # Actor optimizer step
+                    # ====================================================
+                    self.optimizer_actor.zero_grad()
+                    actor_loss.mean().backward()
+
+                    if self.use_grad_clip:
+                        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+
+                    self.optimizer_actor.step()
+
+            # ============================================================
+            # Critic Updates
+            # ============================================================
+            reward_critic_loss = F.mse_loss(V_r_pred, V_r_target.detach())
+            cost_critic_loss = F.mse_loss(V_c_pred, V_c_target.detach())
+
+            # ============================================================
+            # REF Update
+            # ============================================================
+            # Since V_p has sigmoid output and target is in [0, 1],
+            # BCE is usually appropriate.
+            # If unstable, switch to MSE.
+            # ============================================================
+            ref_critic_loss = F.binary_cross_entropy(
+                V_p_pred,
+                p_target.detach()
+            )
+
+            # Alternative:
+            # ref_critic_loss = F.mse_loss(V_p_pred, p_target.detach())
 
             self.optimizer_reward_critic.zero_grad()
             reward_critic_loss.backward()
@@ -679,10 +755,17 @@ class RESPO:
             ref_critic_loss.backward()
             self.optimizer_p_critic.step()
 
-            # ==================== Dual Variable Update ====================
-            # cost_mean = c.sum().item()  # Episodic cost
-            # self.lambda_ = max(0.0, self.lambda_ + self.lr_lambda * (cost_mean - self.baseline))
-            
+            # ============================================================
+            # Optional final debug print for losses
+            # ============================================================
+            # if total_steps % 10 == 0:
+            #     print(
+            #         f"[LOSSES step={total_steps}] "
+            #         f"reward_critic_loss={reward_critic_loss.item():.6f}, "
+            #         f"cost_critic_loss={cost_critic_loss.item():.6f}, "
+            #         f"ref_loss={ref_critic_loss.item():.6f}, "
+            #         f"lambda={self.lambda_.item():.6f}"
+            #     )
 
 
 
@@ -936,7 +1019,7 @@ def main(args, run_number):
         #if total_steps > args.max_train_steps // 2:
         #    agent.gamma = 0.999
         s = env.reset()[0]#[0] 
-        #print("s: ", s)
+        # print("s: ", s)
         # s_org = copy.deepcopy(s)
         if args.use_state_norm:
             s = state_norm(s)

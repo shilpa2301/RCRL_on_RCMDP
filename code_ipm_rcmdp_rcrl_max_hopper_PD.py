@@ -559,6 +559,25 @@ class RPCRL:
 
                 constraint_violation = Jc_pi - persistent_eps_tensor
 
+                #Dual update:
+                # lambda <- [lambda + dual_lr * (max_cost - eps)]_+
+                if self.warm_start_flag == 1:
+                    self.dual_lambda = self.dual_lambda + self.dual_lr * constraint_violation
+                    self.dual_lambda = torch.clamp(
+                        self.dual_lambda,
+                        min=0.0,
+                        max=self.dual_lambda_max
+                    )
+
+                else:
+                    # Optional: keep lambda zero before warm start
+                    self.dual_lambda = torch.tensor(
+                        0.0,
+                        dtype=torch.float32,
+                        device=s.device
+                    )
+                print(f"dual_lambda:{self.dual_lambda.item()}, persistent_eps:{self.persistent_eps}, Jc_pi:{Jc_pi.item()}, constraint_violation:{constraint_violation.item()}")
+
                 # ============================================================
                 # Cost advantage and cost critic target: standard cumulative GAE
                 #
