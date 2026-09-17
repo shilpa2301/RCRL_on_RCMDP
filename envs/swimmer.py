@@ -45,10 +45,19 @@ class SwimmerWithPos(swimmer.SwimmerEnv):
     max_steps = 1000
 
     def __init__(self, sigma_viscosity: float = 0.0, max_steps: int = 1000, **kwargs):
-        super().__init__(**kwargs)
+        self._mujoco_initializing = True
         self.sigma_viscosity = sigma_viscosity
         self.max_steps       = max_steps
         self._elapsed_steps  = 0
+
+        # Store the base viscosity from the XML (0.1 for swimmer.xml)
+        self._base_viscosity = 0.0 #float(self.model.opt.viscosity)
+
+        super().__init__(**kwargs)
+        self._mujoco_initializing = False
+        # self.sigma_viscosity = sigma_viscosity
+        # self.max_steps       = max_steps
+        # self._elapsed_steps  = 0
 
         # Store the base viscosity from the XML (0.1 for swimmer.xml)
         self._base_viscosity = float(self.model.opt.viscosity)
@@ -135,6 +144,11 @@ class SwimmerWithPos(swimmer.SwimmerEnv):
         # ── 4. Termination / truncation ─────────────────────────────────────
         truncated  = self._elapsed_steps >= self.max_steps
         terminated = False
+
+        #shilpa windows only
+        if getattr(self, "_mujoco_initializing", False):
+            return ob, reward, truncated or terminated, info
+
 
         return ob, reward, cost, truncated, terminated, info
 

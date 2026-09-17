@@ -408,7 +408,7 @@ class RESPO:
     self.V_r = Critic(args)
     self.V_c = CostCritic(args)
     self.V_p = REFCostCritic(args)
-    self.lambda_ = torch.tensor(.25,requires_grad=True).float()
+    self.lambda_ = torch.tensor(0.0,requires_grad=True).float()
 
     self.beta = args.beta
     # self.persistent_eps = 0.0
@@ -522,6 +522,19 @@ class RESPO:
             deltas_c = c + self.gamma * (1 - dw) * V_c_next - V_c_pred
             deltas_p = (1-self.gamma)* p + self.gamma*self.log_sum_exp_fn(p, (1 - dw) * V_p_next) - V_p_pred
             # deltas_p = max(p, (1 - dw) * V_p_next) - V_p_pred
+
+            print(
+                f"lambda={self.lambda_.item():.5f}, "
+                f"eps={self.persistent_eps:.5f}, "
+                f"c_mean={c.mean().item():.5f}, "
+                f"c_max={c.max().item():.5f}, "
+                f"Vc_mean={V_c_pred.mean().item():.5f}, "
+                f"Vc_max={V_c_pred.max().item():.5f}, "
+                f"Vp_mean={V_p_pred.mean().item():.5f}, "
+                f"Vp_max={V_p_pred.max().item():.5f}, "
+                f"viol_c_mean={c.mean().item() - self.persistent_eps:.5f}, "
+                f"viol_Vp_max={V_p_pred.max().item() - self.persistent_eps:.5f}"
+            )
 
 
             for delta_r, delta_c, delta_p, d in zip(
@@ -1225,7 +1238,7 @@ if __name__ == '__main__':
         "--sigma_gravity", type=float, default=0.0, help="gravity perturbation"
     )
     
-    parser.add_argument("--lr_lambda",type=int,default=5e-5 ,help="warm_start_episode") 
+    parser.add_argument("--lr_lambda",type=float,default=1e-3,help="warm_start_episode") 
 
 
 
