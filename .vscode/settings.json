@@ -1,4 +1,42 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:conda",
-    "python-envs.defaultPackageManager": "ms-python.python:conda"
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+
+    "files.watcherExclude": {
+        "**/.git/**": true,
+        "**/.venv/**": true,
+        "**/venv/**": true,
+        "**/env/**": true,
+        "**/node_modules/**": true,
+        "**/__pycache__/**": true,
+        "**/.pytest_cache/**": true,
+        "**/.mypy_cache/**": true,
+        "**/.ruff_cache/**": true,
+        "**/wandb/**": true,
+        "**/runs/**": true,
+        "**/logs/**": true,
+        "**/checkpoints/**": true,
+        "**/data/**": true,
+        "**/datasets/**": true,
+        "**/outputs/**": true
+    },
+
+    "search.exclude": {
+        "**/.git": true,
+        "**/.venv": true,
+        "**/venv": true,
+        "**/env": true,
+        "**/node_modules": true,
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/.mypy_cache": true,
+        "**/.ruff_cache": true,
+        "**/wandb": true,
+        "**/runs": true,
+        "**/logs": true,
+        "**/checkpoints": true,
+        "**/data": true,
+        "**/datasets": true,
+        "**/outputs": true
+    }
 }

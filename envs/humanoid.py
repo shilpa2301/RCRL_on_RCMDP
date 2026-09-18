@@ -30,7 +30,8 @@ class HumanoidWithCost(humanoid_v3.HumanoidEnv):
     # def __init__(self, floor_friction: float = 0.0, max_steps: int = 1000, **kwargs):
     def __init__(self, sigma_gravity: float = 0.0, max_steps: int = 1000, **kwargs):
     
-        super().__init__(**kwargs)
+        self._mujoco_initializing = True
+
         self.sigma_gravity = sigma_gravity
         self.max_steps       = max_steps
         self._elapsed_steps  = 0
@@ -40,6 +41,13 @@ class HumanoidWithCost(humanoid_v3.HumanoidEnv):
         # self._base_friction = np.copy(self.model.geom_friction[self.floor_geom_id])
     
         self._grav_axis = 2
+        self._base_grav = -9.81
+
+        super().__init__(**kwargs)
+
+        self._mujoco_initializing = False
+
+        
         self._base_grav = float(self.model.opt.gravity[self._grav_axis])
     
     
@@ -115,6 +123,11 @@ class HumanoidWithCost(humanoid_v3.HumanoidEnv):
             "y_velocity": y_velocity,
             "forward_reward": forward_reward,
         }
+
+        #shilpa windows only
+        if getattr(self, "_mujoco_initializing", False):
+            return observation, reward, truncated or terminated, info
+
 
         return observation, reward, cost, truncated, terminated, info
     

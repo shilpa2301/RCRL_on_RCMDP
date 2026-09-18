@@ -618,8 +618,6 @@ class PrimalDual:
         self.dual_lambda = torch.tensor(0.0, dtype=torch.float32)
         self.dual_lr = 1e-1 #1e-5 #1e-3
         self.dual_lambda_max = 100.0
-        # self.dense_cost_weight = args.dense_cost_weight
-        # self.cost_scale = args.cost_scale
 
         #shilpa gpu
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -1058,17 +1056,7 @@ class PrimalDual:
             self.alpha_optimzier.step()
             self.alpha = self.log_alpha.exp()
 
-    #shilpa target critic
-    def soft_update_target_networks(self, tau=None):
-        if tau is None:
-            tau = self.tau
-
-        for target_param, param in zip(self.target_Rcritic.parameters(), self.Rcritic.parameters()):
-            target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
-
-        for target_param, param in zip(self.target_Ccritic.parameters(), self.Ccritic.parameters()):
-            target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
-
+    
 def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     times = 3
     evaluate_reward = 0
@@ -1097,8 +1085,6 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
                 s_ = state_norm(s_, update=False)
 
             episode_reward += r
-            # episode_cost += c
-            # max_cost = max(max_cost, c)
             incremental_max_cost = info["incremental_max_cost"]
             episode_cost +=incremental_max_cost
             max_cost = max(max_cost, incremental_max_cost)

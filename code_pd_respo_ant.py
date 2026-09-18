@@ -1,3 +1,14 @@
+# #shilpa Windows only
+import os
+
+if os.name == "nt":
+    os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+    os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+
+os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+
+
+
 import torch
 import torch.nn.functional as F
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
@@ -21,8 +32,8 @@ from gym import utils
 from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
-from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
-
+# from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
+from envs.ant import AntCost, AntCostPerturbed
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -85,20 +96,25 @@ class Actor_Gaussian(nn.Module):
         self.max_action = args.max_action
         self.fc1 = nn.Linear(args.state_dim, args.hidden_width)
         self.fc2 = nn.Linear(args.hidden_width, args.hidden_width)
+        self.fc3 = nn.Linear(args.hidden_width, args.hidden_width)
+
         self.mean_layer = nn.Linear(args.hidden_width, args.action_dim)
         self.log_std = nn.Parameter(
             torch.zeros(1, args.action_dim))  # We use 'nn.Parameter' to train log_std automatically
-        self.activate_func = [nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
+        self.activate_func = [nn.ReLU(), nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
 
         if args.use_orthogonal_init:
             print("------use_orthogonal_init------")
             orthogonal_init(self.fc1)
             orthogonal_init(self.fc2)
+            orthogonal_init(self.fc3)
             orthogonal_init(self.mean_layer, gain=0.01)
 
     def forward(self, s):
         s = self.activate_func(self.fc1(s))
         s = self.activate_func(self.fc2(s))
+        s = self.activate_func(self.fc3(s))
+
         mean = self.max_action * torch.tanh(self.mean_layer(s))  # [-1,1]->[-max_action,max_action]
         return mean
 
@@ -217,19 +233,21 @@ class Critic(nn.Module):
         super(Critic, self).__init__()
         self.fc1 = nn.Linear(args.state_dim, args.hidden_width)
         self.fc2 = nn.Linear(args.hidden_width, args.hidden_width)
-        self.fc3 = nn.Linear(args.hidden_width, 1)
-        self.activate_func = [nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
-
+        self.fc3 = nn.Linear(args.hidden_width, args.hidden_width)
+        self.fc4 = nn.Linear(args.hidden_width, 1)
+        self.activate_func = [nn.ReLU(), nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
         if args.use_orthogonal_init:
             print("------use_orthogonal_init------")
             orthogonal_init(self.fc1)
             orthogonal_init(self.fc2)
             orthogonal_init(self.fc3)
+            orthogonal_init(self.fc4)
 
     def forward(self, s):
         s = self.activate_func(self.fc1(s))
         s = self.activate_func(self.fc2(s))
-        v_s = self.fc3(s)
+        s = self.activate_func(self.fc3(s))
+        v_s = self.fc4(s)
         # v_s = torch.sigmoid(self.fc3(s)) 
         return v_s
 
@@ -245,7 +263,8 @@ class CostCritic(nn.Module):
         super(CostCritic, self).__init__()
         self.fc1 = nn.Linear(args.state_dim, args.hidden_width)
         self.fc2 = nn.Linear(args.hidden_width, args.hidden_width)
-        self.fc3 = nn.Linear(args.hidden_width, 1)
+        self.fc3 = nn.Linear(args.hidden_width, args.hidden_width)
+        self.fc4 = nn.Linear(args.hidden_width, 1)
         # self.activate_func = [nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
         self.activate_func = nn.ReLU()
 
@@ -254,12 +273,14 @@ class CostCritic(nn.Module):
             orthogonal_init(self.fc1)
             orthogonal_init(self.fc2)
             orthogonal_init(self.fc3)
+            orthogonal_init(self.fc4)
 
     def forward(self, s):
         s = self.activate_func(self.fc1(s))  # Apply activation to the first layer
         s = self.activate_func(self.fc2(s))  # Apply activation to the second layer
+        s = self.activate_func(self.fc3(s))
         # v_s = torch.sigmoid(self.fc3(s))  # Apply sigmoid activation to the last layer
-        v_s = self.fc3(s)
+        v_s = self.fc4(s)
         return v_s
 
     def save(self, filename):
@@ -274,8 +295,8 @@ class REFCostCritic(nn.Module):
         super(REFCostCritic, self).__init__()
         self.fc1 = nn.Linear(args.state_dim, args.hidden_width)
         self.fc2 = nn.Linear(args.hidden_width, args.hidden_width)
-        self.fc3 = nn.Linear(args.hidden_width, 1)
-        # self.activate_func = [nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
+        self.fc3 = nn.Linear(args.hidden_width, args.hidden_width)
+        self.fc4 = nn.Linear(args.hidden_width, 1)
         self.activate_func = nn.ReLU()
 
         if args.use_orthogonal_init:
@@ -283,12 +304,13 @@ class REFCostCritic(nn.Module):
             orthogonal_init(self.fc1)
             orthogonal_init(self.fc2)
             orthogonal_init(self.fc3)
-
+            orthogonal_init(self.fc4)
     def forward(self, s):
         s = self.activate_func(self.fc1(s))  # Apply activation to the first layer
         s = self.activate_func(self.fc2(s))  # Apply activation to the second layer
         # v_s = torch.sigmoid(self.fc3(s))  # Apply sigmoid activation to the last layer
-        v_s = torch.sigmoid(self.fc3(s))
+        s = self.activate_func(self.fc3(s))
+        v_s = torch.sigmoid(self.fc4(s))
         return v_s
 
     def save(self, filename):
@@ -335,14 +357,12 @@ class ReplayBuffer:
         return s, a, a_logprob, r,c, s_, dw, done
 
 
-class PrimalDual:
+class RESPO:
   def __init__(self,args):
-    if args.env == 'CartPolePerturbedEnv':
-        self.env = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#HopperPerturbedEnv()
-    elif args.env == 'CartPoleCostEnv':
-        self.env = CartPoleCostEnv()
-    if args.env == 'HopperPerturbedEnv':
-        self.env = HopperPerturbedEnv()
+    if args.env == "AntCost":
+        self.env = AntCost()    
+    elif args.env == "AntCostPerturbed":
+        self.env = AntCostPerturbed(sigma_gravity=args.sigma_gravity)
     else:
         print("No env selected")
     #self.env.seed(args.seed)
@@ -353,7 +373,7 @@ class PrimalDual:
     self.max_train_steps = args.max_train_steps
     self.lr_a = args.lr_a  # Learning rate of actor
     self.lr_c = args.lr_c  # Learning rate of critic
-    self.lr_p = 0.1*self.lr_c
+    self.lr_p = args.lr_cost
     self.gamma = args.gamma  # Discount factor
     self.lamda = args.lamda  # GAE parameter
     self.epsilon = args.epsilon  # PPO clip parameter
@@ -387,7 +407,7 @@ class PrimalDual:
     self.V_r = Critic(args)
     self.V_c = CostCritic(args)
     self.V_p = REFCostCritic(args)
-    self.lambda_ = torch.tensor(.25,requires_grad=True).float()
+    self.lambda_ = torch.tensor(0.0,requires_grad=True).float()
 
     self.beta = args.beta
     # self.persistent_eps = 0.0
@@ -406,7 +426,7 @@ class PrimalDual:
         self.optimizer_reward_critic = torch.optim.Adam(self.V_r.parameters(), lr=self.lr_c)
         self.optimizer_cost_critic = torch.optim.Adam(self.V_c.parameters(), lr=self.lr_c)
         self.optimizer_p_critic = torch.optim.Adam(self.V_p.parameters(), lr=self.lr_p)
-        self.lambda_optimizer = Adam([self.lambda_], lr=self.lr_lambda)
+        self.lambda_optimizer = torch.optim.Adam([self.lambda_], lr=self.lr_lambda)
 
 
   def evaluate(self, s):  # When evaluating the policy, we only use the mean in Beta and gaussian and simply the action for Discrete
@@ -441,24 +461,38 @@ class PrimalDual:
   def lr_decay(self, total_steps):
         lr_a_now = self.lr_a * (1 - total_steps / self.max_train_steps)
         lr_c_now = self.lr_c * (1 - total_steps / self.max_train_steps)
+        lr_cost_now = self.lr_cost * (1 - total_steps / self.max_train_steps)
         for p in self.optimizer_actor.param_groups:
             p['lr'] = lr_a_now
         for p in self.optimizer_Rcritic.param_groups:
             p['lr'] = lr_c_now
         for p in self.optimizer_Ccritic.param_groups:
-            p['lr'] = lr_c_now
+            p['lr'] = lr_cost_now
 
 
-  def log_sum_exp_fn(self, a, b, eta=0.1):
-    # Compute the Log-Sum-Exp smooth approximation of max(a, b)
-    # print("a, b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta))= ", a,b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta)))
-    # lse = eta * torch.log(torch.exp(a / eta) + torch.exp(b / eta))
+  def softmax_fn(self, a, b, temperature=0.1):
+            exp_a = torch.exp(a / temperature)
+            exp_b = torch.exp(b / temperature)
+            softmax_weighted = (a * exp_a + b * exp_b) / (exp_a + exp_b)
+            return softmax_weighted
 
-    # Find the maximum value between a and b : else exp(10/0.1) becomes infinity
-    max_val = torch.max(a, b)    
-    # Stabilize the log-sum-exp computation
-    lse = max_val + eta * torch.log(torch.exp((a - max_val) / eta) + torch.exp((b - max_val) / eta))
-    return lse
+  def log_sum_exp_fn(self, a, b, eta=0.01): #prev 0.001
+          # Compute the Log-Sum-Exp smooth approximation of max(a, b)
+          # print("a, b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta))= ", a,b, torch.exp(a / eta), torch.exp(b / eta), torch.log(torch.exp(a / eta) + torch.exp(b / eta)))
+          # lse = eta * torch.log(torch.exp(a / eta) + torch.exp(b / eta))
+  
+          if not isinstance(a, torch.Tensor):
+              a = torch.tensor(a, dtype=torch.float32)
+          if not isinstance(b, torch.Tensor):
+              b = torch.tensor(b, dtype=torch.float32)
+  
+          # Find the maximum value between a and b : else exp(10/0.1) becomes infinity
+          max_val = torch.max(a, b)
+          # Stabilize the log-sum-exp computation
+          lse = max_val + eta * torch.log(
+              torch.exp((a - max_val) / eta) + torch.exp((b - max_val) / eta)
+          )
+          return lse
 
 
 
@@ -469,10 +503,10 @@ class PrimalDual:
                 'dw=True' means dead or win, there is no next state s'
                 'done=True' represents the terminal of an episode(dead or win or reaching the max_episode_steps). When calculating the adv, if done=True, gae=0
             """
-            adv_r = []
-            adv_c = []
-            adv_p = []
-            gae_r, gae_c, gae_p = 0, 0, 0
+            # adv_r = []
+            # adv_c = []
+            # adv_p = []
+            # gae_r, gae_c, gae_p = 0, 0, 0
             V_r_pred = self.V_r(s)
             V_r_next = self.V_r(s_)
             V_c_pred = self.V_c(s)
@@ -480,20 +514,24 @@ class PrimalDual:
             V_p_pred = self.V_p(s)
             V_p_next = self.V_p(s_)
 
-            p = (c>0.0).float()
+            p_indicator = (c > 0.0).float()
 
-            deltas_r = r + self.gamma * (1 - dw) * V_r_next - V_r_pred
-            # deltas_c = c + self.gamma * (1 - dw) * V_c_next - V_c_pred
-            deltas_c = c + self.gamma * (1 - dw) * V_c_next - V_c_pred
-            deltas_p = (1-self.gamma)* p + self.gamma*self.log_sum_exp_fn(p, (1 - dw) * V_p_next) - V_p_pred
-            # deltas_p = max(p, (1 - dw) * V_p_next) - V_p_pred
+            # ============================================================
+            # Reward and cost GAE
+            # ============================================================
+            adv_r = []
+            adv_c = []
 
+            gae_r = 0.0
+            gae_c = 0.0
 
-            for delta_r, delta_c, delta_p, d in zip(
-                reversed(deltas_r.flatten().detach().numpy()), 
-                reversed(deltas_c.flatten().detach().numpy()), 
-                reversed(deltas_p.flatten().detach().numpy()), 
-                reversed(done.flatten().numpy())
+            deltas_r = r + self.gamma * (1.0 - dw) * V_r_next - V_r_pred
+            deltas_c = c + self.gamma * (1.0 - dw) * V_c_next - V_c_pred
+
+            for delta_r, delta_c, d in zip(
+                reversed(deltas_r.flatten().detach().cpu().numpy()),
+                reversed(deltas_c.flatten().detach().cpu().numpy()),
+                reversed(done.flatten().detach().cpu().numpy())
             ):
                 gae_r = delta_r + self.gamma * self.lamda * gae_r * (1.0 - d)
                 adv_r.insert(0, gae_r)
@@ -501,70 +539,208 @@ class PrimalDual:
                 gae_c = delta_c + self.gamma * self.lamda * gae_c * (1.0 - d)
                 adv_c.insert(0, gae_c)
 
-                gae_p = delta_p + self.gamma * self.lamda * gae_p * (1.0 - d)
-                adv_p.insert(0, gae_p)
-
             adv_r = torch.tensor(adv_r, dtype=torch.float32).view(-1, 1)
             adv_c = torch.tensor(adv_c, dtype=torch.float32).view(-1, 1)
-            adv_p = torch.tensor(adv_p, dtype=torch.float32).view(-1, 1)
 
+            # Move to same device if needed
+            adv_r = adv_r.to(s.device)
+            adv_c = adv_c.to(s.device)
 
-            # Normalize advantages
+            # Value targets for reward and cost critics
+            with torch.no_grad():
+                V_r_target = adv_r + V_r_pred
+                V_c_target = adv_c + V_c_pred
+
+                # ========================================================
+                # REF target:
+                # p(s) = max{1_{c>0}, gamma * p(s')}
+                # If dw == 1, there is no next state contribution.
+                # ========================================================
+                p_target = torch.maximum(
+                    p_indicator,
+                    self.gamma * (1.0 - dw) * V_p_next.detach()
+                )
+
+            # ============================================================
+            # Normalize reward and cost advantages only
+            # Do NOT normalize p target.
+            # ============================================================
             if self.use_adv_norm:
                 adv_r = (adv_r - adv_r.mean()) / (adv_r.std() + 1e-8)
                 adv_c = (adv_c - adv_c.mean()) / (adv_c.std() + 1e-8)
-                # adv_p = (adv_p - adv_p.mean()) / (adv_p.std() + 1e-8)
+
+            # ============================================================
+            # Debug print
+            # ============================================================
+            # if total_steps % 10 == 0:
+            with torch.no_grad():
+                constraint_value_dbg = (
+                    V_c_pred.detach() * (1.0 - V_p_pred.detach())
+                ).mean()
+                constraint_violation_dbg = constraint_value_dbg - self.persistent_eps
+               
+            # ============================================================
+            # Dual Variable / Lambda Update
+            # ============================================================
+            # Keep baseline part:
+            # constraint_violation = constraint_value - persistent_eps
+            #
+            # RESPO-style constraint value:
+            # use cost value only in predicted feasible region, i.e. weighted by 1 - p(s)
+            # ============================================================
+            if self.warm_start_flag == 1:
+                with torch.no_grad():
+                    constraint_value = (
+                        V_c_pred.detach() * (1.0 - V_p_pred.detach())
+                    ).mean()
+
+                    constraint_violation = constraint_value - self.persistent_eps
+
+                loss_lambda = -self.lambda_ * constraint_violation
+
+                self.lambda_optimizer.zero_grad()
+                loss_lambda.backward()
+                self.lambda_optimizer.step()
+
+                with torch.no_grad():
+                    self.lambda_.clamp_(min=0.0)
+
+            else:
+                with torch.no_grad():
+                    self.lambda_.fill_(0.0)
+                constraint_value = torch.tensor(0.0)
+                constraint_violation = torch.tensor(0.0)
+
+            with torch.no_grad():
+                print(
+                    f"lambda={self.lambda_.item():.5f}, "
+                    f"eps={self.persistent_eps:.5f}, "
+                    f"pred_cost={V_c_pred.mean().item():.5f}, "
+                    f"p_value={V_p_pred.mean().item():.5f}, "
+                    f"constraint_value={constraint_value.item():.5f}, "
+                    f"constraint_violation={constraint_violation.item():.5f}"
+                )
 
 
-
-            # ==================== Actor Update ====================
-            dist = self.actor.get_dist(s)
-            entropy = dist.entropy().sum(dim=1, keepdim=True)
-            log_probs = dist.log_prob(a).sum(dim=1, keepdim=True)
-
-            # Primal-Dual actor loss
-            # adv = adv_r - self.lambda_ * adv_c
-            # actor_loss = -(log_probs * adv).mean() - self.entropy_coef * entropy.mean()
-
-            # ==================== Dual Variable Update ====================
-            # cost_mean = c.sum().item()  # Episodic cost
-            # self.lambda_ = max(0.0, self.lambda_ + self.lr_lambda * (cost_mean - self.baseline))
-            loss_lambda = -self.lambda_*(c.mean().item()- self.persistent_eps)
-        
-            self.lambda_optimizer.zero_grad()
-            loss_lambda.backward()
-            self.lambda_optimizer.step()
-            #------------------------------------------
-
+            # ============================================================
+            # Actor Update
+            # ============================================================
             for _ in range(self.K_epochs):
-             # Random sampling and no repetition. 'False' indicates that training will continue even if the number of samples in the last time is less than mini_batch_size
-             for index in BatchSampler(SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False):
-                dist_now = self.actor.get_dist(s[index])
-                dist_entropy = dist_now.entropy().sum(1, keepdim=True)  # shape(mini_batch_size X 1)
-                a_logprob_now = dist_now.log_prob(a[index])
-                # a/b=exp(log(a)-log(b))  In multi-dimensional continuous action space，we need to sum up the log_prob
-                ratios = torch.exp(a_logprob_now.sum(1, keepdim=True) - a_logprob[index].sum(1,
-                                                                                             keepdim=True))  # shape(mini_batch_size X 1)
 
-                surr1 = ratios * adv_r[index] * (1.0 - V_p_pred[index])   # Only calculate the gradient of 'a_logprob_now' in ratios
-                surr2 = torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * adv_r[index] * (1.0-V_p_pred[index])
-                loss_rpi = -torch.min(surr1, surr2)  - self.entropy_coef * dist_entropy  # Trick 5: policy entropy
+                for index in BatchSampler(
+                    SubsetRandomSampler(range(self.batch_size)),
+                    self.mini_batch_size,
+                    False
+                ):
+                    dist_now = self.actor.get_dist(s[index])
+                    dist_entropy = dist_now.entropy().sum(1, keepdim=True)
 
+                    a_logprob_now = dist_now.log_prob(a[index])
 
-                loss_cpi = ratios * adv_c[index] * (self.lambda_.item()*(1.0 - V_p_pred[index])+ V_p_pred[index])  - self.persistent_eps*V_p_pred[index]
-                actor_loss = (loss_rpi + loss_cpi)/ (1.0 + self.lambda_.item())
-                # Update actor
-                self.optimizer_actor.zero_grad()
-                actor_loss.mean().backward(retain_graph=True)
-                if self.use_grad_clip:  # Trick 7: Gradient clip
-                    torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
-                self.optimizer_actor.step()
+                    ratios = torch.exp(
+                        a_logprob_now.sum(1, keepdim=True)
+                        - a_logprob[index].sum(1, keepdim=True)
+                    )
 
-            # ==================== Critic Updates ====================
-            reward_critic_loss = F.mse_loss(V_r_pred, adv_r + V_r_pred)
-            cost_critic_loss = F.mse_loss(V_c_pred, adv_c + V_c_pred)
-            ref_critic_loss = F.mse_loss(V_p_pred, adv_p + V_p_pred )
+                    # ====================================================
+                    # Warm start: reward-only PPO
+                    # ====================================================
+                    if self.warm_start_flag == 0:
+                        surr1 = ratios * adv_r[index]
+                        surr2 = (
+                            torch.clamp(ratios, 1.0 - self.epsilon, 1.0 + self.epsilon)
+                            * adv_r[index]
+                        )
 
+                        actor_loss = (
+                            -torch.min(surr1, surr2)
+                            - self.entropy_coef * dist_entropy
+                        )
+
+                    # ====================================================
+                    # After warm start: RESPO-style actor update
+                    # ====================================================
+                    else:
+                        Vp = V_p_pred[index].detach()
+                        lam = self.lambda_.detach()
+
+                        feasible_weight = 1.0 - Vp
+                        infeasible_weight = Vp
+
+                        # cost weight from RESPO:
+                        # lambda * (1 - p) + p
+                        cost_weight = lam * feasible_weight + infeasible_weight
+
+                        # ------------------------------------------------
+                        # Reward term:
+                        # maximize reward only in feasible region
+                        # ------------------------------------------------
+                        surr1_r = ratios * adv_r[index] * feasible_weight
+                        surr2_r = (
+                            torch.clamp(ratios, 1.0 - self.epsilon, 1.0 + self.epsilon)
+                            * adv_r[index]
+                            * feasible_weight
+                        )
+
+                        loss_rpi = -torch.min(surr1_r, surr2_r)
+
+                        # ------------------------------------------------
+                        # Cost term:
+                        # minimize cost.
+                        #
+                        # PPO-style conservative clipping for minimization:
+                        # use max instead of min.
+                        # ------------------------------------------------
+                        surr1_c = ratios * adv_c[index] * cost_weight
+                        surr2_c = (
+                            torch.clamp(ratios, 1.0 - self.epsilon, 1.0 + self.epsilon)
+                            * adv_c[index]
+                            * cost_weight
+                        )
+
+                        loss_cpi = torch.max(surr1_c, surr2_c)
+
+                        # ------------------------------------------------
+                        # Total actor loss.
+                        # No division by 1 + lambda because that is not in RESPO.
+                        # ------------------------------------------------
+                        actor_loss = (
+                            loss_rpi
+                            + loss_cpi
+                            - self.entropy_coef * dist_entropy
+                        )
+
+                    # ====================================================
+                    # Actor optimizer step
+                    # ====================================================
+                    self.optimizer_actor.zero_grad()
+                    actor_loss.mean().backward()
+
+                    if self.use_grad_clip:
+                        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+
+                    self.optimizer_actor.step()
+
+            # ============================================================
+            # Critic Updates
+            # ============================================================
+            reward_critic_loss = F.mse_loss(V_r_pred, V_r_target.detach())
+            cost_critic_loss = F.mse_loss(V_c_pred, V_c_target.detach())
+
+            # ============================================================
+            # REF Update
+            # ============================================================
+            # Since V_p has sigmoid output and target is in [0, 1],
+            # BCE is usually appropriate.
+            # If unstable, switch to MSE.
+            # ============================================================
+            ref_critic_loss = F.binary_cross_entropy(
+                V_p_pred,
+                p_target.detach()
+            )
+
+            # Alternative:
+            # ref_critic_loss = F.mse_loss(V_p_pred, p_target.detach())
 
             self.optimizer_reward_critic.zero_grad()
             reward_critic_loss.backward()
@@ -578,10 +754,17 @@ class PrimalDual:
             ref_critic_loss.backward()
             self.optimizer_p_critic.step()
 
-            # ==================== Dual Variable Update ====================
-            # cost_mean = c.sum().item()  # Episodic cost
-            # self.lambda_ = max(0.0, self.lambda_ + self.lr_lambda * (cost_mean - self.baseline))
-            
+            # ============================================================
+            # Optional final debug print for losses
+            # ============================================================
+            # if total_steps % 10 == 0:
+            #     print(
+            #         f"[LOSSES step={total_steps}] "
+            #         f"reward_critic_loss={reward_critic_loss.item():.6f}, "
+            #         f"cost_critic_loss={cost_critic_loss.item():.6f}, "
+            #         f"ref_loss={ref_critic_loss.item():.6f}, "
+            #         f"lambda={self.lambda_.item():.6f}"
+            #     )
 
 
 
@@ -592,7 +775,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     evaluate_cost = 0
     evaluate_max_cost = float('-inf')
     for _ in range(times):
-        s = env.reset()
+        s = env.reset()[0]#[0]
         if args.use_state_norm:
             s = state_norm(s, update=False)  # During the evaluating,update=False
         done = False
@@ -605,7 +788,8 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
                 action = 2 * (a - 0.5) * args.max_action  # [0,1]->[-max,max]
             else:
                 action = a
-            s_, r,c, done, _ = env.step(action)
+            s_, r, c, truncated, terminated, info = env.step(action)
+            done = truncated or terminated
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
 
@@ -641,6 +825,65 @@ def save_agent(agent, save_path, state_norm=None, reward_scaling=None):
             pickle.dump(reward_scaling, file2)
 
 
+def plot_eval_metrics(
+    evaluate_rewards,
+    evaluate_costs,
+    evaluate_max_costs,
+    persistent_eps,
+    save=False,
+    filename="eval_metrics.png",
+):
+    """
+    Plot evaluation metrics (reward, total cost, max cost) over evaluation
+    checkpoints and optionally save the plot.
+    Args:
+        evaluate_rewards:   List of avg rewards per evaluation checkpoint.
+        evaluate_costs:     List of avg total costs per evaluation checkpoint.
+        evaluate_max_costs: List of max costs per evaluation checkpoint.
+        persistent_eps:     Safety threshold — drawn as a horizontal reference line.
+        save:               Whether to save the plot to a file.
+        filename:           File name to save the plot.
+    """
+    evals = list(range(1, len(evaluate_rewards) + 1))
+
+    fig, axes = plt.subplots(3, 1, figsize=(10, 9))
+
+    # ── Subplot 1: Evaluate Reward ────────────────────────────────────────────
+    axes[0].plot(evals, evaluate_rewards, color="blue", label="Eval Reward")
+    axes[0].set_xlabel("Evaluation #")
+    axes[0].set_ylabel("Reward")
+    axes[0].set_title("Evaluation Reward")
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+
+    # ── Subplot 2: Evaluate Max Cost (with safety threshold line) ────────────
+    axes[1].plot(evals, evaluate_max_costs, color="red", label="Eval Max Cost")
+    axes[1].axhline(
+        y=0.1, #persistent_eps,
+        color="black",
+        linestyle="--",
+        linewidth=1.5,
+        label=f"Safety threshold 0.1",# ({persistent_eps})",
+    )
+    axes[1].set_xlabel("Evaluation #")
+    axes[1].set_ylabel("Max Cost")
+    axes[1].set_title("Evaluation Max Cost per Checkpoint")
+    axes[1].legend()
+    axes[1].grid(True, alpha=0.3)
+
+    # ── Subplot 3: Evaluate Total Cost ───────────────────────────────────────
+    axes[2].plot(evals, evaluate_costs, color="green", label="Eval Total Cost")
+    axes[2].set_xlabel("Evaluation #")
+    axes[2].set_ylabel("Total Cost")
+    axes[2].set_title("Evaluation Total Cost per Checkpoint")
+    axes[2].legend()
+    axes[2].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    if save:
+        plt.savefig(filename, dpi=150)
+    plt.close()
+
 def plot_metrics(episode_rewards, episode_costs, max_costs, save=False, filename="training_metrics.png"):
     """
     Plot the metrics (reward and cost) over episodes and optionally save the plot.
@@ -650,7 +893,7 @@ def plot_metrics(episode_rewards, episode_costs, max_costs, save=False, filename
         save: Whether to save the plot to a file.
         filename: File name to save the plot.
     """
-    plt.ion()  # Turn on interactive mode
+    # plt.ion()  # Turn on interactive mode
     plt.figure(figsize=(10, 6))
     plt.clf()  # Clear the current figure to avoid overlapping plots
     # plt.figure(figsize=(10, 6))
@@ -682,7 +925,7 @@ def plot_metrics(episode_rewards, episode_costs, max_costs, save=False, filename
     plt.tight_layout()
     if save:
         plt.savefig(filename)
-    plt.show()
+    # plt.show()
     plt.close()
 
 
@@ -697,23 +940,18 @@ def main(args, run_number):
     os.makedirs(data_train_dir, exist_ok=True)
     os.makedirs(plot_data_dir, exist_ok=True)
 
-    if args.env == 'CartPolePerturbedEnv':
-        env = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = CartPolePerturbedEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = CartPolePerturbedEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == 'CartPoleCostEnv':
-        env = CartPoleCostEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = CartPoleCostEnv() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = CartPoleCostEnv() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    elif args.env == 'HopperPerturbed':
-        env = HopperPerturbed() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
-        env_evaluate = HopperPerturbed() #CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = HopperPerturbed() #CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)  # When sampling multiple next states, we need to return to the current states
-    
-    # Set random seed
-    #env.reset(seed=seed)
-    #env.seed(seed)
-    # env = gym.make(args.env)
+    if args.env == "AntCost":
+        env = (
+            AntCost()
+        )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
+        env_evaluate = (
+            AntCost() #AntWithPostest()
+        )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
+        env_reset = AntCost()
+    elif args.env == "AntCostPerturbed":
+        env = AntCostPerturbed(sigma_gravity=args.sigma_gravity)
+        env_evaluate = AntCostPerturbed(sigma_gravity= args.sigma_gravity) #AntWithPostest()
+        env_reset = AntCostPerturbed(sigma_gravity=args.sigma_gravity)
 
     env.reset(seed=seed)
     env.action_space.seed(seed)
@@ -732,7 +970,7 @@ def main(args, run_number):
     args.state_dim = env.observation_space.shape[0]
     args.action_dim = env.action_space.shape[0]
     args.max_action = float(env.action_space.high[0])
-    args.max_episode_steps = 1000  # Maximum number of steps per episode
+    args.max_episode_steps = env.max_steps   # Maximum number of steps per episode
     # lambda_ = args.lambda_
     b = args.baseline
     print("env={}".format(args.env))
@@ -749,7 +987,7 @@ def main(args, run_number):
     evaluate_max_costs = []
 
     replay_buffer = ReplayBuffer(args)
-    agent = PrimalDual(args)
+    agent = RESPO(args)
 
     # Build a tensorboard
     writer = SummaryWriter(log_dir=f'runs/RNAC/env_{args.env}_{args.policy_dist}_run{run_number}_seed_{seed}_GAMMA_{GAMMA}')
@@ -774,7 +1012,8 @@ def main(args, run_number):
     for total_steps in tqdm(range(args.max_train_steps)):
         #if total_steps > args.max_train_steps // 2:
         #    agent.gamma = 0.999
-        s = env.reset()
+        s = env.reset()[0]#[0] 
+        # print("s: ", s)
         # s_org = copy.deepcopy(s)
         if args.use_state_norm:
             s = state_norm(s)
@@ -787,7 +1026,13 @@ def main(args, run_number):
         total_cost = 0
         max_cost = float('-inf')
 
-        agent.beta = args.beta #50.0 #min(max_beta, min_beta * np.exp(total_steps / scale))
+        agent.beta = (
+                    args.beta
+                )  # 50.0 #min(max_beta, min_beta * np.exp(total_steps / scale))
+        if total_steps > args.warm_start_episode:
+            agent.warm_start_flag = 1
+        else:
+            agent.warm_start_flag = 0
         if total_steps > args.warm_start_episode:
             agent.warm_start_flag = 1
         else:
@@ -800,49 +1045,13 @@ def main(args, run_number):
             else:
                 action = a
 
-            if args.uncer_set == "DS":
-                # Multi-run
-                v_min, index = torch.tensor(float('inf')), 0
-                v_candidate,index_candidate = torch.tensor(float('inf')), 0
-                flag=0
-                noise_list, nexts_list, r_list,c_list = [], [], [],[]
-                for i in range(args.next_steps):
-                    obs = env_reset.reset(state=s_org, x_pos=x_pos)
-                    s_, r,c, done, info = env_reset.step(action)
-                    # total_reward += r
-                    # total_cost += c
-                    r_list.append(r)
-                    c_list.append(c)
-                    noise_list.append(info['noise'])
-                    if args.use_state_norm:
-                        s_ = state_norm(s_, update=False)
-                    nexts_list.append(s_)
-
-                    #########################Please check this part if USING Double Sampling ############################################
-                    with torch.no_grad():
-                        if agent.Rcritic(torch.tensor(s_, dtype=torch.float)) < v_min:
-                            v_min = agent.Rcritic(torch.tensor(s_, dtype=torch.float))
-                            index = i
-                        if agent.Rcritic(torch.tensor(nexts_list[i], dtype=torch.float)) < v_candidate and lambda_*(agent.Ccritic(torch.tensor(s_,dtype=torch.float))-b)<0:
-                            v_candidate = agent.Rcritic(torch.tensor(nexts_list[i], dtype=torch.float))
-                            index_candidate = i
-                            flag=1
-                if flag==1:
-                    index = index_candidate
-                ############################# UP UNTIL HERE ################################################################
-                # pick next state for robust critic update
-                ridx = random.randint(0, args.next_steps)
-                if ridx == args.next_steps:
-                    ridx = index
-                s_, r,c, done, info = env.step(np.concatenate((action, noise_list[ridx])))
-                total_reward += r
-                total_cost += c
-            else:
-                s_, r,c, done, info = env.step(action)
-                total_reward += r
-                total_cost += c
-                max_cost = max(max_cost, c)
-            x_pos = np.array([info['x_position']])
+            
+            s_, r,c, truncated, terminated, info = env.step(action)
+            done = truncated or terminated
+            total_reward += r
+            total_cost += c
+            max_cost = max(max_cost, c)
+            # x_pos = np.array([info['x_position']])
             if args.use_state_norm:
                 #nexts = state_norm(nexts, update=False)
                 s_ = state_norm(s_)
@@ -866,7 +1075,8 @@ def main(args, run_number):
                 dw = False
 
             # Take the 'action'，but store the original 'a'（especially for Beta）
-            replay_buffer.store(s, a, a_logprob, r,c, s_, dw, done)
+            # print("reward=", r, "exp rewardd=", np.exp(r))
+            replay_buffer.store(s, a, a_logprob, np.exp(r),c, s_, dw, done)
             s = copy.deepcopy(s_)
             # s_org = copy.deepcopy(state_norm.denormal(s_, update=False))
 
@@ -882,36 +1092,69 @@ def main(args, run_number):
                     reward_scaling = None
                 if not args.use_state_norm:
                     state_norm = None
-                evaluate_reward,evaluate_cost, evaluate_max_cost = evaluate_policy(args, env_evaluate, agent, state_norm=state_norm, reward_scaling=reward_scaling)
-                #evaluate_cost = evaluate_cost_function(args, env_evaluate, agent, state_norm)
+                evaluate_reward, evaluate_cost, evaluate_max_cost = evaluate_policy(
+                        args,
+                        env_evaluate,
+                        agent,
+                        state_norm=state_norm,
+                        reward_scaling=reward_scaling,
+                    )                #evaluate_cost = evaluate_cost_function(args, env_evaluate, agent, state_norm)
                 evaluate_rewards.append(evaluate_reward)
                 evaluate_costs.append(evaluate_cost)
                 evaluate_max_costs.append(evaluate_max_cost)
 
-                print("evaluate_num:{} \t evaluate_reward:{} \t evaluate_cost:{} \t evaluate_max_cost:{}".format(evaluate_num, evaluate_reward,evaluate_cost, evaluate_max_cost))
-                writer.add_scalar('step_rewards_{}'.format(args.env), evaluate_rewards[-1], global_step=total_steps)
-                # Save the rewards
+                print(
+                    "evaluate_num:{} \t evaluate_reward:{} \t evaluate_cost:{} \t evaluate_max_cost:{}".format(
+                        evaluate_num, evaluate_reward, evaluate_cost, evaluate_max_cost
+                    )
+                )
+                # ── NEW: save evaluation plot after every checkpoint ──────────────
+                plot_eval_metrics(
+                    evaluate_rewards,
+                    evaluate_costs,
+                    evaluate_max_costs,
+                    persistent_eps=args.persistent_eps,
+                    save=True,
+                    filename=f"{plot_data_dir}/eval_metrics.png",
+                )
+                # ─────────────────────────────────────────────────────────────────
+    
+                writer.add_scalar(
+                    "step_rewards_{}".format(args.env),
+                    evaluate_rewards[-1],
+                    global_step=total_steps,
+                )
                 # if evaluate_num % args.save_freq == 0:
                 np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_rewards.npy', np.array(evaluate_rewards))
                 np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy', np.array(evaluate_costs))
-                np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_costs.npy', np.array(evaluate_max_cost))
+                np.save(f'{data_train_dir}/RNAC_{args.policy_dist}_env_{args.env}_seed_{seed}_GAMMA_{GAMMA}_max_costs.npy', np.array(evaluate_max_cost))
 
                 # Check if the current model satisfies the conditions for being the best
-                if evaluate_reward > best_reward and evaluate_max_cost <= args.persistent_eps:
+                if (
+                    evaluate_reward > best_reward
+                    and evaluate_max_cost <= args.persistent_eps
+                ):
                     best_reward = evaluate_reward
                     best_model_path = f"{model_dir}/Best_RCAC"
-                    print(f"New best model found! Saving model with reward: {evaluate_reward} and max cost: {evaluate_max_cost}")
-
+                    print(
+                        f"New best model found! Saving model with reward: {evaluate_reward} and max cost: {evaluate_max_cost}"
+                    )
+    
                     # Save the best model
                     if args.use_reward_scaling and args.use_state_norm:
                         save_agent(agent, best_model_path, state_norm, reward_scaling)
                     elif args.use_reward_scaling:
-                        save_agent(agent, best_model_path, state_norm=None, reward_scaling=reward_scaling)
+                        save_agent(
+                            agent,
+                            best_model_path,
+                            state_norm=None,
+                            reward_scaling=reward_scaling,
+                        )
                     elif args.use_state_norm:
                         save_agent(agent, best_model_path, state_norm)
                     else:
                         save_agent(agent, best_model_path)
-
+                
                            
         episode_rewards.append(total_reward)
         episode_costs.append(total_cost)
@@ -928,47 +1171,152 @@ def main(args, run_number):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameters Setting for RNAC")
-    parser.add_argument("--env", type=str, default='CartPoleCostEnv',help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv")
-    parser.add_argument("--uncer_set", type=str, default='IPM', help="DS/IPM")
-    parser.add_argument("--next_steps", type=int, default=2, help="Number of next states")
-    parser.add_argument("--random_steps", type=int, default=int(25e3), help="Uniformlly sample action within random steps")
-    parser.add_argument("--max_train_steps", type=int, default=int(4.5e3), help="Maximum number of training steps")
-    parser.add_argument("--evaluate_freq", type=float, default=1e2, help="Evaluate the policy every 'evaluate_freq' steps")
+    parser.add_argument(
+        "--env",
+        type=str,
+        # default="CartPolePerturbedEnv",
+        default="AntCost",
+        help="HopperPerturbed/CartPolePerturbedEnv/CartPoleCostEnv/PendulumEnv/PendulumCostEnv/HalfCheetahWithPos/HalfCheetahWithPosPerturbed",
+    )
+    parser.add_argument("--uncer_set", type=str, default="IPM", help="DS/IPM")
+    parser.add_argument(
+        "--next_steps", type=int, default=2, help="Number of next states"
+    )
+    parser.add_argument(
+        "--random_steps",
+        type=int,
+        default=int(25e3),
+        help="Uniformlly sample action within random steps",
+    )
+    parser.add_argument(
+        "--max_train_steps",
+        type=int,
+        default=int(16e3),
+        help="Maximum number of training steps",
+    )
+    parser.add_argument(
+        "--evaluate_freq",
+        type=float,
+        default=1e2,
+        help="Evaluate the policy every 'evaluate_freq' steps",
+    )
     parser.add_argument("--save_freq", type=int, default=20, help="Save frequency")
-    parser.add_argument("--policy_dist", type=str, default="Gaussian", help="Beta or Gaussian or Discrete")
+    parser.add_argument(
+        "--policy_dist",
+        type=str,
+        default="Gaussian",
+        help="Beta or Gaussian or Discrete",
+    )
     parser.add_argument("--batch_size", type=int, default=2048, help="Batch size")
-    parser.add_argument("--mini_batch_size", type=int, default=64, help="Minibatch size")
-    parser.add_argument("--hidden_width", type=int, default=64, help="The number of neurons in hidden layers of the neural network")
-    parser.add_argument("--lr_a", type=float, default=3e-4, help="Learning rate of actor")
-    parser.add_argument("--lr_c", type=float, default=1e-3, help="Learning rate of critic")
-    parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor 0.99")
+    parser.add_argument(
+        "--mini_batch_size", type=int, default=128, help="Minibatch size"
+    )
+    parser.add_argument(
+        "--hidden_width",
+        type=int,
+        default=64,
+        help="The number of neurons in hidden layers of the neural network",
+    )
+    parser.add_argument(
+        "--lr_a", type=float, default=1e-3, help="Learning rate of actor"
+    )
+    parser.add_argument(
+        "--lr_c", type=float, default=5e-3, help="Learning rate of critic"
+    )
+    parser.add_argument(
+        "--lr_cost", type=float, default=1e-3, help="Learning rate of critic"
+    )
+    parser.add_argument(
+        "--gamma", type=float, default=0.99, help="Discount factor 0.99"
+    )
 
-        # Save the finmma", type=float, default=0.99, help="Discount factor 0.99")
+    # Save the finmma", type=float, default=0.99, help="Discount factor 0.99")
     parser.add_argument("--lamda", type=float, default=0.95, help="GAE parameter 0.95")
     parser.add_argument("--epsilon", type=float, default=0.2, help="PPO clip parameter")
-    parser.add_argument("--persistent_eps", type=float, default=2.0, help="Persistent Safety Perturbation")
-    parser.add_argument("--K_epochs", type=int, default=10, help="PPO parameter")
-    parser.add_argument("--use_adv_norm", type=bool, default=True, help="Trick 1:advantage normalization")
-    parser.add_argument("--use_state_norm", type=bool, default=True, help="Trick 2:state normalization")
-    parser.add_argument("--use_reward_norm", type=bool, default=False, help="Trick 3:reward normalization")
-    parser.add_argument("--use_reward_scaling", type=bool, default=False, help="Trick 4:reward scaling")
-    parser.add_argument("--entropy_coef", type=float, default=0.01, help="Trick 5: policy entropy")
-    parser.add_argument("--use_lr_decay", type=bool, default=True, help="Trick 6:learning rate Decay")
-    parser.add_argument("--use_grad_clip", type=bool, default=True, help="Trick 7: Gradient clip")
-    parser.add_argument("--use_orthogonal_init", type=bool, default=True, help="Trick 8: orthogonal initialization")
-    parser.add_argument("--set_adam_eps", type=float, default=True, help="Trick 9: set Adam epsilon=1e-5")
-    parser.add_argument("--use_tanh", type=float, default=True, help="Trick 10: tanh activation function")
-    parser.add_argument("--adaptive_alpha", type=float, default=False, help="Trick 11: adaptive entropy regularization")
-    parser.add_argument("--weight_reg", type=float, default=0, help="Regularization for weight of critic")
-    parser.add_argument("--seed", type=int, default=2, help="seed 2, 5, 7, 11, 17") 
-    parser.add_argument("--GAMMA", type=str, default='0', help="file name")
-    parser.add_argument("--baseline",type=int,default=9,help="baseline")
-    # parser.add_argument("--lambda_",type=int,default=0.0,help="lambda")
-    parser.add_argument("--beta",type=float,default=1.0,help="beta") 
-    parser.add_argument("--run",type=int,default=1,help="run_number") 
-    parser.add_argument("--warm_start_flag",type=int,default=0,help="warm_start_flag") 
-    parser.add_argument("--warm_start_episode",type=int,default=400,help="warm_start_episode") 
-    parser.add_argument("--lr_lambda",type=int,default=5e-5 ,help="warm_start_episode") 
+    parser.add_argument(
+        "--persistent_eps",
+        type=float,
+        default=0.1,
+        help="Persistent Safety Perturbation 0.17",
+    )
+    parser.add_argument("--K_epochs", type=int, default=5, help="PPO parameter")
+    parser.add_argument(
+        "--use_adv_norm",
+        type=bool,
+        default=True,
+        help="Trick 1:advantage normalization",
+    )
+    parser.add_argument(
+        "--use_state_norm", type=bool, default=False, help="Trick 2:state normalization"
+    )
+    parser.add_argument(
+        "--use_reward_norm",
+        type=bool,
+        default=False,
+        help="Trick 3:reward normalization",
+    )
+    parser.add_argument(
+        "--use_reward_scaling", type=bool, default=False, help="Trick 4:reward scaling"
+    )
+    parser.add_argument(
+        "--entropy_coef", type=float, default=0.001, help="Trick 5: policy entropy"
+    )
+    parser.add_argument(
+        "--use_lr_decay", type=bool, default=True, help="Trick 6:learning rate Decay"
+    )
+    parser.add_argument(
+        "--use_grad_clip", type=bool, default=True, help="Trick 7: Gradient clip"
+    )
+    parser.add_argument(
+        "--use_orthogonal_init",
+        type=bool,
+        default=True,
+        help="Trick 8: orthogonal initialization",
+    )
+    parser.add_argument(
+        "--set_adam_eps",
+        type=float,
+        default=True,
+        help="Trick 9: set Adam epsilon=1e-5",
+    )
+    parser.add_argument(
+        "--use_tanh",
+        type=float,
+        default=True,
+        help="Trick 10: tanh activation function",
+    )
+    parser.add_argument(
+        "--adaptive_alpha",
+        type=float,
+        default=False,
+        help="Trick 11: adaptive entropy regularization",
+    )
+    parser.add_argument(
+        "--weight_reg",
+        type=float,
+        default=0.001,
+        help="Regularization for weight of critic",
+    )
+    parser.add_argument("--seed", type=int, default=2, help="seed 2, 5, 7, 11, 17")
+    parser.add_argument("--GAMMA", type=str, default="0", help="file name")
+    parser.add_argument("--baseline", type=int, default=9, help="baseline")
+    parser.add_argument("--lambda_", type=int, default=50, help="lambda")
+    parser.add_argument("--beta", type=float, default=3e4, help="beta 600")
+    parser.add_argument("--run", type=int, default=5, help="run_number")
+    parser.add_argument(
+        "--warm_start_flag", type=int, default=0, help="warm_start_flag"
+    )
+    parser.add_argument(
+        "--warm_start_episode", type=int, default=500, help="warm_start_episode"
+    )
+    parser.add_argument(
+        "--gravity_std", type=float, default=0.5, help="gravity perturbation"
+    )
+    parser.add_argument(
+        "--sigma_gravity", type=float, default=0.0, help="gravity perturbation"
+    )
+    
+    parser.add_argument("--lr_lambda",type=float,default=1e-3,help="warm_start_episode") 
 
 
 

@@ -50,6 +50,13 @@ class AntCost(AntEnv):
             exclude_current_positions_from_observation=False,
             max_steps: int = 500
     ):
+        self._mujoco_initializing = True
+        self._elapsed_steps = 0
+        # Restore nominal viscosity at episode start
+        # self.model.opt.viscosity = self._base_viscosity
+        # self._grav_axis = 2
+        # self._base_grav = float(self.model.opt.gravity[self._grav_axis])
+        self.max_steps  = max_steps
         super(AntCost, self).__init__(
                 xml_file=xml_file,
                 healthy_reward=healthy_reward,
@@ -57,12 +64,9 @@ class AntCost(AntEnv):
                 reset_noise_scale=reset_noise_scale,
                 exclude_current_positions_from_observation=exclude_current_positions_from_observation
         )
-        self._elapsed_steps = 0
-        # Restore nominal viscosity at episode start
-        # self.model.opt.viscosity = self._base_viscosity
-        # self._grav_axis = 2
-        # self._base_grav = float(self.model.opt.gravity[self._grav_axis])
-        self.max_steps  = max_steps
+
+        self._mujoco_initializing = False
+        
        
     def reset(self, seed=None, **kwargs):
         """Return (obs, info) tuple expected by the RCRL training loop."""
@@ -110,7 +114,7 @@ class AntCost(AntEnv):
         # cost = 0.0
         # ── Termination / truncation ────────────────────────────────────────
         truncated = self._elapsed_steps >= self.max_steps
-        terminated = self.terminated
+        terminated = False #self.terminated
 
         # done = self.done
         observation = self._get_obs()
@@ -130,6 +134,11 @@ class AntCost(AntEnv):
             'forward_reward': forward_reward,
         }
         # return observation, reward, cost, done, info
+        #shilpa windows only
+        if getattr(self, "_mujoco_initializing", False):
+            return observation, reward, truncated or terminated, info
+
+
         return observation, reward, cost, truncated, terminated, info
 
     
