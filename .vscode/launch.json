@@ -1,3 +1,64 @@
+// {
+//     "version": "0.1.0",
+//     "configurations": [
+//         {
+//             "name": "Python: RCRL (Conda Env)",
+//             "type": "python",
+//             "request": "launch",
+//             // "program": "/project/ag2682/sm3934/RCRL_on_RMDP/code_ipm_rcmdp_rcrl_max_hopper2.py",
+//             // "args": [
+//             //     "--run", "21",
+//             //     "--seed", "2",
+//             //     "--env", "HopperPerturbedEnv",
+//             //     "--persistent_eps", "0.5",
+//             //     "--beta", "25.0"
+//             //     "--max_train_steps", "10000"
+
+                
+//             // ],
+//             // "program": "C:/Shilpa/Work/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_quadrotor2.py",
+//             // "args": [
+//             //     // "--warm_start_episode", "3",
+//             //     "--run", "2",
+//             //     "--persistent_eps", "0.1",
+//             //     "--beta", "30000",
+//             //     "--K_epochs", "5",
+//             //     "--max_train_steps", "10000",
+//             //     "--warm_start_episode", "150",
+//             //     "--lr_cost", "5e-4",
+//             //     "--lr_c", "5e-4",
+//             //     "--lr_a", "5e-4",
+//             //     "--entropy_coef", "0.07",
+//             //     "--seed", "2",
+//             //     "--batch_size", "1024",
+//             //     "--mini_batch_size", "256",
+//             //     "--weight_reg", "0.0",
+//             //     "--omega1", "0.0",
+//             //     "--omega2", "1.0"
+//             //     // "--sigma_viscosity", "0.7"
+//             // ],
+//             "program": "D:/Shilpa_Work/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_safety_gym_rpcrl.py",
+//             "args": [
+//                  "--config", "envs/env_configs/safety_gym_goal_navigation.yaml",
+                
+//             ],
+//             "cwd": "D:/Shilpa_Work/RCRL_on_RCMDP, //${workspaceFolder}",
+//             "env": {
+//                 " PYTHONPATH": "D:/Shilpa_Work/RCRL_on_RCMDP"
+//             },
+//             "python": "/home/sm3934/miniconda3/envs/rpcrl_env/bin/python",
+//             "console": "integratedTerminal",
+//             "justMyCode": false,
+//             "xdebugSettings": {
+//                 "max_depth": -1
+//             }
+//         }
+//     ]
+// }
+
+
+
+//########### WINDOWS ###########
 {
     "version": "0.1.0",
     "configurations": [
@@ -5,48 +66,16 @@
             "name": "Python: RCRL (Conda Env)",
             "type": "python",
             "request": "launch",
-            // "program": "/project/ag2682/sm3934/RCRL_on_RMDP/code_ipm_rcmdp_rcrl_max_hopper2.py",
-            // "args": [
-            //     "--run", "21",
-            //     "--seed", "2",
-            //     "--env", "HopperPerturbedEnv",
-            //     "--persistent_eps", "0.5",
-            //     "--beta", "25.0"
-            //     "--max_train_steps", "10000"
-
-                
-            // ],
-            // "program": "C:/Shilpa/Work/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_quadrotor2.py",
-            // "args": [
-            //     // "--warm_start_episode", "3",
-            //     "--run", "2",
-            //     "--persistent_eps", "0.1",
-            //     "--beta", "30000",
-            //     "--K_epochs", "5",
-            //     "--max_train_steps", "10000",
-            //     "--warm_start_episode", "150",
-            //     "--lr_cost", "5e-4",
-            //     "--lr_c", "5e-4",
-            //     "--lr_a", "5e-4",
-            //     "--entropy_coef", "0.07",
-            //     "--seed", "2",
-            //     "--batch_size", "1024",
-            //     "--mini_batch_size", "256",
-            //     "--weight_reg", "0.0",
-            //     "--omega1", "0.0",
-            //     "--omega2", "1.0"
-            //     // "--sigma_viscosity", "0.7"
-            // ],
-            "program": "/home/sm3934/Shilpa/Work/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_safety_gym_sparse.py",
+            "program": "D:/Shilpa_Work/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_safety_gym_rpcrl.py",
             "args": [
-                 "--config", "envs/env_configs/safety_gym_circle.yaml",
-                
+                "--config",
+                "envs/env_configs/safety_gym_goal_navigation.yaml"
             ],
-            "cwd": "/home/sm3934/Shilpa/Work/RCRL_on_RCMDP", //${workspaceFolder}",
+            "cwd": "D:/Shilpa_Work/RCRL_on_RCMDP",
             "env": {
-                " PYTHONPATH": "/home/sm3934/Shilpa/Work/RCRL_on_RCMDP"
+                "PYTHONPATH": "D:/Shilpa_Work/RCRL_on_RCMDP"
             },
-            "python": "/home/sm3934/miniconda3/envs/rpcrl_env/bin/python",
+            "python": "C:/Users/rinki/miniconda3/envs/rpcrl_env/python.exe",
             "console": "integratedTerminal",
             "justMyCode": false,
             "xdebugSettings": {

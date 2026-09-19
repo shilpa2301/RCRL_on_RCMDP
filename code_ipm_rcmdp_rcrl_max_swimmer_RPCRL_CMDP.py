@@ -34,7 +34,7 @@ from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
 
-from envs.swimmer import SwimmerWithPos, SwimmerWithPosPerturbed
+from envs.swimmer import SwimmerCMDP, SwimmerCMDPPerturbed
 
 
 DEFAULT_CAMERA_CONFIG = {
@@ -542,10 +542,10 @@ class ReplayBuffer:
 
 class PrimalDual:
     def __init__(self, args):
-        if args.env == "SwimmerWithPos":
-            self.env = SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
-        elif args.env == "SwimmerWithPosPerturbed":
-            self.env = SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
+        if args.env == "SwimmerCMDP":
+            self.env = SwimmerCMDP(max_steps=1000)
+        elif args.env == "SwimmerCMDPPerturbed":
+            self.env = SwimmerCMDPPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
 
         else:
             print("No env selected")
@@ -618,12 +618,16 @@ class PrimalDual:
         self.dual_lambda = torch.tensor(0.0, dtype=torch.float32)
         self.dual_lr = 1e-1 #1e-3
         self.dual_lambda_max = 100.0
+        
+
         #shilpa gpu
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {self.device}")
         self.actor.to(self.device)
         self.Rcritic.to(self.device)
         self.Ccritic.to(self.device)
+
+    
 
     def evaluate(
         self, s
@@ -870,16 +874,16 @@ class PrimalDual:
                 v_target_c = adv_c + vcs
 
                 # Optional cost critic regularization on target
-                if self.weight_reg > 0:
-                    linear_layers_c = [
-                        layer for layer in self.Ccritic.children()
-                        if isinstance(layer, nn.Linear)
-                    ]
-                    if len(linear_layers_c) == 0:
-                        raise ValueError("Ccritic has no nn.Linear layer")
+                # if self.weight_reg > 0:
+                #     linear_layers_c = [
+                #         layer for layer in self.Ccritic.children()
+                #         if isinstance(layer, nn.Linear)
+                #     ]
+                #     if len(linear_layers_c) == 0:
+                #         raise ValueError("Ccritic has no nn.Linear layer")
 
-                    reg_norm_c = torch.norm(linear_layers_c[-1].weight, p=2)
-                    v_target_c = v_target_c + self.weight_reg * reg_norm_c
+                #     reg_norm_c = torch.norm(linear_layers_c[-1].weight, p=2)
+                #     v_target_c = v_target_c + self.weight_reg * reg_norm_c
 
                 
 
@@ -909,16 +913,16 @@ class PrimalDual:
                 v_target_r = adv_r + vs
 
                 # Optional reward critic regularization on target
-                if self.weight_reg > 0:
-                    linear_layers_r = [
-                        layer for layer in self.Rcritic.children()
-                        if isinstance(layer, nn.Linear)
-                    ]
-                    if len(linear_layers_r) == 0:
-                        raise ValueError("Rcritic has no nn.Linear layer")
+                # if self.weight_reg > 0:
+                #     linear_layers_r = [
+                #         layer for layer in self.Rcritic.children()
+                #         if isinstance(layer, nn.Linear)
+                #     ]
+                #     if len(linear_layers_r) == 0:
+                #         raise ValueError("Rcritic has no nn.Linear layer")
 
-                    reg_norm_r = torch.norm(linear_layers_r[-1].weight, p=2)
-                    v_target_r = v_target_r + self.weight_reg * reg_norm_r
+                #     reg_norm_r = torch.norm(linear_layers_r[-1].weight, p=2)
+                #     v_target_r = v_target_r + self.weight_reg * reg_norm_r
 
                 #============================================================
                 # Advantage normalization
@@ -1018,6 +1022,20 @@ class PrimalDual:
                 v_s = self.Rcritic(s[index])
                 # # Calculate the loss of critic
                 Rcritic_loss = F.mse_loss(v_target_r[index], v_s)
+                #shilpa robust cmdp
+                # Reward robustness: usually physical-only for gravity perturbation
+                # if self.use_input_lip_reg and self.weight_reg > 0:
+                #     Ls_r, Lm_r = self.critic_split_lipschitz(
+                #         critic=self.Rcritic,
+                #         states=s[index],
+                #         physical_dim=self.physical_dim,
+                #         m_index=self.m_index,
+                #         memory_is_scaled=self.memory_is_scaled,
+                #     )
+
+                #     # Use only physical sensitivity for reward critic
+                #     Rcritic_loss = Rcritic_loss + self.weight_reg * Ls_r
+
                 # Update Reward critic
                 self.optimizer_Rcritic.zero_grad()
                 Rcritic_loss.backward()
@@ -1027,6 +1045,31 @@ class PrimalDual:
                 
                 v_cs = self.Ccritic(s[index])
                 Ccritic_loss = F.mse_loss(v_target_c[index], v_cs)
+                #shilpa robust cmdp
+                # ============================================================
+                # Input-gradient robustness regularization for augmented cost critic
+                #
+                # L_reg = sqrt(L_s^2 + alpha_M * L_M^2)
+                #
+                # where:
+                #   L_s = sensitivity to physical state
+                #   L_M = sensitivity to raw max_cost memory
+                # ============================================================
+                # if self.use_input_lip_reg and self.weight_reg > 0:
+                #     Ls_c, Lm_c = self.critic_split_lipschitz(
+                #         critic=self.Ccritic,
+                #         states=s[index],
+                #         physical_dim=self.physical_dim,
+                #         m_index=self.m_index,
+                #         memory_is_scaled=self.memory_is_scaled,
+                #     )
+
+                #     lip_penalty_c = torch.sqrt(
+                #         Ls_c ** 2 + self.m_lip_weight * Lm_c ** 2 + 1e-8
+                #     )
+
+                #     Ccritic_loss = Ccritic_loss + self.weight_reg * lip_penalty_c
+
                 # Update Cost critic
                 self.optimizer_Ccritic.zero_grad()
                 Ccritic_loss.backward()
@@ -1244,22 +1287,22 @@ def main(args, run_number):
     os.makedirs(data_train_dir, exist_ok=True)
     os.makedirs(plot_data_dir, exist_ok=True)
 
-    if args.env == "SwimmerWithPos":
+    if args.env == "SwimmerCMDP":
         env = (
-            SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
+            SwimmerCMDP(max_steps=1000)
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
-            SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000) #SwimmerWithPostest()
+            SwimmerCMDP(max_steps=1000) #SwimmerWithPostest()
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = SwimmerWithPos(sigma_viscosity=0.0, max_steps=1000)
-    elif args.env == "SwimmerWithPosPerturbed":
+        env_reset = SwimmerCMDP(max_steps=1000)
+    elif args.env == "SwimmerCMDPPerturbed":
         env = (
-            SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
+            SwimmerCMDPPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
         )  # CartPolePerturbedEnv() #CartPoleCostEnv()#gym.make(args.env)
         env_evaluate = (
-            SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000) #SwimmerWithPostest()
+            SwimmerCMDPPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000) #SwimmerWithPostest()
         )  # CartPolePerturbedEnv() # CartPoleCostEnv()#gym.make(args.env)  # When evaluating the policy, we need to rebuild an environment
-        env_reset = SwimmerWithPosPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
+        env_reset = SwimmerCMDPPerturbed(sigma_viscosity=args.sigma_viscosity, max_steps=1000)
 
     # Set random seed
     # env.reset(seed=seed)
@@ -1348,7 +1391,7 @@ def main(args, run_number):
             agent.warm_start_flag = 0
         while not done:
             episode_steps += 1
-            a#shilpa squashed gaussian
+            #shilpa squashed gaussian
             # a, a_logprob = agent.choose_action(s)
             # if args.policy_dist == "Beta":
             #     action = 2 * (a - 0.5) * args.max_action  # [0,1]->[-max,max]

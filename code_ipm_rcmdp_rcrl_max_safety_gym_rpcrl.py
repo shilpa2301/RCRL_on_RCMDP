@@ -1,3 +1,14 @@
+# #shilpa Windows only
+# import os
+
+# if os.name == "nt":
+#     os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+#     os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+
+# os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+
+
+
 import torch
 import torch.nn.functional as F
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler

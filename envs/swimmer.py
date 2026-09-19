@@ -489,7 +489,7 @@ class SwimmerCMDPPerturbed(swimmer.SwimmerEnv):
         self.last_cost = 0.0
 
         self.cost_scale = float(cost_scale)
-        self.obs_cost_scale = float(obs_cost_scale)
+        self.obs_cost_scale = float(cost_scale)
 
         self.sigma_viscosity = float(sigma_viscosity)
         self.max_steps = int(max_steps)
