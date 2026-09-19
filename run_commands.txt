@@ -81,6 +81,7 @@ nohup python code_ipm_rcmdp_rcrl_max_ant_PD.py --run 103 --persistent_eps 0.1 --
 python code_pd_respo_ant.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 700 --lr_cost 1e-3 --lr_a 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 2 --env AntCost --lr_c 1e-3 
 
 Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'cd "D:\Shilpa_Work\RCRL_on_RCMDP"; python code_pd_respo_ant.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 700 --lr_cost 1e-3 --lr_a 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 2 --env AntCost --lr_c 1e-3 *> log_ant_respo.log'
+python code_ipm_rcmdp_rcrl_max_ant_FAC.py --run 501 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 700 --lr_cost 1e-3 --lr_a 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 2 --env AntCost --lr_c 1e-3 
 
 
 HUMANOID ENV:
