@@ -1,11 +1,11 @@
-#shilpa Windows only
-import os
+# #shilpa Windows only
+# import os
 
-if os.name == "nt":
-    os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
-    os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+# if os.name == "nt":
+#     os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+#     os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
 
-os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+# os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
 
 import torch
 import torch.nn.functional as F
@@ -881,7 +881,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     evaluate_cost = 0
     evaluate_max_cost = float("-inf")
     for _ in range(times):
-        s = env.reset(seed=args.seed)[0]#[0]
+        s = env.reset(seed=args.seed)[0][0]
         if args.use_state_norm:
             s = state_norm(s, update=False)  # During the evaluating,update=False
         done = False
@@ -1136,7 +1136,8 @@ def main(args, run_number):
         #    agent.gamma = 0.999
         # if total_steps > args.warm_start_episode:
         #             agent.entropy_coef = 0.0
-        s = env.reset()[0]#[0]
+        s = env.reset()[0][0]
+        # print(s)
         # print("Initial state:", s[0][0].shape)  # Debugging: Print the initial state
         # print ("Initial state:", s)  # Debugging: Print the initial state
         # s_org = copy.deepcopy(s)

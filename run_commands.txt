@@ -30,6 +30,7 @@ python code_ipm_rcmdp_rcrl_max_hopper_PD.py --run 103 --persistent_eps 45.0 --K_
 python code_pd_respo_hopper.py --run 1 --persistent_eps 40.0 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 700 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HopperCostEnv --lr_c 5e-3
 
 Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'cd "D:\Shilpa_Work\RCRL_on_RCMDP"; python code_pd_respo_hopper.py --run 1 --persistent_eps 40.0 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 700 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HopperCostEnv --lr_c 5e-3 *> log_hopper1_respo.log'
+python code_ipm_rcmdp_rcrl_max_hopper_FAC.py --run 501 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 700 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HopperCostEnv --lr_c 5e-3
 
 
 
@@ -65,6 +66,7 @@ python code_ipm_rcmdp_rcrl_max_swimmer_PD.py --run 103 --persistent_eps 80.0 --b
 Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'cd "D:\Shilpa_Work\RCRL_on_RCMDP"; python code_pd_respo_swimmer.py --run 1 --persistent_eps 40.0 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --env SwimmerWithPos --seed 1 *> log_swimmer1_respo.log'
 Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'cd "D:\Shilpa_Work\RCRL_on_RCMDP"; python code_ipm_rcmdp_rcrl_max_swimmer_RPCRL_CMDP.py --run 1 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_viscosity 0.0 --env SwimmerCMDP --seed 1 *> log_swimmer1_cmdp.log'
 Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'cd "D:\Shilpa_Work\RCRL_on_RCMDP"; python code_ipm_rcmdp_rcrl_max_swimmer_RPCRL_CMDP_robust.py --run 1 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_viscosity 0.7 --env SwimmerCMDPPerturbed --seed 1 *> log_swimmer1_cmdp_robust.log'
+python code_ipm_rcmdp_rcrl_max_swimmer_FAC.py --run 501 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --sigma_viscosity 0.0 --env SwimmerWithPos --seed 1
 
 
 QUADROTOR ENV:
@@ -95,6 +97,7 @@ python code_ipm_rcmdp_rcrl_max_humanoid_RPCRL_CMDP.py --run 1 --persistent_eps 1
 
 python code_pd_respo_humanoid.py --run 1 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 6 --env HumanoidWithCost --lr_c 5e-4 
 Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'cd "D:\Shilpa_Work\RCRL_on_RCMDP"; python code_pd_respo_humanoid.py --run 1 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 6 --env HumanoidWithCost --lr_c 5e-4 *> log_humanoid1_respo.log' 
+python code_ipm_rcmdp_rcrl_max_humanoid_FAC.py --run 501 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 6 --env HumanoidWithCost --lr_c 5e-4 
 
 
 

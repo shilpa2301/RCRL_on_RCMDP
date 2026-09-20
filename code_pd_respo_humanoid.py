@@ -1,11 +1,11 @@
 # #shilpa Windows only
-import os
+# import os
 
-if os.name == "nt":
-    os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
-    os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+# if os.name == "nt":
+#     os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+#     os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
 
-os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+# os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
 
 
 
@@ -776,7 +776,7 @@ def evaluate_policy(args, env, agent, state_norm=None, reward_scaling=None):
     evaluate_cost = 0
     evaluate_max_cost = float('-inf')
     for _ in range(times):
-        s = env.reset()[0]#[0]
+        s = env.reset()[0][0]
         if args.use_state_norm:
             s = state_norm(s, update=False)  # During the evaluating,update=False
         done = False
@@ -1009,7 +1009,7 @@ def main(args, run_number):
     for total_steps in tqdm(range(args.max_train_steps)):
         #if total_steps > args.max_train_steps // 2:
         #    agent.gamma = 0.999
-        s = env.reset()[0]#[0] 
+        s = env.reset()[0][0] 
         # print("s: ", s)
         # s_org = copy.deepcopy(s)
         if args.use_state_norm:
