@@ -1781,6 +1781,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sigma_gravity", type=float, default=0.7, help="floor friction perturbation"
     )
+    parser.add_argument(
+        "--dense_cost_weight", type=float, default=0.01, help="weight for dense cost"
+    )
+    parser.add_argument(
+        "--cost_scale", type=float, default=100.0, help="weight for sparse cost"
+    )
     args = parser.parse_args()
     # make folders to dump results
     if not os.path.exists("./models"):

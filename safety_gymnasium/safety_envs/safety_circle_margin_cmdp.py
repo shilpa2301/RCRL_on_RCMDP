@@ -449,3 +449,245 @@ def make_env(
         terminate_on_margin_failure=terminate_on_margin_failure,
         dense_cost_weight=dense_cost_weight
     )
+
+
+class SafetyCircleMarginCMDPPerturbed(SafetyCircleMarginCMDP):
+    """
+    Safety-Gymnasium Circle CMDP with per-step gravity perturbation.
+
+    This is the perturbed version of SafetyCircleMarginCMDP.
+
+    At every step, it samples:
+
+        gravity_z = base_gravity_z + Normal(0, sigma_gravity)
+
+    Then it performs the environment step and computes the same peak-cost
+    CMDP transformation as SafetyCircleMarginCMDP.
+
+    Returns:
+        obs_aug, reward, transformed_cmdp_cost, terminated, truncated, info
+    """
+
+    def __init__(
+        self,
+        env: gym.Env,
+        safety_clearance: float = 0.40,
+        max_steps: int = 1000,
+        beta: float = 0.01,
+        cost_scale: float = 100.0,
+        obs_cost_scale: float = 100.0,
+        terminate_on_margin_failure: bool = False,
+        dense_cost_weight: float = 0.01,
+        sigma_gravity: float = 0.7,
+    ):
+        self.sigma_gravity = float(sigma_gravity)
+        self._grav_axis = 2
+        self.last_gravity_noise = 0.0
+
+        super().__init__(
+            env=env,
+            safety_clearance=safety_clearance,
+            max_steps=max_steps,
+            beta=beta,
+            cost_scale=cost_scale,
+            obs_cost_scale=obs_cost_scale,
+            terminate_on_margin_failure=terminate_on_margin_failure,
+            dense_cost_weight=dense_cost_weight,
+        )
+
+        # Safety-Gymnasium does not always expose model as env.unwrapped.model.
+        self.model = self._get_mujoco_model()
+
+        self._base_gravity = np.array(
+            self.model.opt.gravity,
+            dtype=np.float64,
+        ).copy()
+
+    def _get_mujoco_model(self):
+        """
+        Find the underlying MuJoCo model inside Safety-Gymnasium.
+
+        In Gym MuJoCo envs, this is usually env.unwrapped.model.
+        In Safety-Gymnasium, env.unwrapped may be a Builder, and the model
+        can be nested under task/agent/engine.
+        """
+        root = self.env.unwrapped
+
+        candidates = [
+            root,
+            getattr(root, "env", None),
+            getattr(root, "task", None),
+            getattr(getattr(root, "task", None), "agent", None),
+            getattr(getattr(getattr(root, "task", None), "agent", None), "engine", None),
+            getattr(root, "engine", None),
+        ]
+
+        for obj in candidates:
+            if obj is None:
+                continue
+
+            if hasattr(obj, "model"):
+                model = getattr(obj, "model")
+                if hasattr(model, "opt") and hasattr(model.opt, "gravity"):
+                    return model
+
+            if hasattr(obj, "_model"):
+                model = getattr(obj, "_model")
+                if hasattr(model, "opt") and hasattr(model.opt, "gravity"):
+                    return model
+
+        raise AttributeError(
+            "Could not find MuJoCo model with opt.gravity inside Safety-Gymnasium env. "
+            "Run: print(env.unwrapped.__dict__.keys()) to inspect where the model is stored."
+        )
+
+    def _restore_base_gravity(self):
+        """
+        Restore nominal MuJoCo gravity.
+        """
+        self.model.opt.gravity[:] = self._base_gravity
+
+    def _perturb_gravity(self):
+        """
+        Apply per-step gravity perturbation.
+        """
+        if self.sigma_gravity > 0.0:
+            self.last_gravity_noise = float(
+                np.random.normal(0.0, self.sigma_gravity)
+            )
+        else:
+            self.last_gravity_noise = 0.0
+
+        self.model.opt.gravity[:] = self._base_gravity
+        self.model.opt.gravity[self._grav_axis] = (
+            self._base_gravity[self._grav_axis]
+            + self.last_gravity_noise
+        )
+
+    def reset(self, **kwargs):
+        """
+        Reset environment, restore nominal gravity, and reset running max cost.
+        """
+        self._restore_base_gravity()
+
+        while True:
+            obs, info = self.env.reset(**kwargs)
+
+            self._elapsed_steps = 0
+            self.max_cost = 0.0
+            self.last_cost = 0.0
+            self.last_gravity_noise = 0.0
+
+            self._restore_base_gravity()
+
+            margin, min_distance_sigwall = self._margin_from_obs(obs)
+
+            if min_distance_sigwall >= self.safety_clearance:
+                obs_aug = self._augment_obs(obs)
+
+                info = dict(info or {})
+                info.update({
+                    "gravity": self.model.opt.gravity.copy(),
+                    "base_gravity": self._base_gravity.copy(),
+                    "gravity_noise": float(self.last_gravity_noise),
+                    "sigma_gravity": float(self.sigma_gravity),
+                })
+
+                return obs_aug, info
+
+    def step(self, action):
+        """
+        Perturb gravity, then perform Safety-Gymnasium step.
+        """
+        self._perturb_gravity()
+
+        obs, reward, orig_cost, terminated, truncated, info = self.env.step(action)
+
+        self._elapsed_steps += 1
+
+        margin, min_distance_sigwall = self._margin_from_obs(obs)
+
+        continuous_cost = self._calculate_continuous_cost(min_distance_sigwall)
+
+        transformed_cost, cost_info = self._compute_cmdp_cost(continuous_cost)
+
+        if self.terminate_on_margin_failure:
+            if min_distance_sigwall < self.safety_clearance:
+                terminated = True
+
+        truncated = bool(truncated or self._elapsed_steps >= self.max_steps)
+
+        obs_aug = self._augment_obs(obs)
+
+        info = dict(info or {})
+
+        if self._log_original:
+            info.update({
+                "orig_reward": float(reward),
+                "orig_cost": float(orig_cost),
+                "margin_g": float(margin),
+                "min_distance_sigwall": float(min_distance_sigwall),
+                "safety_clearance": float(self.safety_clearance),
+                "safe": float(min_distance_sigwall >= self.safety_clearance),
+                "continuous_cost": float(continuous_cost),
+            })
+            info.update(cost_info)
+
+        info.update({
+            "gravity": self.model.opt.gravity.copy(),
+            "base_gravity": self._base_gravity.copy(),
+            "gravity_noise": float(self.last_gravity_noise),
+            "sigma_gravity": float(self.sigma_gravity),
+        })
+
+        return obs_aug, reward, transformed_cost, terminated, truncated, info
+
+        
+def make_perturbed_env(
+    agent: str = "Car",
+    level: int = 2,
+    render_mode=None,
+    safety_clearance: float = 0.20,
+    max_steps: int = 1000,
+    beta: float = 0.01,
+    cost_scale: float = 1000.0,
+    terminate_on_margin_failure: bool = False,
+    dense_cost_weight: float = 0.01,
+    sigma_gravity: float = 0.7,
+    **kwargs,
+) -> gym.Env:
+    assert agent in {"Point", "Car", "Racecar", "Doggo", "Ant"}
+
+    task_id = f"Safety{agent}Circle{level}-v0"
+
+    base = safety_gymnasium.make(
+        task_id,
+        render_mode=render_mode,
+        **kwargs,
+    )
+
+    obs_cost_scale = cost_scale
+
+    base = TerminateOnCollisionWrapper(base)
+
+    print(
+        f"SafetyCircleMarginCMDPPerturbed: "
+        f"Using safety_clearance={safety_clearance:.4f}, "
+        f"cost_scale={cost_scale:.4f}, "
+        f"obs_cost_scale={obs_cost_scale:.4f}, "
+        f"beta={beta:.4f}, "
+        f"sigma_gravity={sigma_gravity:.4f}"
+    )
+
+    return SafetyCircleMarginCMDPPerturbed(
+        base,
+        safety_clearance=safety_clearance,
+        max_steps=max_steps,
+        beta=beta,
+        cost_scale=cost_scale,
+        obs_cost_scale=obs_cost_scale,
+        terminate_on_margin_failure=terminate_on_margin_failure,
+        dense_cost_weight=dense_cost_weight,
+        sigma_gravity=sigma_gravity,
+    )
+

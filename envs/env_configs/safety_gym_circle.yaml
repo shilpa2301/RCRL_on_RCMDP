@@ -56,3 +56,4 @@ beta: 30000.0
 warm_start_flag: 0
 warm_start_episode: 1300
 cost_scale: 1.0
+sigma_gravity: 0.7
