@@ -1,3 +1,13 @@
+#shilpa Windows only
+import os
+
+if os.name == "nt":
+    os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+    os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+
+os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+
+
 import torch
 import torch.nn.functional as F
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
@@ -29,7 +39,7 @@ import yaml
 import safety_gymnasium
 from safety_gymnasium.safety_envs.terminate_on_collision import TerminateOnCollisionWrapper
 # from safety_gymnasium.safety_envs.safety_circle_margin import SafetyCircleMargin, make_env
-from safety_gymnasium.safety_envs.safety_circle_margin_cmdp import SafetyCircleMarginCMDP, make_env
+from safety_gymnasium.safety_envs.safety_circle_margin_cmdp import SafetyCircleMarginCMDPPerturbed, make_perturbed_env
 
 PAPER_ENVS = {
     "SafetyCarCircle2-v0": {
@@ -48,10 +58,10 @@ PAPER_ENVS = {
 # print(f"Using device: {device}")
 
 
-def make_task_env(env_id: str, terminate_on_collision: bool = True, render_mode=None, safety_clearance=0.4, dense_cost_weight=0.01, cost_scale=1000.0, **kwargs):
+def make_task_env(env_id: str, terminate_on_collision: bool = True, render_mode=None, safety_clearance=0.4, dense_cost_weight=0.01, cost_scale=1000.0, sigma_gravity=0.7, **kwargs):
     if "Circle" in env_id:  # Assuming your task is based on circles
         agent = "Car"  # or whatever agent type you need
-        env = make_env(agent=agent, level=2, render_mode=render_mode, safety_clearance=safety_clearance, dense_cost_weight=dense_cost_weight, cost_scale=cost_scale, **kwargs)
+        env = make_perturbed_env(agent=agent, level=2, render_mode=render_mode, safety_clearance=safety_clearance, dense_cost_weight=dense_cost_weight, cost_scale=cost_scale, sigma_gravity=sigma_gravity, **kwargs)
     else:
         env = safety_gymnasium.make(env_id, render_mode=render_mode)
 
@@ -59,7 +69,6 @@ def make_task_env(env_id: str, terminate_on_collision: bool = True, render_mode=
         env = TerminateOnCollisionWrapper(env)
 
     return env
-
 
 
 def load_config(path: str) -> dict:
@@ -546,7 +555,9 @@ class PrimalDual:
             terminate_on_collision=args.terminate_on_collision,
             render_mode=args.render_mode,
             safety_clearance=args.safety_clearance,
-            dense_cost_weight=args.dense_cost_weight 
+            dense_cost_weight=args.dense_cost_weight,
+            cost_scale=args.cost_scale,
+            sigma_gravity=args.sigma_gravity
         )
         # self.env.seed(args.seed)
         self.policy_dist = args.policy_dist
@@ -1346,7 +1357,9 @@ def main(args, run_number):
         terminate_on_collision=args.terminate_on_collision,
         render_mode=args.render_mode,
         safety_clearance=args.safety_clearance,  # Set your desired safety clearance
-        dense_cost_weight=args.dense_cost_weight  # Set your desired dense cost weight
+        dense_cost_weight=args.dense_cost_weight,  # Set your desired dense cost weight
+        cost_scale=args.cost_scale,  # Set your desired cost scale
+        sigma_gravity=args.sigma_gravity,  # Set your desired sigma gravity
     )
 
     env_evaluate = make_task_env(
@@ -1354,7 +1367,9 @@ def main(args, run_number):
         terminate_on_collision=args.terminate_on_collision,
         render_mode=args.render_mode,
         safety_clearance=args.safety_clearance,  # Set your desired safety clearance
-        dense_cost_weight=args.dense_cost_weight  # Set your desired dense cost weight
+        dense_cost_weight=args.dense_cost_weight,  # Set your desired dense cost weight
+        cost_scale=args.cost_scale,  # Set your desired cost scale
+        sigma_gravity=args.sigma_gravity,  # Set your desired sigma gravity
     )
 
     env_reset = make_task_env(
@@ -1362,7 +1377,9 @@ def main(args, run_number):
         terminate_on_collision=args.terminate_on_collision,
         render_mode=args.render_mode,
         safety_clearance=args.safety_clearance,  # Set your desired safety clearance
-        dense_cost_weight=args.dense_cost_weight  # Set your desired dense cost weight
+        dense_cost_weight=args.dense_cost_weight,  # Set your desired dense cost weight
+        cost_scale=args.cost_scale,  # Set your desired cost scale
+        sigma_gravity=args.sigma_gravity,  # Set your desired sigma gravity
     )
 
    
@@ -1803,8 +1820,8 @@ if __name__ == "__main__":
         default=0.01,
         help="Weight for dense cost in the environment",
     )
-    parser.add_argument("--cost_scale", type=float, default=1000.0, help="Scale for cost advantage")
-
+    parser.add_argument("--cost_scale", type=float, default=1.0, help="Scale for cost advantage")
+    parser.add_argument("--sigma_gravity", type=float, default=0.7, help="Scale for gravity noise")
 
 
     args = parser.parse_args()
