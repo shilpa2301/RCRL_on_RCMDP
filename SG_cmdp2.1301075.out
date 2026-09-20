@@ -1,0 +1,17 @@
+n0050
+Sun Sep 20 10:31:09 AM EDT 2026
+/home/sm3934/miniconda3/envs/rpcrl_env/bin/python
+run= 1 seed= 5 env= SafetyCarCircle2-v0 k_epochs 5
+SafetyCircleMarginCMDP: Using safety_clearance=0.3000 with cost_scale=1000.0000, obs_cost_scale=1000.0000, beta=0.0100
+SafetyCircleMarginCMDP: Using safety_clearance=0.3000 with cost_scale=1000.0000, obs_cost_scale=1000.0000, beta=0.0100
+SafetyCircleMarginCMDP: Using safety_clearance=0.3000 with cost_scale=1000.0000, obs_cost_scale=1000.0000, beta=0.0100
+env_id=SafetyCarCircle2-v0
+state_dim=41
+action_dim=2
+max_action=1.0
+max_episode_steps=1000
+SafetyCircleMarginCMDP: Using safety_clearance=0.3000 with cost_scale=1000.0000, obs_cost_scale=1000.0000, beta=0.0100
+------use_orthogonal_init------
+------use_orthogonal_init------
+------use_orthogonal_init------
+Using device: cpu

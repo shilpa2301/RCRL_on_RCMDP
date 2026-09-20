@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --job-name=fac_hum2
+#SBATCH --job-name=SG_cmdp2
 #SBATCH --output=%x.%j.out # %x.%j expands to slurm JobName.JobID
 #SBATCH --error=%x.%j.err
 #SBATCH --partition=general
@@ -28,4 +28,4 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 # /home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RMDP/code_ipm_rcmdp_rcrl_max.py --run 1 --seed 1 --env CartPoleCostEnv --persistent_eps 2.0 --beta 25.0 --max_train_steps 5000
 # /home/sm3934/miniconda3/envs/rpcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_safety_gym_sparse.py --config /project/ag2682/sm3934/RCRL_on_RMDP/envs/env_configs/safety_gym_circle.yaml
 
-/home/sm3934/miniconda3/envs/rpcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_humanoid_FAC.py --run 502 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 1 --env HumanoidWithCost --lr_c 5e-4 
+/home/sm3934/miniconda3/envs/rpcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_safety_gym_cmdp.py --config envs/env_configs/safety_gym_circle.yaml

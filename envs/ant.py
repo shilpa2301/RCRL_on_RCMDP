@@ -241,6 +241,245 @@ class AntCostPerturbed(AntEnv):
         # return observation, reward, done, info
         return observation, reward, cost, truncated, terminated, info
 
+class AntCostPerturbedTest(AntCost):
+    """
+    Test-time perturbed AntCost.
+
+    Samples one gravity perturbation once during __init__ and keeps it fixed
+    for all episodes and all steps.
+
+    If shared_gravity_perturbation is given, uses that exact perturbation.
+    """
+
+    OBS_DIM = 113
+    max_steps = 500
+
+    def __init__(
+        self,
+        healthy_reward=1.0,
+        terminate_when_unhealthy=False,
+        xml_file=ABS_PATH + "/env_configs/ant_circle.xml",
+        reset_noise_scale=0.1,
+        exclude_current_positions_from_observation=False,
+        sigma_gravity: float = 0.0,
+        max_steps: int = 500,
+        shared_gravity_perturbation=None,
+        seed=None,
+    ):
+        # ------------------------------------------------------------
+        # CRITICAL:
+        # Old Gym MujocoEnv may call self.step(action) inside __init__.
+        # During that phase, we must return old-style 4-tuple from step
+        # and avoid custom perturbation logic.
+        # ------------------------------------------------------------
+        self._mujoco_initializing = True
+
+        self._elapsed_steps = 0
+        self.sigma_gravity = float(sigma_gravity)
+        self.max_steps = int(max_steps)
+
+        self._grav_axis = 2
+        self._base_grav = -9.81
+
+        self.shared_gravity_perturbation = shared_gravity_perturbation
+        self.fixed_gravity_perturbation = 0.0
+        self.fixed_gravity_value = -9.81
+
+        if seed is not None:
+            self.np_random, _ = gym.utils.seeding.np_random(seed)
+        else:
+            self.np_random, _ = gym.utils.seeding.np_random(None)
+
+        super(AntCostPerturbedTest, self).__init__(
+            healthy_reward=healthy_reward,
+            terminate_when_unhealthy=terminate_when_unhealthy,
+            xml_file=xml_file,
+            reset_noise_scale=reset_noise_scale,
+            exclude_current_positions_from_observation=exclude_current_positions_from_observation,
+        )
+
+        # Now MuJoCo model exists.
+        self._base_grav = float(self.model.opt.gravity[self._grav_axis])
+
+        if self.shared_gravity_perturbation is None:
+            if self.sigma_gravity > 0.0:
+                self.fixed_gravity_perturbation = float(
+                    self.np_random.normal(0.0, self.sigma_gravity)
+                )
+            else:
+                self.fixed_gravity_perturbation = 0.0
+        else:
+            self.fixed_gravity_perturbation = float(
+                self.shared_gravity_perturbation
+            )
+
+        self.fixed_gravity_value = (
+            self._base_grav + self.fixed_gravity_perturbation
+        )
+
+        self.model.opt.gravity[self._grav_axis] = self.fixed_gravity_value
+
+        self._mujoco_initializing = False
+
+        obs_high = np.inf * np.ones(self.OBS_DIM, dtype=np.float32)
+        self.observation_space = gym.spaces.Box(
+            low=-obs_high,
+            high=obs_high,
+            dtype=np.float32,
+        )
+
+        print(
+            f"[AntCostPerturbedTest] "
+            f"base_gravity={self._base_grav}, "
+            f"fixed_perturbation={self.fixed_gravity_perturbation}, "
+            f"fixed_gravity={self.fixed_gravity_value}"
+        )
+
+    def reset(self, seed=None, **kwargs):
+        """
+        Return (obs, info) tuple expected by the RCRL/eval loop.
+        Keep the same fixed gravity every episode.
+        """
+
+        if seed is not None:
+            self.np_random, _ = gym.utils.seeding.np_random(seed)
+
+        obs = super().reset(seed=seed, **kwargs)
+
+        # Your AntCost / AntCostPerturbed reset may return either:
+        #   obs
+        # or
+        #   obs, info
+        if isinstance(obs, tuple):
+            observation = obs[0]
+            info = obs[1] if len(obs) > 1 else {}
+        else:
+            observation = obs
+            info = {}
+
+        self._elapsed_steps = 0
+
+        # Keep same fixed gravity every episode.
+        self.model.opt.gravity[self._grav_axis] = self.fixed_gravity_value
+
+        info.update({
+            "gravity": float(self.model.opt.gravity[self._grav_axis]),
+            "base_gravity": float(self._base_grav),
+            "fixed_gravity_perturbation": float(self.fixed_gravity_perturbation),
+            "sigma_gravity": float(self.sigma_gravity),
+        })
+
+        return observation, info
+
+    def step(self, action):
+        # ------------------------------------------------------------
+        # CRITICAL:
+        # Old Gym MujocoEnv may call self.step(action) inside __init__.
+        # During that phase, return old-style 4-tuple and do NOT apply
+        # custom perturbation logic.
+        # ------------------------------------------------------------
+        if getattr(self, "_mujoco_initializing", False):
+            xy_position_before = self.get_body_com("torso")[:2].copy()
+
+            self.do_simulation(action, self.frame_skip)
+
+            xy_position_after = self.get_body_com("torso")[:2].copy()
+
+            xy_velocity = abs(xy_position_after - xy_position_before) / self.dt
+            x_velocity, y_velocity = xy_velocity
+
+            ctrl_cost = self.control_cost(action)
+            contact_cost = self.contact_cost
+
+            forward_reward = x_velocity
+            healthy_reward = self.healthy_reward
+
+            rewards = forward_reward + healthy_reward
+            costs = ctrl_cost + contact_cost
+            reward = rewards - costs
+
+            observation = self._get_obs()
+            done = False
+
+            info = {
+                "reward_forward": forward_reward,
+                "reward_ctrl": -ctrl_cost,
+                "reward_contact": -contact_cost,
+                "reward_survive": healthy_reward,
+                "x_position": xy_position_after[0],
+                "y_position": xy_position_after[1],
+                "distance_from_origin": np.linalg.norm(
+                    xy_position_after,
+                    ord=2,
+                ),
+                "x_velocity": x_velocity,
+                "y_velocity": y_velocity,
+                "forward_reward": forward_reward,
+            }
+
+            return observation, reward, done, info
+
+        # Keep same gravity every step.
+        self.model.opt.gravity[self._grav_axis] = self.fixed_gravity_value
+
+        xy_position_before = self.get_body_com("torso")[:2].copy()
+
+        self.do_simulation(action, self.frame_skip)
+
+        xy_position_after = self.get_body_com("torso")[:2].copy()
+
+        self._elapsed_steps += 1
+
+        xy_velocity = abs(xy_position_after - xy_position_before) / self.dt
+        x_velocity, y_velocity = xy_velocity
+
+        ctrl_cost = self.control_cost(action)
+        contact_cost = self.contact_cost
+
+        forward_reward = x_velocity
+        healthy_reward = self.healthy_reward
+
+        rewards = forward_reward + healthy_reward
+        costs = ctrl_cost + contact_cost
+
+        reward = rewards - costs
+
+        cost = float(
+            np.maximum(
+                np.max(np.abs(action)) - ACTION_TORQUE_THRESHOLD,
+                0.0,
+            )
+        )
+
+        truncated = self._elapsed_steps >= self.max_steps
+        terminated = self.terminated
+
+        observation = self._get_obs()
+
+        info = {
+            "reward_forward": forward_reward,
+            "reward_ctrl": -ctrl_cost,
+            "reward_contact": -contact_cost,
+            "reward_survive": healthy_reward,
+
+            "x_position": xy_position_after[0],
+            "y_position": xy_position_after[1],
+            "distance_from_origin": np.linalg.norm(
+                xy_position_after,
+                ord=2,
+            ),
+
+            "x_velocity": x_velocity,
+            "y_velocity": y_velocity,
+            "forward_reward": forward_reward,
+
+            "gravity": float(self.model.opt.gravity[self._grav_axis]),
+            "base_gravity": float(self._base_grav),
+            "fixed_gravity_perturbation": float(self.fixed_gravity_perturbation),
+            "sigma_gravity": float(self.sigma_gravity),
+        }
+
+        return observation, reward, cost, truncated, terminated, info
 
 
 class AntCostTest(AntCost):
