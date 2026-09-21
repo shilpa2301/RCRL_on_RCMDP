@@ -535,11 +535,11 @@ if __name__ == "__main__":
     # ============================================================
     model_specs = [
         {
-            "label": "Ours",
+            "label": "Surrogate Obj",
             "model_path": "./models/HopperPerturbedEnv/run2/Best_RCAC"
         },
         {
-            "label": "Surrogate Obj",
+            "label": "Ours",
             "model_path": "./models/HopperCostEnv/run1/Best_RCAC"
         },
         {

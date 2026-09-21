@@ -1,10 +1,10 @@
 import os
 
-if os.name == "nt":
-    os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
-    os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+# if os.name == "nt":
+#     os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+#     os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
 
-os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+# os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
 
 import torch
 import numpy as np
@@ -215,14 +215,22 @@ def test_agent_multiple_models(args, save_paths, env, num_episodes=100, is_cmdp=
         agents.append((agent, state_norm, reward_scaling))
 
     for episode in range(num_episodes):
+
         reset_out = env.reset()
 
-        # Gymnasium usually returns: obs, info
-        # Some custom envs may return differently, so handle safely.
         if isinstance(reset_out, tuple):
-            state = reset_out[0]
+            if is_cmdp:
+                # CMDP reset format:
+                # use reset()[0]
+                state = reset_out[0]
+            else:
+                # Non-CMDP reset format:
+                # use reset()[0][0]
+                state = reset_out[0][0]
         else:
             state = reset_out
+
+        state = np.asarray(state)
 
         if args.use_state_norm:
             state = state_norm(state, update=False)
@@ -261,6 +269,8 @@ def test_agent_multiple_models(args, save_paths, env, num_episodes=100, is_cmdp=
 
             done = truncated or terminated
 
+            next_state = np.asarray(next_state)
+
             if args.use_state_norm:
                 next_state = state_norm(next_state, update=False)
 
@@ -297,9 +307,6 @@ def test_agent_multiple_models(args, save_paths, env, num_episodes=100, is_cmdp=
             )
 
     return rewards, costs, max_costs
-
-
-
 
 # Function to test multiple models across multiple gravity perturbations
 def test_multiple_model_groups(args, model_specs, perturbation_stds, num_episodes=100):
@@ -817,33 +824,33 @@ if __name__ == "__main__":
 
     #################### Single Model Evaluation #######################
     model_specs = [
-        {
-            "label": "Surrogate Obj(NP)",
-            "model_path": "./models/HalfCheetahWithPos/run3/Best_RCAC",
-            "env_type": "pos"
-        },
+        # {
+        #     "label": "Surrogate Obj(NP)",
+        #     "model_path": "./models/HalfCheetahWithPos/run3/Best_RCAC",
+        #     "env_type": "pos"
+        # },
         {
             "label": "Ours",
             "model_path": "./models/HalfCheetahWithPosPerturbed/run1/Best_RCAC",
             "env_type": "pos"
         },
+        # {
+        #     "label": "RCRL",
+        #     "model_path": "./models/HalfCheetahWithPos/run102/Best_RCAC",
+        #     "env_type": "pos"
+        # },
+        # {
+        #     "label": "Primal Dual",
+        #     "model_path": "./models/HalfCheetahWithPos/run104/Best_RCAC",
+        #     "env_type": "pos"
+        # },
         {
-            "label": "RCRL",
-            "model_path": "./models/HalfCheetahWithPos/run102/Best_RCAC",
-            "env_type": "pos"
-        },
-        {
-            "label": "Primal Dual",
-            "model_path": "./models/HalfCheetahWithPos/run104/Best_RCAC",
-            "env_type": "pos"
-        },
-        {
-            "label": "SO-CMDP",
+            "label": "CMDP",
             "model_path": "./models/HalfCheetahCMDP/run2/Best_RCAC",
             "env_type": "cmdp"
         },
         {
-            "label": "RPCRL-CMDP",
+            "label": "RCMDP",
             "model_path": "./models/HalfCheetahCMDPPerturbed/run2/Best_RCAC",
             "env_type": "cmdp"
         }
@@ -851,12 +858,16 @@ if __name__ == "__main__":
 
     # Fixed colors for each label
     color_map = {
-        "Surrogate Obj(NP)": "tab:blue",
-        "Ours": "tab:orange",
-        "RCRL": "tab:green",
-        "Primal Dual": "tab:red",
-        "SO-CMDP": "tab:purple",
-        "RPCRL-CMDP": "tab:brown"
+        # "Surrogate Obj(NP)": "tab:blue",
+        # "Ours": "tab:orange",
+        # # "RCRL": "tab:green",
+        # # "Primal Dual": "tab:red",
+        # "SO-CMDP": "tab:purple",
+        # "RPCRL-CMDP": "tab:brown"
+        "Ours": "#1f77b4",
+        "CMDP": "#ff7f0e",
+        "RCMDP": "#2ca02c",
+        "Baseline": "black",
     }
 
     labels = [spec["label"] for spec in model_specs]
