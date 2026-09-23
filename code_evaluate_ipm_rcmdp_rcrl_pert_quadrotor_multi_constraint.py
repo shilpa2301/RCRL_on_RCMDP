@@ -1,3 +1,14 @@
+# #shilpa Windows only
+# import os
+
+# if os.name == "nt":
+#     os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+#     os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+
+# os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+
+
+
 import torch
 import numpy as np
 from code_ipm_rcmdp_rcrl_max_quadrotor_multi_constraint import (
@@ -28,6 +39,38 @@ from safe_control_gym.utils.configuration import ConfigFactory
 from safe_control_gym.utils.registration import make
 
 
+# ============================================================
+# Fixed color scheme: same as training plot script
+# ============================================================
+METHOD_COLORS = {
+    "Ours": "#1f77b4",           # blue
+    "Surrogate Obj": "#ff7f0e",  # orange
+    "PD": "#2ca02c",             # green
+    "FAC": "#d62728",            # red
+    "RCRL": "#9467bd",           # purple
+    "RESPO": "#8c564b",          # brown
+    "Baseline": "black",
+}
+
+# ============================================================
+# Quadrotor cost names
+# ============================================================
+COST_NAMES = [
+    "Rotor 1 Low Thrust (C1)",
+    "Rotor 2 Low Thrust (C2)",
+    "Rotor 1 High Thrust (C3)",
+    "Rotor 2 High Thrust (C4)",
+]
+
+
+def get_method_color(label):
+    """
+    Return fixed color for known methods.
+    If label is unknown, return gray.
+    """
+    return METHOD_COLORS.get(label, "#7f7f7f")
+
+
 CONFIG_FACTORY = ConfigFactory()
 CONFIG_FACTORY.parser.set_defaults(
     overrides=["./envs/env_configs/constrained_tracking_reset.yaml"]
@@ -41,9 +84,12 @@ CONFIG_FACTORY_EVAL.parser.set_defaults(
 config_eval = CONFIG_FACTORY_EVAL.merge()
 
 
-def load_agent(args, save_path):
+def load_agent(args, save_path, load_critics=False):
     """
     Load trained agent and optional normalization/scaling objects.
+
+    For evaluation, actor is enough.
+    Critics are optional because some checkpoints may have different cost_dim.
     """
 
     agent = Robust_RCAC_NPG(args)
@@ -55,26 +101,49 @@ def load_agent(args, save_path):
     ccritic_path = f"{save_path}_Ccritic"
 
     agent.actor.load(actor_path)
-    agent.Rcritic.load(rcritic_path)
-    agent.Ccritic.load(ccritic_path)
+
+    if load_critics:
+        try:
+            agent.Rcritic.load(rcritic_path)
+            agent.Ccritic.load(ccritic_path)
+        except RuntimeError as e:
+            print(
+                f"[WARNING] Could not load critics for {save_path}. "
+                f"Continuing with actor-only evaluation.\n{e}"
+            )
 
     if args.use_state_norm:
-        print("Loading state norm")
-        with open(f"{save_path}_state_norm", "rb") as file1:
-            state_norm = pickle.load(file1)
-        print(state_norm.running_ms.mean, state_norm.running_ms.std)
+        norm_path = f"{save_path}_state_norm"
+        if os.path.exists(norm_path):
+            print("Loading state norm")
+            with open(norm_path, "rb") as file1:
+                state_norm = pickle.load(file1)
+            print(state_norm.running_ms.mean, state_norm.running_ms.std)
+        else:
+            print(f"[WARNING] State norm not found: {norm_path}")
 
     if args.use_reward_scaling:
-        print("Loading reward scaling")
-        with open(f"{save_path}_reward_scaling", "rb") as file2:
-            reward_scaling = pickle.load(file2)
+        scaling_path = f"{save_path}_reward_scaling"
+        if os.path.exists(scaling_path):
+            print("Loading reward scaling")
+            with open(scaling_path, "rb") as file2:
+                reward_scaling = pickle.load(file2)
+        else:
+            print(f"[WARNING] Reward scaling not found: {scaling_path}")
 
-    print(f"Agent loaded successfully from: {save_path}")
+    print(f"Agent actor loaded successfully from: {save_path}")
     return agent, state_norm, reward_scaling
 
-def load_agent_specific_model(args, save_path, model_num):
+def load_agent_specific_model(args, save_path, model_num, load_critics=False):
     """
-    Load trained agent and optional normalization/scaling objects.
+    Load trained agent from a specific checkpoint number.
+
+    Example:
+        save_path = './models/quadrotor/run501/Best_RCAC'
+        model_num = 9400
+
+    Loads:
+        ./models/quadrotor/run501/Best_RCAC_actor_9400
     """
 
     agent = Robust_RCAC_NPG(args)
@@ -86,22 +155,84 @@ def load_agent_specific_model(args, save_path, model_num):
     ccritic_path = f"{save_path}_Ccritic_{str(model_num)}"
 
     agent.actor.load(actor_path)
-    agent.Rcritic.load(rcritic_path)
-    agent.Ccritic.load(ccritic_path)
+
+    if load_critics:
+        try:
+            agent.Rcritic.load(rcritic_path)
+            agent.Ccritic.load(ccritic_path)
+        except RuntimeError as e:
+            print(
+                f"[WARNING] Could not load critics for {save_path}, checkpoint={model_num}. "
+                f"Continuing with actor-only evaluation.\n{e}"
+            )
 
     if args.use_state_norm:
-        print("Loading state norm")
-        with open(f"{save_path}_state_norm", "rb") as file1:
-            state_norm = pickle.load(file1)
-        print(state_norm.running_ms.mean, state_norm.running_ms.std)
+        # First try checkpoint-specific normalization.
+        norm_path_specific = f"{save_path}_state_norm_{str(model_num)}"
+        norm_path_default = f"{save_path}_state_norm"
+
+        if os.path.exists(norm_path_specific):
+            norm_path = norm_path_specific
+        else:
+            norm_path = norm_path_default
+
+        if os.path.exists(norm_path):
+            print(f"Loading state norm: {norm_path}")
+            with open(norm_path, "rb") as file1:
+                state_norm = pickle.load(file1)
+            print(state_norm.running_ms.mean, state_norm.running_ms.std)
+        else:
+            print(
+                f"[WARNING] State norm not found: "
+                f"{norm_path_specific} or {norm_path_default}"
+            )
 
     if args.use_reward_scaling:
-        print("Loading reward scaling")
-        with open(f"{save_path}_reward_scaling", "rb") as file2:
-            reward_scaling = pickle.load(file2)
+        scaling_path_specific = f"{save_path}_reward_scaling_{str(model_num)}"
+        scaling_path_default = f"{save_path}_reward_scaling"
 
-    print(f"Agent loaded successfully from: {save_path}")
+        if os.path.exists(scaling_path_specific):
+            scaling_path = scaling_path_specific
+        else:
+            scaling_path = scaling_path_default
+
+        if os.path.exists(scaling_path):
+            print(f"Loading reward scaling: {scaling_path}")
+            with open(scaling_path, "rb") as file2:
+                reward_scaling = pickle.load(file2)
+        else:
+            print(
+                f"[WARNING] Reward scaling not found: "
+                f"{scaling_path_specific} or {scaling_path_default}"
+            )
+
+    print(
+        f"Agent actor loaded successfully from: {save_path}, "
+        f"checkpoint={model_num}"
+    )
     return agent, state_norm, reward_scaling
+
+def get_model_num_for_path(save_path, model_num_map=None, default_model_num=None):
+    """
+    Return checkpoint number for a given save_path.
+
+    model_num_map examples:
+        {
+            "run501": 9400,
+            "run101": 13600,
+        }
+    """
+
+    if model_num_map is None:
+        return default_model_num
+
+    normalized_path = save_path.replace("\\", "/")
+
+    for key, value in model_num_map.items():
+        if key in normalized_path:
+            return value
+
+    return default_model_num
 
 
 def extract_multicost(args, info):
@@ -197,7 +328,15 @@ def env_step_compat(env, action):
         raise RuntimeError(f"Unsupported env.step output length: {len(out)}")
 
 
-def test_agent_multiple_models(args, save_paths, env, model_num=None, num_episodes=100):
+def test_agent_multiple_models(
+    args,
+    save_paths,
+    env,
+    model_num=None,
+    model_num_map=None,
+    num_episodes=100,
+):
+
     """
     Test one model or an ensemble of models.
 
@@ -234,13 +373,27 @@ def test_agent_multiple_models(args, save_paths, env, model_num=None, num_episod
     
    
     for save_path in save_paths:
-        if save_path in ['./models/Quadrotor/run18/Best_RCAC']:
-            agent, state_norm, reward_scaling = load_agent_specific_model(args, save_path, model_num)
-            agents.append((agent, state_norm, reward_scaling))
+        this_model_num = get_model_num_for_path(
+            save_path,
+            model_num_map=model_num_map,
+            default_model_num=model_num,
+        )
 
+        if this_model_num is not None:
+            agent, state_norm, reward_scaling = load_agent_specific_model(
+                args,
+                save_path,
+                this_model_num,
+                load_critics=False,
+            )
         else:
-            agent, state_norm, reward_scaling = load_agent(args, save_path)
-            agents.append((agent, state_norm, reward_scaling))
+            agent, state_norm, reward_scaling = load_agent(
+                args,
+                save_path,
+                load_critics=False,
+            )
+
+        agents.append((agent, state_norm, reward_scaling))
 
 
     # Use first agent's normalization object for state preprocessing.
@@ -338,19 +491,33 @@ def smooth(data, window_size):
     return np.convolve(data, np.ones(window_size) / window_size, mode="valid")
 
 
-def test_multiple_dirs(args, save_paths, model_num=None, num_episodes=100):
+def test_multiple_dirs(
+    args,
+    save_paths,
+    labels,
+    model_num=None,
+    model_num_map=None,
+    num_episodes=100,
+):
+
     """
     Evaluate each model path or model ensemble.
 
     save_paths can contain:
         - str: single model
         - list[str]: ensemble averaged action model
+
+    labels:
+        method labels with same length as save_paths
     """
 
     results = {}
 
-    for save_path in save_paths:
-        print(f"Testing model from {save_path}")
+    for save_path, label in zip(save_paths, labels):
+        print(f"\n============================================================")
+        print(f"Testing method: {label}")
+        print(f"Model path(s): {save_path}")
+        print(f"============================================================\n")
 
         env = make("quadrotor", **config_eval.quadrotor_config)
         env.reset(seed=args.seed)
@@ -371,10 +538,11 @@ def test_multiple_dirs(args, save_paths, model_num=None, num_episodes=100):
             save_path,
             env,
             model_num=model_num,
+            model_num_map=model_num_map,
             num_episodes=num_episodes,
         )
 
-        model_results = [
+        results[label] = [
             {
                 "rewards": rewards,
                 "costs": costs,
@@ -384,14 +552,13 @@ def test_multiple_dirs(args, save_paths, model_num=None, num_episodes=100):
             }
         ]
 
-        if isinstance(save_path, list):
-            key = "PD"
-        else:
-            key = save_path
-
-        results[key] = model_results
+        try:
+            env.close()
+        except Exception:
+            pass
 
     return results
+
 
 
 def plot_evaluation(
@@ -404,63 +571,172 @@ def plot_evaluation(
     smooth_window=10,
 ):
     """
-    Multi-constraint evaluation plots.
+    Quadrotor multi-constraint evaluation plots.
 
-    Creates:
-        1. reward plot
-        2. max cost per constraint dimension
-        3. total cost per constraint dimension
-        4. scalar max-total-cost plot
-        5. scalar total-cost-sum plot
+    Creates 3 plots similar to training:
+
+        1. {base_filename}_rewards.png
+        2. {base_filename}_worst_max_costs.png
+        3. {base_filename}_individual_constraints_horizontal.png
+
+    Uses:
+        results[label][0]["rewards"]
+        results[label][0]["max_costs"]      # shape [episodes, cost_dim]
+
+    Worst-case max cost:
+        max over constraint dimensions per episode.
     """
 
-    os.makedirs(os.path.dirname(base_filename), exist_ok=True)
+    save_dir = os.path.dirname(base_filename)
+    if save and save_dir != "":
+        os.makedirs(save_dir, exist_ok=True)
 
     plt.rcParams.update(
         {
-            "font.size": 24,
-            "lines.linewidth": 3,
+            "font.size": 100,
+            "lines.linewidth": 15,
             "font.weight": "bold",
         }
     )
 
+    fig_size = 28
+    label_font = 130
+
     legend_elements = []
     legend_labels = []
 
-    def key_from_save_path(save_path):
-        return "PD" if isinstance(save_path, list) else save_path
-
-    # ------------------------------------------------------------
-    # 1. Rewards
-    # ------------------------------------------------------------
-    plt.figure(figsize=(14, 8))
+    # ============================================================
+    # 1. Evaluation reward plot
+    # ============================================================
+    plt.figure(figsize=(fig_size + 8, fig_size))
 
     for save_path, label in zip(save_paths, labels):
-        key = key_from_save_path(save_path)
-        rewards = np.asarray(results[key][0]["rewards"])
+        key = label
+
+        rewards = np.asarray(results[key][0]["rewards"], dtype=np.float32)
 
         smoothed_rewards = smooth(rewards, smooth_window)
         x = range(len(smoothed_rewards))
 
-        line, = plt.plot(x, smoothed_rewards, label=label)
-        legend_elements.append(line)
-        legend_labels.append(label)
+        color = get_method_color(label)
 
-    plt.xlabel("Episode", fontweight="bold")
-    plt.ylabel("Cumulative Reward", fontweight="bold")
-    plt.title("Evaluation Reward")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
+        line, = plt.plot(
+            x,
+            smoothed_rewards,
+            label=label,
+            color=color,
+        )
+
+        if label not in legend_labels:
+            legend_elements.append(line)
+            legend_labels.append(label)
+
+    plt.xlabel(
+        "Episode",
+        fontweight="bold",
+        fontsize=label_font,
+    )
+
+    plt.ylabel(
+        "Reward",
+        fontweight="bold",
+        fontsize=label_font,
+    )
+
+    for spine in plt.gca().spines.values():
+        spine.set_linewidth(15)
+
+    plt.tick_params(width=8, length=20)
 
     if save:
-        plt.savefig(f"{base_filename}_rewards.png", dpi=150, bbox_inches="tight")
+        plt.savefig(
+            f"{base_filename}_rewards.png",
+            bbox_inches="tight",
+        )
 
     plt.close()
 
-    # ------------------------------------------------------------
-    # 2. Max cost per constraint dimension
-    # ------------------------------------------------------------
-    fig, axes = plt.subplots(args.cost_dim, 1, figsize=(14, 4 * args.cost_dim))
+    # ============================================================
+    # 2. Worst-case max cost plot
+    # ============================================================
+    plt.figure(figsize=(fig_size + 8, fig_size))
+
+    plt.axhspan(
+        args.persistent_eps,
+        12.5,
+        color="red",
+        alpha=0.1,
+    )
+
+    plt.axhspan(
+        -1,
+        args.persistent_eps,
+        color="blue",
+        alpha=0.1,
+    )
+
+    for save_path, label in zip(save_paths, labels):
+        key = label
+
+        max_costs = np.asarray(
+            results[key][0]["max_costs"],
+            dtype=np.float32,
+        )  # [episodes, cost_dim]
+
+        worst_max_costs = np.max(max_costs, axis=1)
+
+        y = smooth(worst_max_costs, smooth_window)
+        x = range(len(y))
+
+        color = get_method_color(label)
+
+        plt.plot(
+            x,
+            y,
+            label=label,
+            color=color,
+        )
+
+    plt.axhline(
+        y=args.persistent_eps,
+        color=METHOD_COLORS["Baseline"],
+        linestyle="--",
+    )
+
+    plt.xlabel(
+        "Episode",
+        fontweight="bold",
+        fontsize=label_font,
+    )
+
+    plt.ylabel(
+        "Max Cost",
+        fontweight="bold",
+        fontsize=label_font,
+    )
+
+    for spine in plt.gca().spines.values():
+        spine.set_linewidth(15)
+
+    plt.tick_params(width=8, length=20)
+
+    if save:
+        plt.savefig(
+            f"{base_filename}_worst_max_costs.png",
+            bbox_inches="tight",
+        )
+
+    plt.close()
+
+    # ============================================================
+    # 3. Individual constraints horizontally
+    # ============================================================
+    fig, axes = plt.subplots(
+        1,
+        args.cost_dim,
+        figsize=(fig_size * args.cost_dim, fig_size),
+        sharey=True,
+    )
 
     if args.cost_dim == 1:
         axes = [axes]
@@ -468,154 +744,100 @@ def plot_evaluation(
     for ci in range(args.cost_dim):
         ax = axes[ci]
 
+        ax.axhspan(
+            args.persistent_eps,
+            12.5,
+            color="red",
+            alpha=0.1,
+        )
+
+        ax.axhspan(
+            -1,
+            args.persistent_eps,
+            color="blue",
+            alpha=0.1,
+        )
+
         for save_path, label in zip(save_paths, labels):
-            key = key_from_save_path(save_path)
-            max_costs = np.asarray(results[key][0]["max_costs"])  # [episodes, cost_dim]
+            key = label
+
+            max_costs = np.asarray(
+                results[key][0]["max_costs"],
+                dtype=np.float32,
+            )  # [episodes, cost_dim]
 
             y = smooth(max_costs[:, ci], smooth_window)
             x = range(len(y))
 
-            ax.plot(x, y, label=label)
+            color = get_method_color(label)
+
+            ax.plot(
+                x,
+                y,
+                label=label,
+                color=color,
+            )
 
         ax.axhline(
             y=args.persistent_eps,
-            color="black",
+            color=METHOD_COLORS["Baseline"],
             linestyle="--",
-            linewidth=2,
-            label=f"Threshold={args.persistent_eps}",
         )
 
-        ax.set_xlabel("Episode", fontweight="bold")
-        ax.set_ylabel(f"Max C{ci+1}", fontweight="bold")
-        ax.set_title(f"Max Cost Constraint {ci+1}")
-        ax.grid(True, alpha=0.3)
-        ax.legend()
+        cost_name = COST_NAMES[ci] if ci < len(COST_NAMES) else f"C{ci + 1}"
 
-    plt.tight_layout()
+        ax.set_title(
+            cost_name,
+            fontweight="bold",
+            fontsize=label_font,
+        )
 
-    if save:
-        plt.savefig(f"{base_filename}_max_costs_per_constraint.png", dpi=150)
+        if ci == 0:
+            ax.set_ylabel(
+                "Max Cost",
+                fontweight="bold",
+                fontsize=label_font - 10,
+            )
 
-    plt.close()
+        for spine in ax.spines.values():
+            spine.set_linewidth(15)
 
-    # ------------------------------------------------------------
-    # 3. Total cost per constraint dimension
-    # ------------------------------------------------------------
-    fig, axes = plt.subplots(args.cost_dim, 1, figsize=(14, 4 * args.cost_dim))
+        ax.tick_params(width=8, length=20)
 
-    if args.cost_dim == 1:
-        axes = [axes]
-
-    for ci in range(args.cost_dim):
-        ax = axes[ci]
-
-        for save_path, label in zip(save_paths, labels):
-            key = key_from_save_path(save_path)
-            costs = np.asarray(results[key][0]["costs"])  # [episodes, cost_dim]
-
-            y = smooth(costs[:, ci], smooth_window)
-            x = range(len(y))
-
-            ax.plot(x, y, label=label)
-
-        ax.set_xlabel("Episode", fontweight="bold")
-        ax.set_ylabel(f"Total C{ci+1}", fontweight="bold")
-        ax.set_title(f"Total Cost Constraint {ci+1}")
-        ax.grid(True, alpha=0.3)
-        ax.legend()
-
-    plt.tight_layout()
-
-    if save:
-        plt.savefig(f"{base_filename}_total_costs_per_constraint.png", dpi=150)
-
-    plt.close()
-
-    # ------------------------------------------------------------
-    # 4. Scalar max over max-cost dimensions
-    # ------------------------------------------------------------
-    plt.figure(figsize=(14, 8))
-
-    for save_path, label in zip(save_paths, labels):
-        key = key_from_save_path(save_path)
-        max_total_costs = np.asarray(results[key][0]["max_total_costs"])
-
-        y = smooth(max_total_costs, smooth_window)
-        x = range(len(y))
-
-        plt.plot(x, y, label=label)
-
-    plt.axhline(
-        y=args.persistent_eps,
-        color="black",
-        linestyle="--",
-        linewidth=2,
-        label=f"Threshold={args.persistent_eps}",
+    # Shared x-axis label placed manually to avoid large gap
+    fig.text(
+        0.5,
+        0.04,
+        "Episode",
+        ha="center",
+        va="center",
+        fontweight="bold",
+        fontsize=label_font - 20,
     )
 
-    plt.xlabel("Episode", fontweight="bold")
-    plt.ylabel("Max over Constraint Max Costs", fontweight="bold")
-    plt.title("Scalar Max Total Cost")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-
-    if save:
-        plt.savefig(f"{base_filename}_max_total_cost.png", dpi=150, bbox_inches="tight")
-
-    plt.close()
-
-    # ------------------------------------------------------------
-    # 5. Scalar sum of total costs
-    # ------------------------------------------------------------
-    plt.figure(figsize=(14, 8))
-
-    for save_path, label in zip(save_paths, labels):
-        key = key_from_save_path(save_path)
-        total_cost_sums = np.asarray(results[key][0]["total_cost_sums"])
-
-        y = smooth(total_cost_sums, smooth_window)
-        x = range(len(y))
-
-        plt.plot(x, y, label=label)
-
-    plt.xlabel("Episode", fontweight="bold")
-    plt.ylabel("Sum of Total Costs", fontweight="bold")
-    plt.title("Scalar Total Cost Sum")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-
-    if save:
-        plt.savefig(f"{base_filename}_total_cost_sum.png", dpi=150, bbox_inches="tight")
-
-    plt.close()
-
-    save_legend(
-        legend_elements,
-        legend_labels,
-        f"{base_filename}_legend_horizontal.png",
-        horizontal=True,
+    plt.subplots_adjust(
+        bottom=0.22,
+        wspace=0.25,
     )
 
+    if save:
+        plt.savefig(
+            f"{base_filename}_individual_constraints_horizontal.png",
+            bbox_inches="tight",
+        )
 
-def save_legend(legend_elements, labels, filename, horizontal=True):
-    """
-    Save separate legend image.
-    """
-
-    fig = plt.figure(figsize=(20, 5) if horizontal else (5, 20))
-    ax = fig.add_subplot(111)
-    ax.axis("off")
-
-    ax.legend(
-        handles=legend_elements,
-        labels=labels,
-        loc="center",
-        ncol=len(legend_elements) if horizontal else 1,
-        frameon=False,
-    )
-
-    plt.savefig(filename, bbox_inches="tight", pad_inches=0)
     plt.close()
+
+    # ============================================================
+    # Separate horizontal legend
+    # ============================================================
+    # if save:
+    #     save_legend(
+    #         legend_elements,
+    #         legend_labels,
+    #         f"{base_filename}_legend_horizontal.png",
+    #         horizontal=True,
+    #     )
 
 
 if __name__ == "__main__":
@@ -691,21 +913,51 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # ============================================================
+    # Same methods/runs as training plot script
+    # ============================================================
+
     labels = [
-        "Surrogate Obj(NP)",
-        "Ours(P+R)",
+        "Ours",
+        "Surrogate Obj",        
+        "FAC",
+        "RCRL",
     ]
 
     directories = [
-        "./models/quadrotor/run13/Best_RCAC",
-        # "./models/Quadrotor/run18/Best_RCAC",
+        [
+            "./models/quadrotor/run16/Best_RCAC",
+            # "./models/quadrotor/run17/Best_RCAC",
+        ],
+        [
+            # "./models/quadrotor/run1/Best_RCAC",
+            "./models/quadrotor/run17/Best_RCAC",
+        ],
+        [
+            "./models/quadrotor/run501/Best_RCAC",
+            # "./models/quadrotor/run502/Best_RCAC",
+        ],
+        [
+            "./models/quadrotor/run101/Best_RCAC",
+            # "./models/quadrotor/run102/Best_RCAC",
+        ],
     ]
-    model_num = 6200
+
+    model_num = None
+
+    model_num_map = {
+        "run501": 9400,
+        "run101": 13600,
+    }
+
+
 
     results = test_multiple_dirs(
         args,
         directories,
+        labels=labels,
         model_num=model_num,
+        model_num_map=model_num_map,
         num_episodes=args.num_episodes,
     )
 
@@ -715,6 +967,6 @@ if __name__ == "__main__":
         directories,
         labels,
         save=True,
-        base_filename="plot_inference/quadrotor_inference_dummy",
-        smooth_window=20,
+        base_filename="plot_inference/quadrotor_inference_all",
+        smooth_window=80,
     )

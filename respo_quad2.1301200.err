@@ -1,26 +1,0 @@
-Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
-Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
-Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
-See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
-pybullet build time: Jan 29 2025 23:16:28
-/mmfs1/project/ag2682/sm3934/RCRL_on_RCMDP/safe_control_gym/utils/configuration.py:71: UserWarning: No agent/task config given.
-  warnings.warn('No agent/task config given.')
-/home/sm3934/miniconda3/envs/rpcrl_env/lib/python3.10/site-packages/gymnasium/spaces/box.py:130: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
-  gym.logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
-  0%|          | 0/35000 [00:00<?, ?it/s]No protocol specified
-
-  0%|          | 1/35000 [01:55<1122:55:09, 115.50s/it]  0%|          | 2/35000 [01:56<465:32:32, 47.89s/it]    0%|          | 3/35000 [01:56<255:28:41, 26.28s/it]  0%|          | 4/35000 [01:57<156:48:01, 16.13s/it]  0%|          | 5/35000 [01:57<102:19:15, 10.53s/it]  0%|          | 6/35000 [01:58<69:20:51,  7.13s/it]   0%|          | 7/35000 [01:58<48:22:34,  4.98s/it]  0%|          | 8/35000 [01:59<35:01:28,  3.60s/it]  0%|          | 9/35000 [02:00<25:44:47,  2.65s/it]  0%|          | 10/35000 [02:00<19:18:33,  1.99s/it]  0%|          | 11/35000 [02:01<14:54:29,  1.53s/it]  0%|          | 12/35000 [02:01<12:04:23,  1.24s/it]  0%|          | 13/35000 [02:02<9:59:02,  1.03s/it]   0%|          | 14/35000 [02:02<8:54:39,  1.09it/s]  0%|          | 15/35000 [02:03<7:59:39,  1.22it/s]  0%|          | 16/35000 [02:04<7:20:02,  1.33it/s]  0%|          | 17/35000 [02:04<6:47:07,  1.43it/s]  0%|          | 18/35000 [02:05<6:31:26,  1.49it/s]  0%|          | 19/35000 [02:05<6:17:38,  1.54it/s]  0%|          | 20/35000 [02:06<6:06:44,  1.59it/s]  0%|          | 21/35000 [02:07<6:25:11,  1.51it/s]  0%|          | 22/35000 [02:07<6:03:02,  1.61it/s]  0%|          | 23/35000 [02:08<5:51:32,  1.66it/s]  0%|          | 24/35000 [02:08<5:49:29,  1.67it/s]  0%|          | 25/35000 [02:09<5:46:14,  1.68it/s]  0%|          | 26/35000 [02:10<5:51:47,  1.66it/s]  0%|          | 27/35000 [02:10<5:45:16,  1.69it/s]  0%|          | 28/35000 [02:11<5:36:48,  1.73it/s]  0%|          | 29/35000 [02:11<6:05:29,  1.59it/s]  0%|          | 30/35000 [02:12<5:57:55,  1.63it/s]  0%|          | 31/35000 [02:13<5:47:33,  1.68it/s]  0%|          | 31/35000 [02:13<41:45:28,  4.30s/it]
-Traceback (most recent call last):
-  File "/project/ag2682/sm3934/RCRL_on_RCMDP/code_pd_respo_quadrotor.py", line 1960, in <module>
-    main(args, run_number=args.run)
-  File "/project/ag2682/sm3934/RCRL_on_RCMDP/code_pd_respo_quadrotor.py", line 1574, in main
-    agent.update(replay_buffer, total_steps)
-  File "/project/ag2682/sm3934/RCRL_on_RCMDP/code_pd_respo_quadrotor.py", line 899, in update
-    actor_loss.mean().backward()
-  File "/home/sm3934/miniconda3/envs/rpcrl_env/lib/python3.10/site-packages/torch/_tensor.py", line 630, in backward
-    torch.autograd.backward(
-  File "/home/sm3934/miniconda3/envs/rpcrl_env/lib/python3.10/site-packages/torch/autograd/__init__.py", line 364, in backward
-    _engine_run_backward(
-  File "/home/sm3934/miniconda3/envs/rpcrl_env/lib/python3.10/site-packages/torch/autograd/graph.py", line 865, in _engine_run_backward
-    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
-RuntimeError: Trying to backward through the graph a second time (or directly access saved tensors after they have already been freed). Saved intermediate values of the graph are freed when you call .backward() or autograd.grad(). Specify retain_graph=True if you need to backward through the graph a second time or if you need to access saved tensors after calling backward.

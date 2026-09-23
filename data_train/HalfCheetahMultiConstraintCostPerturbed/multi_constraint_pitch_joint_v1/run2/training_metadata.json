@@ -1,0 +1,61 @@
+{
+  "environment": "HalfCheetahMultiConstraintCostPerturbed",
+  "cost_version": "multi_constraint_pitch_joint_v1",
+  "cost_type": "pitch_and_joint_speed",
+  "aggregation": "separate_vector_constraints",
+  "cost_names": [
+    "pitch",
+    "joint_speed"
+  ],
+  "run": 2,
+  "training_seed": 5,
+  "training_episodes": 10000,
+  "evaluate_frequency": 100,
+  "persistent_epsilon": 0.1,
+  "pitch_threshold": 1.5707963267948966,
+  "pitch_scale": 1.5707963267948966,
+  "joint_names": [
+    "back_thigh",
+    "back_shin",
+    "back_foot",
+    "front_thigh",
+    "front_shin",
+    "front_foot"
+  ],
+  "joint_speed_thresholds": [
+    23.952442696579617,
+    21.273920780514413,
+    20.869860859139493,
+    27.172519265909983,
+    21.158679170546527,
+    16.234366386891228
+  ],
+  "joint_speed_scales": [
+    23.952442696579617,
+    21.273920780514413,
+    20.869860859139493,
+    27.172519265909983,
+    21.158679170546527,
+    16.234366386891228
+  ],
+  "state_dimension": 18,
+  "action_dimension": 6,
+  "cost_dimension": 2,
+  "cost_scale": 1.0,
+  "beta": 30000.0,
+  "K_epochs": 5,
+  "warm_start_episode": 500,
+  "batch_size": 2048,
+  "mini_batch_size": 128,
+  "hidden_width": 64,
+  "lr_actor": 0.001,
+  "lr_reward_critic": 0.005,
+  "lr_cost_critic": 0.001,
+  "gamma": 0.99,
+  "gae_lambda": 0.95,
+  "ppo_epsilon": 0.2,
+  "entropy_coefficient": 0.001,
+  "weight_regularization": 0.001,
+  "lambda": 50,
+  "policy_distribution": "Gaussian"
+}

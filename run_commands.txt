@@ -53,6 +53,13 @@ python code_ipm_rcmdp_rcrl_max_hc_FAC.py --run 501 --persistent_eps 8.0 --beta 3
 
 
 
+HALFCHEETAH MULTICONSTRAINT:
+python code_ipm_rcmdp_rcrl_max_hc_multi_constraint.py --env HalfCheetahMultiConstraintCost --run 4 --seed 5 --max_train_steps 10000  --evaluate_freq 100 --weight_reg 0.0
+python code_ipm_rcmdp_rcrl_max_hc_multi_constraint_RCRL.py --env HalfCheetahMultiConstraintCost --run 101 --seed 5 --max_train_steps 8000  --evaluate_freq 100 --weight_reg 0.0
+python code_ipm_rcmdp_rcrl_max_hc_multi_constraint_FAC.py --env HalfCheetahMultiConstraintCost --run 501 --seed 5 --max_train_steps 8000  --evaluate_freq 100 --weight_reg 0.0
+python code_ipm_rcmdp_rcrl_max_hc_multi_constraint.py --env HalfCheetahMultiConstraintCostPerturbed --run 2 --seed 5 --max_train_steps 10000  --evaluate_freq 100 --weight_reg 0.001
+
+
 REACHER ENV:
 python code_ipm_rcmdp_rcrl_max_reacher.py --run 2 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_gravity 0.0 --env ReacherWithCost --seed 1
 python code_ipm_rcmdp_rcrl_max_reacher.py --run 2 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --sigma_gravity 0.7 --env ReacherWithCostPerturbed --seed 1
