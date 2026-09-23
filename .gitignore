@@ -1,1 +1,8 @@
 *.log
+# Cluster/slurm output files
+*.err
+*.out
+
+# Python cache
+__pycache__/
+*.pyc

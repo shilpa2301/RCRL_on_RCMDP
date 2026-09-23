@@ -851,7 +851,7 @@ if __name__ == "__main__":
         },
         {
             "label": "RCMDP",
-            "model_path": "./models/HalfCheetahCMDPPerturbed/run2/Best_RCAC",
+            "model_path": "./models/HalfCheetahCMDPPerturbed/run10/Best_RCAC",
             "env_type": "cmdp"
         }
     ]
@@ -888,6 +888,6 @@ if __name__ == "__main__":
         perturbation_stds,
         color_map=color_map,
         save=True,
-        base_filename="plot_inference/HC_comparison_CMDP",
+        base_filename="plot_inference/HC_comparison_CMDP2",
         smooth_window=20
     )

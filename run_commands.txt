@@ -51,7 +51,7 @@ python code_pd_respo_hc.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 
 Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'cd "D:\Shilpa_Work\RCRL_on_RCMDP"; python  code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py --run 1 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 5e-4 --entropy_coef 0.001 --weight_reg 0.0 --seed 3 --env HalfCheetahCMDP --lr_c 5e-4 *> log_hc1_cmdp.log'
 python code_ipm_rcmdp_rcrl_max_hc_FAC.py --run 501 --persistent_eps 8.0 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 1 --env HalfCheetahWithPos --lr_c 5e-3 
 
-
+ python code_ipm_rcmdp_rcrl_max_hc_feasible_policy.py --run 701 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --seed 5 --env HalfCheetahWithPosPerturbed --lr_c 5e-3 --sigma_gravity 2.0 --init_policy_path ./models/HalfCheetahWithPosPerturbed/run1/Best_RCAC
 
 HALFCHEETAH MULTICONSTRAINT:
 python code_ipm_rcmdp_rcrl_max_hc_multi_constraint.py --env HalfCheetahMultiConstraintCost --run 4 --seed 5 --max_train_steps 10000  --evaluate_freq 100 --weight_reg 0.0
@@ -147,6 +147,7 @@ https://github.com/SafeRoboticsLab/safety-gymnasium/tree/39c9e857fd611fdd4df4630
 python code_ipm_rcmdp_rcrl_max_safety_gym_rpcrl.py --config envs/env_configs/safety_gym_circle.yaml
 python code_ipm_rcmdp_rcrl_max_safety_gym_cmdp.py --config envs/env_configs/safety_gym_circle.yaml
 python code_ipm_rcmdp_rcrl_max_safety_gym_cmdp_robust.py --config envs/env_configs/safety_gym_circle.yaml
+python code_ipm_rcmdp_rcrl_max_safety_gym_RCRL.py --config envs/env_configs/safety_gym_circle.yaml
 
 
 python code_ipm_rcmdp_rcrl_max_safety_gym_rpcrl.py --config envs/env_configs/safety_gym_goal_navigation.yaml
@@ -177,3 +178,10 @@ $env:MUJOCO_PY_MUJOCO_PATH="C:\Users\rinki\.mujoco\mujoco210"
 $env:PATH="C:\Users\rinki\.mujoco\mujoco210\bin;$env:PATH"
 
 
+###############CHeck num steps cumulative till an episode for sample efficiency#############
+import numpy as np
+
+steps = np.load("./step_data/HalfCheetahWithPos/run5/cumulative_step_counts.npy")
+
+episode_id = 100
+print("Total steps till episode", episode_id, "=", steps[episode_id])

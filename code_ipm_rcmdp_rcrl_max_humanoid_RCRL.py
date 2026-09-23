@@ -1,3 +1,13 @@
+# #shilpa Windows only
+import os
+
+# if os.name == "nt":
+#     os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+#     os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+
+# os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+
+
 import torch
 import torch.nn.functional as F
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
@@ -24,10 +34,6 @@ from gym import utils
 from typing import Optional, List, Tuple
 from gymnasium import spaces
 import matplotlib.pyplot as plt  # Import for plotting
-from envs.cartpole import CartPoleCostEnv, CartPolePerturbedEnv
-from envs.pendulum_v1 import PendulumEnv, PendulumCostEnv, PendulumPerturbedEnv
-from envs.half_cheetah import HalfCheetahWithPos
-from envs.swimmer import SwimmerWithPos, SwimmerWithPosPerturbed
 from envs.humanoid import HumanoidWithCost, HumanoidWithCostPerturbed
 
 

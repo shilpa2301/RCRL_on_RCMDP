@@ -512,7 +512,7 @@ if __name__ == "__main__":
     parser.add_argument("--lamda", type=float, default=0.95)
     parser.add_argument("--epsilon", type=float, default=0.2)
 
-    parser.add_argument("--persistent_eps", type=float, default=0.1)
+    parser.add_argument("--persistent_eps", type=float, default=0.05)
 
     parser.add_argument("--K_epochs", type=int, default=5)
     parser.add_argument("--use_adv_norm", type=bool, default=True)

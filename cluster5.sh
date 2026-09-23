@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --job-name=so_quad1
+#SBATCH --job-name=ours_ant1
 #SBATCH --output=%x.%j.out # %x.%j expands to slurm JobName.JobID
 #SBATCH --error=%x.%j.err
 #SBATCH --partition=general
@@ -27,5 +27,6 @@ export PYTHONPATH=/project/ag2682/sm3934/RCRL_on_RMDP:$PYTHONPATH
 # /home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RMDP/code_ipm_rcmdp_rcrl_max.py --run 19 --seed 1 --env CartPolePerturbedEnv --persistent_eps 2.0 --beta 25.0 --max_train_steps 5000
 # /home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RMDP/code_ipm_rcmdp_rcrl_max.py --run 1 --seed 1 --env CartPoleCostEnv --persistent_eps 2.0 --beta 25.0 --max_train_steps 5000
 
-/home/sm3934/miniconda3/envs/rpcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_quadrotor_multi_constraint.py --run 1 --persistent_eps 0.5 --beta 30000 --K_epochs 5 --max_train_steps 35000 --warm_start_episode 1000 --lr_cost 5e-4 --lr_c 5e-4 --lr_a 5e-4 --entropy_coef 0.007 --weight_reg 0.0 --seed 2 --batch_size 1024 --mini_batch_size 256 --cost_scale 100.0
+/home/sm3934/miniconda3/envs/rpcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_ant_feasible_policy.py --run 11 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 700 --lr_cost 1e-3 --lr_a 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --seed 2 --env AntCostPerturbed --sigma_gravity 0.7 --lr_c 1e-3 
+
 
