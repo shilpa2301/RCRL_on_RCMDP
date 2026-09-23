@@ -784,20 +784,29 @@ def plot_evaluation(
             linestyle="--",
         )
 
+        # cost_name = COST_NAMES[ci] if ci < len(COST_NAMES) else f"C{ci + 1}"
+
+        # ax.set_title(
+        #     cost_name,
+        #     fontweight="bold",
+        #     fontsize=label_font,
+        # )
+
+        # if ci == 0:
+        #     ax.set_ylabel(
+        #         "Max Cost",
+        #         fontweight="bold",
+        #         fontsize=label_font - 10,
+        #     )
+
         cost_name = COST_NAMES[ci] if ci < len(COST_NAMES) else f"C{ci + 1}"
 
-        ax.set_title(
+        ax.set_ylabel(
             cost_name,
             fontweight="bold",
-            fontsize=label_font,
+            fontsize=label_font - 30,
         )
 
-        if ci == 0:
-            ax.set_ylabel(
-                "Max Cost",
-                fontweight="bold",
-                fontsize=label_font - 10,
-            )
 
         for spine in ax.spines.values():
             spine.set_linewidth(15)

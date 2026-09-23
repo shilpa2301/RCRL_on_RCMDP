@@ -156,13 +156,8 @@ class AntCostPerturbed(AntEnv):
             sigma_gravity: float = 0.0,
             max_steps: int = 500
     ):
-        super(AntCostPerturbed, self).__init__(
-                xml_file=xml_file,
-                healthy_reward=healthy_reward,
-                terminate_when_unhealthy=terminate_when_unhealthy,
-                reset_noise_scale=reset_noise_scale,
-                exclude_current_positions_from_observation=exclude_current_positions_from_observation
-        )
+        self._mujoco_initializing = True
+        self._mujoco_initializing = False
         self.sigma_gravity = sigma_gravity
         self._elapsed_steps = 0
         self.max_steps  = max_steps
@@ -170,6 +165,16 @@ class AntCostPerturbed(AntEnv):
         # Restore nominal viscosity at episode start
         # self.model.opt.viscosity = self._base_viscosity
         self._grav_axis = 2
+        self._base_grav = -9.81
+        super(AntCostPerturbed, self).__init__(
+                xml_file=xml_file,
+                healthy_reward=healthy_reward,
+                terminate_when_unhealthy=terminate_when_unhealthy,
+                reset_noise_scale=reset_noise_scale,
+                exclude_current_positions_from_observation=exclude_current_positions_from_observation
+        )
+        self._mujoco_initializing = False
+        
         self._base_grav = float(self.model.opt.gravity[self._grav_axis])
 
 
@@ -222,7 +227,7 @@ class AntCostPerturbed(AntEnv):
         # cost = 0.0
         # ── Termination / truncation ────────────────────────────────────────
         truncated = self._elapsed_steps >= self.max_steps
-        terminated = self.terminated
+        terminated = False
         observation = self._get_obs()
         info = {
             'reward_forward': forward_reward,
@@ -238,6 +243,10 @@ class AntCostPerturbed(AntEnv):
             'y_velocity': y_velocity,
             'forward_reward': forward_reward,
         }
+        #shilpa windows only
+        if getattr(self, "_mujoco_initializing", False):
+                    return observation, reward, truncated or terminated, info
+        
         # return observation, reward, done, info
         return observation, reward, cost, truncated, terminated, info
 

@@ -1,4 +1,13 @@
 import os
+# ============================================================
+# If using Windows + mujoco_py, uncomment if needed
+# ============================================================
+if os.name == "nt":
+    os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+    os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+
+os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+
 import argparse
 import pickle
 
@@ -567,7 +576,7 @@ if __name__ == "__main__":
 
     # Only one evaluation perturbation.
     # For Swimmer, this is viscosity perturbation.
-    perturbation_stds = [1.0]
+    perturbation_stds = [2.0]
 
     results = test_single_models(
         args=args,

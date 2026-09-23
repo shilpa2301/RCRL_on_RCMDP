@@ -1,4 +1,15 @@
 import os
+
+# ============================================================
+# If using Windows + mujoco_py, uncomment if needed
+# ============================================================
+if os.name == "nt":
+    os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+    os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+
+os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+
+
 import argparse
 import pickle
 
@@ -562,7 +573,7 @@ if __name__ == "__main__":
         },
         {
             "label": "RCRL",
-            "model_path": "./models/AntCost/run101/Best_RCAC"
+            "model_path": "./models/AntCost/run102/Best_RCAC"
         },
         {
             "label": "RESPO",
@@ -573,7 +584,7 @@ if __name__ == "__main__":
     labels = [spec["label"] for spec in model_specs]
 
     # Only one evaluation perturbation.
-    perturbation_stds = [2.0]
+    perturbation_stds = [3.0]
 
     results = test_single_models(
         args=args,

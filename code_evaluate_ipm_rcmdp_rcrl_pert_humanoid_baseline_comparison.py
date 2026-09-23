@@ -1,4 +1,14 @@
 import os
+
+# ============================================================
+# If using Windows + mujoco_py, uncomment if needed
+# ============================================================
+if os.name == "nt":
+    os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+    os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+
+os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+
 import argparse
 import pickle
 
@@ -627,7 +637,7 @@ if __name__ == "__main__":
         },
         {
             "label": "RCRL",
-            "model_path": "./models/HumanoidWithCost/run101/Best_RCAC"
+            "model_path": "./models/HumanoidWithCost/run102/Best_RCAC"
         },
         {
             "label": "RESPO",
