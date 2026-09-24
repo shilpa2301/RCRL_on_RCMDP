@@ -27,6 +27,6 @@ export PYTHONPATH=/project/ag2682/sm3934/RCRL_on_RMDP:$PYTHONPATH
 # /home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RMDP/code_ipm_rcmdp_rcrl_max.py --run 19 --seed 1 --env CartPolePerturbedEnv --persistent_eps 2.0 --beta 25.0 --max_train_steps 5000
 # /home/sm3934/miniconda3/envs/ipm_rcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RMDP/code_ipm_rcmdp_rcrl_max.py --run 1 --seed 1 --env CartPoleCostEnv --persistent_eps 2.0 --beta 25.0 --max_train_steps 5000
 
-/home/sm3934/miniconda3/envs/rpcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_swimmer_feasible_policy.py --run 13 --persistent_eps 0.1 --beta 3000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --sigma_viscosity 0.7 --env SwimmerWithPosPerturbed --seed 1
+/home/sm3934/miniconda3/envs/rpcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_swimmer_feasible_policy.py --run 23 --persistent_eps 0.1 --beta 3000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --sigma_viscosity 0.7 --env SwimmerWithPosPerturbed --seed 2
 
 

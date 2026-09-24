@@ -318,7 +318,7 @@ def plot_mean_std_multiple_runs(
         color=METHOD_COLORS["Baseline"],
         linestyle="--",
     )
-
+    plt.ylim(-0.05, 3.0)
     plt.xlabel("Episode", fontweight="bold", fontsize=label_font)
     plt.ylabel("Max Cost", fontweight="bold", fontsize=label_font)
 
@@ -359,7 +359,7 @@ plot_mean_std_multiple_runs(
     base_filename="train_plots/HC_sample_complexity_feasible_vs_infeasible",
     smooth_window=80,
     save_legends=True,
-    max_episodes=16000,
+    max_episodes=8000,
     baseline_cost_threshold=0.1,
 )
 

@@ -22,4 +22,4 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 export PYTHONPATH=/project/ag2682/sm3934/RCRL_on_RMDP:$PYTHONPATH
 
 
-/home/sm3934/miniconda3/envs/rpcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_humanoid_feasible_policy.py --run 13 --persistent_eps 1.0 --beta 300 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.001 --seed 6 --env HumanoidWithCostPerturbed --sigma_gravity 0.7 --lr_c 5e-4 
+/home/sm3934/miniconda3/envs/rpcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_humanoid_feasible_policy.py --run 23 --persistent_eps 1.0 --beta 300 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.001 --seed 2 --env HumanoidWithCostPerturbed --sigma_gravity 0.7 --lr_c 5e-4 
