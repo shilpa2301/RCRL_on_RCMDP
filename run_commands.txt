@@ -44,6 +44,8 @@ nohup python code_ipm_rcmdp_rcrl_max_hc_sparse.py --run 1 --persistent_eps 0.1 -
 code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py --run 701 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 5e-4 --entropy_coef 0.001 --weight_reg 0.0 --seed 1 --env HalfCheetahCMDP --lr_c 5e-4
 /home/sm3934/miniconda3/envs/rpcrl_env/bin/python /project/ag2682/sm3934/RCRL_on_RCMDP/code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py --run 703 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 7e-5 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahCMDP --lr_c 5e-4 --lr_a 5e-4
 
+python code_ipm_rcmdp_rcrl_max_hc_RCRL.py --run 101 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahWithPos --lr_c 5e-3 
+
 python  code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py --run 1 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 5e-4 --entropy_coef 0.001 --weight_reg 0.0 --seed 1 --env HalfCheetahCMDP --lr_c 5e-4
 python code_ipm_rcmdp_rcrl_max_hc_RPCRL_CMDP.py --run 1 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 5e-4 --entropy_coef 0.001 --weight_reg 0.001 --seed 1 --env HalfCheetahCMDPPerturbed --lr_c 5e-4 --sigma_gravity 0.7
 python code_pd_respo_hc.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahWithPos --lr_c 5e-3 
@@ -52,6 +54,9 @@ Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass
 python code_ipm_rcmdp_rcrl_max_hc_FAC.py --run 501 --persistent_eps 8.0 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 1 --env HalfCheetahWithPos --lr_c 5e-3 
 
  python code_ipm_rcmdp_rcrl_max_hc_feasible_policy.py --run 701 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --seed 5 --env HalfCheetahWithPosPerturbed --lr_c 5e-3 --sigma_gravity 2.0 --init_policy_path ./models/HalfCheetahWithPosPerturbed/run1/Best_RCAC
+
+code_ipm_rcmdp_rcrl_max_hc_feasible_policy.py --run 702 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 0 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --seed 1 --env HalfCheetahWithPosPerturbed --lr_c 5e-3 --sigma_gravity 2.0 --init_policy_path ./models/HalfCheetahWithPosPerturbed/run11/Best_RCAC --init_model_num 800 
+python code_ipm_rcmdp_rcrl_max_hc_RCRL_feasible_policy.py --run 1010 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 500 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 5 --env HalfCheetahWithPos --lr_c 5e-3 --init_policy_path ./models/HalfCheetahWithPos/run1010/Best_RCAC --init_model_num 1400 
 
 HALFCHEETAH MULTICONSTRAINT:
 python code_ipm_rcmdp_rcrl_max_hc_multi_constraint.py --env HalfCheetahMultiConstraintCost --run 4 --seed 5 --max_train_steps 10000  --evaluate_freq 100 --weight_reg 0.0
@@ -75,6 +80,9 @@ Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass
 Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'cd "D:\Shilpa_Work\RCRL_on_RCMDP"; python code_ipm_rcmdp_rcrl_max_swimmer_RPCRL_CMDP_robust.py --run 1 --persistent_eps 0.1 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_viscosity 0.7 --env SwimmerCMDPPerturbed --seed 1 *> log_swimmer1_cmdp_robust.log'
 python code_ipm_rcmdp_rcrl_max_swimmer_FAC.py --run 501 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --sigma_viscosity 0.0 --env SwimmerWithPos --seed 1
 
+python code_ipm_rcmdp_rcrl_max_swimmer_feasible_policy.py --run 701 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 8000 --warm_start_episode 0 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --sigma_viscosity 0.7 --env SwimmerWithPosPerturbed --seed 3 --init_policy_path ./models/SwimmerWithPosPerturbed/run11/Best_RCAC --init_model_num 500
+python code_ipm_rcmdp_rcrl_max_swimmer_RCRL_feasible_policy.py --run 1010 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_viscosity 0.0 --env SwimmerWithPos --seed 1
+python code_ipm_rcmdp_rcrl_max_swimmer_RCRL_feasible_policy.py --run 1011 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 16000 --warm_start_episode 150 --lr_cost 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --sigma_viscosity 0.0 --env SwimmerWithPos --seed 1 --init_policy_path ./models/SwimmerWithPos/run1010/Best_RCAC --init_model_num 800
 
 QUADROTOR ENV:
 python code_ipm_rcmdp_rcrl_max_quadrotor_single_constraint.py --run 8 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 50000 --warm_start_episode 1000 --lr_cost 5e-4 --lr_c 5e-4 --lr_a 5e-4 --entropy_coef 0.07 --weight_reg 0.0 --seed 2 --batch_size 1024 --mini_batch_size 256 --omega1 0.0 --omega2 1.0
@@ -94,6 +102,9 @@ python code_pd_respo_ant.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs
 Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'cd "D:\Shilpa_Work\RCRL_on_RCMDP"; python code_pd_respo_ant.py --run 1 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 700 --lr_cost 1e-3 --lr_a 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 2 --env AntCost --lr_c 1e-3 *> log_ant_respo.log'
 python code_ipm_rcmdp_rcrl_max_ant_FAC.py --run 501 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 700 --lr_cost 1e-3 --lr_a 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 2 --env AntCost --lr_c 1e-3 
 
+python code_ipm_rcmdp_rcrl_max_ant_feasible_policy.py --run 11 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 700 --lr_cost 1e-3 --lr_a 1e-3 --entropy_coef 0.001 --weight_reg 0.001 --seed 2 --env AntCostPerturbed --sigma_gravity 0.7 --lr_c 1e-3 --init_policy_path ./models/AntCostPerturbed/run11/Best_RCAC --init_model_num 900 
+python code_ipm_rcmdp_rcrl_max_ant_RCRL_feasible_policy.py --run 1010 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 700 --lr_cost 1e-3 --lr_a 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 2 --env AntCost --lr_c 1e-3
+python code_ipm_rcmdp_rcrl_max_ant_RCRL_feasible_policy.py --run 1011 --persistent_eps 0.1 --beta 30000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 700 --lr_cost 1e-3 --lr_a 1e-3 --entropy_coef 0.001 --weight_reg 0.0 --seed 2 --env AntCost --lr_c 1e-3 --init_policy_path ./models/AntCost/run1010/Best_RCAC --init_model_num 400 
 
 HUMANOID ENV:
 python code_ipm_rcmdp_rcrl_max_humanoid.py --run 1 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 6 --env HumanoidWithCost --lr_c 5e-4 
@@ -107,6 +118,10 @@ python code_ipm_rcmdp_rcrl_max_humanoid_RPCRL_CMDP.py --run 1 --persistent_eps 1
 python code_pd_respo_humanoid.py --run 1 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 6 --env HumanoidWithCost --lr_c 5e-4 
 Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'cd "D:\Shilpa_Work\RCRL_on_RCMDP"; python code_pd_respo_humanoid.py --run 1 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 6 --env HumanoidWithCost --lr_c 5e-4 *> log_humanoid1_respo.log' 
 python code_ipm_rcmdp_rcrl_max_humanoid_FAC.py --run 501 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 6 --env HumanoidWithCost --lr_c 5e-4 
+
+python code_ipm_rcmdp_rcrl_max_humanoid_feasible_policy.py --run 701 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 0 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.001 --seed 6 --env HumanoidWithCostPerturbed --sigma_gravity 0.7 --lr_c 5e-4 --init_policy_path ./models/HumanoidWithCostPerturbed/run11/Best_RCAC --init_model_num 800
+python code_ipm_rcmdp_rcrl_max_humanoid_RCRL.py --run 1010 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 6 --env HumanoidWithCost --lr_c 5e-4
+python code_ipm_rcmdp_rcrl_max_humanoid_RCRL.py --run 1011 --persistent_eps 1.0 --beta 300000 --K_epochs 5 --max_train_steps 6000 --warm_start_episode 300 --lr_cost 5e-4 --lr_a 1e-3 --entropy_coef 0.01 --weight_reg 0.0 --seed 6 --env HumanoidWithCost --lr_c 5e-4 --init_policy_path ./models/HumanoidWithCost/run1010/Best_RCAC --init_model_num 800
 
 
 

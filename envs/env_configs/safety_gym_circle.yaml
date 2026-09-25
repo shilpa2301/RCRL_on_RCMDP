@@ -7,10 +7,10 @@ terminate_on_collision: false # this was true during run
 render_mode: null
 safety_clearance: 0.3
 
-seed: 5 #5 #1
-run: 110 #110
+seed: 1 #5 #1
+run: 210 #110
 
-max_train_steps: 16000
+max_train_steps: 10000
 evaluate_freq: 100
 save_freq: 20
 
@@ -48,7 +48,7 @@ set_adam_eps: true
 use_tanh: true
 adaptive_alpha: false
 
-weight_reg: 0.0
+weight_reg: 0.001
 baseline: 9
 lambda_: 50
 beta: 30000.0
@@ -56,4 +56,5 @@ beta: 30000.0
 warm_start_flag: 0
 warm_start_episode: 1300
 cost_scale: 1.0
-sigma_gravity: 0.0
+sigma_gravity: 2.0 #0.7 #0.07
+

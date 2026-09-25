@@ -220,6 +220,311 @@ class SafetyCircleMargin(gym.Wrapper):
     def render(self, **kwargs):
         return self.env.render(**kwargs)
 
+class SafetyCircleMarginPerturbed(SafetyCircleMargin):
+    """
+    Perturbed version of SafetyCircleMargin.
+
+    Applies per-step MuJoCo gravity perturbation:
+
+        gravity_z = base_gravity_z + Normal(0, sigma_gravity)
+
+    Then performs the normal SafetyCircleMargin step.
+
+    Returns:
+        obs, reward, continuous_cost, terminated, truncated, info
+    """
+
+    def __init__(
+        self,
+        env: gym.Env,
+        safety_clearance: float = 0.40,
+        sigma_gravity: float = 0.7,
+    ):
+        self.sigma_gravity = float(sigma_gravity)
+        self._grav_axis = 2
+        self.last_gravity_noise = 0.0
+
+        super().__init__(
+            env=env,
+            safety_clearance=safety_clearance,
+        )
+
+        # Locate MuJoCo model inside Safety-Gymnasium env
+        self.model = self._get_mujoco_model()
+
+        # Store nominal gravity
+        self._base_gravity = np.array(
+            self.model.opt.gravity,
+            dtype=np.float64,
+        ).copy()
+
+    def _get_mujoco_model(self):
+        """
+        Find the underlying MuJoCo model inside Safety-Gymnasium.
+
+        In normal Gym MuJoCo envs this is often env.unwrapped.model.
+        In Safety-Gymnasium it may be nested inside task/agent/engine.
+        """
+        root = self.env.unwrapped
+
+        candidates = [
+            root,
+            getattr(root, "env", None),
+            getattr(root, "task", None),
+            getattr(getattr(root, "task", None), "agent", None),
+            getattr(getattr(getattr(root, "task", None), "agent", None), "engine", None),
+            getattr(root, "engine", None),
+        ]
+
+        for obj in candidates:
+            if obj is None:
+                continue
+
+            if hasattr(obj, "model"):
+                model = getattr(obj, "model")
+                if hasattr(model, "opt") and hasattr(model.opt, "gravity"):
+                    return model
+
+            if hasattr(obj, "_model"):
+                model = getattr(obj, "_model")
+                if hasattr(model, "opt") and hasattr(model.opt, "gravity"):
+                    return model
+
+        raise AttributeError(
+            "Could not find MuJoCo model with opt.gravity inside Safety-Gymnasium env. "
+            "Run: print(env.unwrapped.__dict__.keys()) to inspect where the model is stored."
+        )
+
+    def _restore_base_gravity(self):
+        """
+        Restore nominal MuJoCo gravity.
+        """
+        self.model.opt.gravity[:] = self._base_gravity
+
+    def _perturb_gravity(self):
+        """
+        Apply per-step gravity perturbation.
+        """
+        if self.sigma_gravity > 0.0:
+            self.last_gravity_noise = float(
+                np.random.normal(0.0, self.sigma_gravity)
+            )
+        else:
+            self.last_gravity_noise = 0.0
+
+        self.model.opt.gravity[:] = self._base_gravity
+        self.model.opt.gravity[self._grav_axis] = (
+            self._base_gravity[self._grav_axis]
+            + self.last_gravity_noise
+        )
+
+    def reset(self, **kwargs):
+        """
+        Reset environment, restore nominal gravity, and rejection sample
+        until the initial state is safe.
+        """
+        self._restore_base_gravity()
+
+        while True:
+            obs, info = self.env.reset(**kwargs)
+
+            self.last_gravity_noise = 0.0
+            self._restore_base_gravity()
+
+            margin, min_distance_sigwall = self._margin_from_obs(obs)
+
+            if margin >= 0.0:
+                info = dict(info or {})
+                info.update({
+                    "gravity": self.model.opt.gravity.copy(),
+                    "base_gravity": self._base_gravity.copy(),
+                    "gravity_noise": float(self.last_gravity_noise),
+                    "sigma_gravity": float(self.sigma_gravity),
+                    "margin_g": float(margin),
+                    "min_distance_sigwall": float(min_distance_sigwall),
+                })
+
+                return obs, info
+
+    def step(self, action):
+        """
+        Perturb gravity, then perform Safety-Gymnasium step and compute
+        continuous margin cost.
+        """
+        self._perturb_gravity()
+
+        obs, _reward, cost, terminated, truncated, info = self.env.step(action)
+
+        margin, min_distance_sigwall = self._margin_from_obs(obs)
+
+        continuous_cost = self._calculate_continuous_cost(min_distance_sigwall)
+
+        if self._log_original:
+            info = dict(info or {})
+            info.update({
+                "orig_reward": float(_reward),
+                "orig_cost": float(cost),
+                "margin_g": float(margin),
+                "min_distance_sigwall": float(min_distance_sigwall),
+                "safe": float(margin >= 0.0),
+                "continuous_cost": float(continuous_cost),
+            })
+
+        info.update({
+            "gravity": self.model.opt.gravity.copy(),
+            "base_gravity": self._base_gravity.copy(),
+            "gravity_noise": float(self.last_gravity_noise),
+            "sigma_gravity": float(self.sigma_gravity),
+        })
+
+        return obs, _reward, continuous_cost, terminated, truncated, info
+
+# class SafetyCircleMarginPerturbed(SafetyCircleMargin):
+#     def __init__(
+#         self,
+#         env: gym.Env,
+#         safety_clearance: float = 0.40,
+#         sigma_gravity: float = 0.7,
+#     ):
+#         self.sigma_gravity = float(sigma_gravity)
+#         self._grav_axis = 2
+#         self.last_gravity_noise = 0.0
+
+#         super().__init__(
+#             env=env,
+#             safety_clearance=safety_clearance,
+#         )
+
+#         self.model = self._get_mujoco_model()
+
+#         self._base_gravity = np.array(
+#             self.model.opt.gravity,
+#             dtype=np.float64,
+#         ).copy()
+
+#     def _restore_base_gravity(self):
+#         self.model.opt.gravity[:] = self._base_gravity
+
+#     def _sample_episode_gravity(self):
+#         if self.sigma_gravity > 0.0:
+#             self.last_gravity_noise = float(
+#                 np.random.normal(0.0, self.sigma_gravity)
+#             )
+#         else:
+#             self.last_gravity_noise = 0.0
+
+#         self.model.opt.gravity[:] = self._base_gravity
+#         self.model.opt.gravity[self._grav_axis] = (
+#             self._base_gravity[self._grav_axis]
+#             + self.last_gravity_noise
+#         )
+
+#     def reset(self, **kwargs):
+#         self._restore_base_gravity()
+
+#         while True:
+#             obs, info = self.env.reset(**kwargs)
+
+#             # Sample one gravity perturbation for the whole episode
+#             self._sample_episode_gravity()
+
+#             margin, min_distance_sigwall = self._margin_from_obs(obs)
+
+#             if margin >= 0.0:
+#                 info = dict(info or {})
+#                 info.update({
+#                     "gravity": self.model.opt.gravity.copy(),
+#                     "base_gravity": self._base_gravity.copy(),
+#                     "gravity_noise": float(self.last_gravity_noise),
+#                     "sigma_gravity": float(self.sigma_gravity),
+#                     "margin_g": float(margin),
+#                     "min_distance_sigwall": float(min_distance_sigwall),
+#                 })
+
+#                 return obs, info
+
+#     def step(self, action):
+#         # Do not resample gravity here
+#         obs, _reward, cost, terminated, truncated, info = self.env.step(action)
+
+#         margin, min_distance_sigwall = self._margin_from_obs(obs)
+#         continuous_cost = self._calculate_continuous_cost(min_distance_sigwall)
+
+#         info = dict(info or {})
+#         info.update({
+#             "orig_reward": float(_reward),
+#             "orig_cost": float(cost),
+#             "margin_g": float(margin),
+#             "min_distance_sigwall": float(min_distance_sigwall),
+#             "safe": float(margin >= 0.0),
+#             "continuous_cost": float(continuous_cost),
+#             "gravity": self.model.opt.gravity.copy(),
+#             "base_gravity": self._base_gravity.copy(),
+#             "gravity_noise": float(self.last_gravity_noise),
+#             "sigma_gravity": float(self.sigma_gravity),
+#         })
+
+#         return obs, _reward, continuous_cost, terminated, truncated, info
+
+
+############## ACTION PERTURBATION ################
+# class SafetyCircleMarginPerturbed(SafetyCircleMargin):
+#     def __init__(
+#         self,
+#         env,
+#         safety_clearance=0.20,
+#         sigma_gravity=0.05,
+#     ):
+#         self.sigma_action = float(sigma_gravity)
+
+#         super().__init__(
+#             env=env,
+#             safety_clearance=safety_clearance,
+#         )
+
+#     def step(self, action):
+#         action = np.asarray(action, dtype=np.float32)
+
+#         if self.sigma_action > 0.0:
+#             noise = np.random.normal(
+#                 loc=0.0,
+#                 scale=self.sigma_action,
+#                 size=action.shape,
+#             ).astype(np.float32)
+#         else:
+#             noise = np.zeros_like(action)
+
+#         perturbed_action = action + noise
+
+#         if hasattr(self.env.action_space, "low"):
+#             perturbed_action = np.clip(
+#                 perturbed_action,
+#                 self.env.action_space.low,
+#                 self.env.action_space.high,
+#             )
+
+#         obs, _reward, cost, terminated, truncated, info = self.env.step(perturbed_action)
+
+#         margin, min_distance_sigwall = self._margin_from_obs(obs)
+#         continuous_cost = self._calculate_continuous_cost(min_distance_sigwall)
+
+#         info = dict(info or {})
+#         info.update({
+#             "orig_reward": float(_reward),
+#             "orig_cost": float(cost),
+#             "margin_g": float(margin),
+#             "min_distance_sigwall": float(min_distance_sigwall),
+#             "safe": float(margin >= 0.0),
+#             "continuous_cost": float(continuous_cost),
+#             "nominal_action": action.copy(),
+#             "perturbed_action": perturbed_action.copy(),
+#             "action_noise": noise.copy(),
+#             "sigma_action": float(self.sigma_action),
+#         })
+
+#         return obs, _reward, continuous_cost, terminated, truncated, info
+
+
 def make_env(agent: str = "Car", level: int = 2, render_mode=None,
              safety_clearance: float = 0.20, **kwargs) -> gym.Env:
     assert agent in {"Point", "Car", "Racecar", "Doggo", "Ant"}
@@ -228,3 +533,43 @@ def make_env(agent: str = "Car", level: int = 2, render_mode=None,
     base = TerminateOnCollisionWrapper(base)  # optional: end episode on collision
     print(f"SafetyCircleMargin: Using safety_clearance={safety_clearance:.4f}")
     return SafetyCircleMargin(base, safety_clearance=safety_clearance)
+
+def make_perturbed_env(
+    agent: str = "Car",
+    level: int = 2,
+    render_mode=None,
+    safety_clearance: float = 0.20,
+    sigma_gravity: float = 0.05,
+    **kwargs,
+) -> gym.Env:
+    """
+    Make perturbed RP-CRL Safety Circle margin environment.
+
+    This uses the same per-step gravity perturbation as the CMDP perturbed env:
+
+        gravity_z = base_gravity_z + Normal(0, sigma_gravity)
+    """
+    assert agent in {"Point", "Car", "Racecar", "Doggo", "Ant"}
+
+    task_id = f"Safety{agent}Circle{level}-v0"
+
+    base = safety_gymnasium.make(
+        task_id,
+        render_mode=render_mode,
+        **kwargs,
+    )
+
+    base = TerminateOnCollisionWrapper(base)
+
+    print(
+        f"SafetyCircleMarginPerturbed: "
+        f"Using safety_clearance={safety_clearance:.4f}, "
+        f"sigma_gravity={sigma_gravity:.4f}"
+    )
+
+    return SafetyCircleMarginPerturbed(
+        base,
+        safety_clearance=safety_clearance,
+        sigma_gravity=sigma_gravity,
+    )
+

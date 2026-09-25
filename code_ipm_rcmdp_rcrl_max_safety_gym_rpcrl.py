@@ -39,7 +39,7 @@ import matplotlib.pyplot as plt  # Import for plotting
 import yaml
 import safety_gymnasium
 from safety_gymnasium.safety_envs.terminate_on_collision import TerminateOnCollisionWrapper
-from safety_gymnasium.safety_envs.safety_circle_margin import SafetyCircleMargin, make_env
+from safety_gymnasium.safety_envs.safety_circle_margin import SafetyCircleMarginPerturbed, make_perturbed_env
 
 PAPER_ENVS = {
     "SafetyCarCircle2-v0": {
@@ -55,10 +55,10 @@ PAPER_ENVS = {
 }
 
 
-def make_task_env(env_id: str, terminate_on_collision: bool = True, render_mode=None, safety_clearance=0.4):
+def make_task_env(env_id: str, terminate_on_collision: bool = True, render_mode=None, safety_clearance=0.4, sigma_gravity=0.0):
     if "Circle" in env_id:  # Assuming your task is based on circles
         agent = "Car"  # or whatever agent type you need
-        env = make_env(agent=agent, level=2, render_mode=render_mode, safety_clearance=safety_clearance)
+        env = make_perturbed_env(agent=agent, level=2, render_mode=render_mode, safety_clearance=safety_clearance, sigma_gravity = 0.7)
     else:
         env = safety_gymnasium.make(env_id, render_mode=render_mode)
 
@@ -552,6 +552,7 @@ class RPCRL:
             terminate_on_collision=args.terminate_on_collision,
             render_mode=args.render_mode,
             safety_clearance=args.safety_clearance,
+            sigma_gravity = args.sigma_gravity
         )
 
         self.policy_dist = args.policy_dist
@@ -672,8 +673,8 @@ class RPCRL:
 
     def lr_decay(self, total_steps):
         lr_a_now = self.lr_a * (1 - total_steps / self.max_train_steps)
-        lr_c_now = self.lr_c #* (1 - total_steps / self.max_train_steps)
-        lr_cost_now = self.lr_cost# * (1 - total_steps / self.max_train_steps)
+        lr_c_now = self.lr_c * (1 - total_steps / self.max_train_steps)
+        lr_cost_now = self.lr_cost * (1 - total_steps / self.max_train_steps)
 
         for p in self.optimizer_actor.param_groups:
             p["lr"] = lr_a_now
@@ -1218,21 +1219,24 @@ def main(args, run_number):
         args.env_id,
         terminate_on_collision=args.terminate_on_collision,
         render_mode=args.render_mode,
-        safety_clearance=args.safety_clearance  # Set your desired safety clearance
+        safety_clearance=args.safety_clearance,  # Set your desired safety clearance
+        sigma_gravity = args.sigma_gravity
     )
 
     env_evaluate = make_task_env(
         args.env_id,
         terminate_on_collision=args.terminate_on_collision,
         render_mode=args.render_mode,
-        safety_clearance=args.safety_clearance  # Set your desired safety clearance
+        safety_clearance=args.safety_clearance,  # Set your desired safety clearance
+        sigma_gravity = args.sigma_gravity
     )
 
     env_reset = make_task_env(
         args.env_id,
         terminate_on_collision=args.terminate_on_collision,
         render_mode=args.render_mode,
-        safety_clearance=args.safety_clearance  # Set your desired safety clearance
+        safety_clearance=args.safety_clearance,  # Set your desired safety clearance
+        sigma_gravity = args.sigma_gravity
     
     )
 
@@ -1662,6 +1666,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--warm_start_episode", type=int, default=500, help="warm_start_episode"
+    )
+    parser.add_argument(
+        "--sigma_gravity", type=float, default=0.7, help="perturbation"
     )
    
 

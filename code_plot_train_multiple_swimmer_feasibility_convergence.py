@@ -347,7 +347,7 @@ swimmer_feasible_infeasible_specs = [
     {
         "data_dir": BASE_DATA_DIR,
         "label": "Feasible",
-        "runs": [ 702]
+        "runs": [701, 702]
     },
 ]
 

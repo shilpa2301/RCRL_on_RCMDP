@@ -1,11 +1,11 @@
 #shilpa Windows only
 import os
 
-if os.name == "nt":
-    os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
-    os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
+# if os.name == "nt":
+#     os.add_dll_directory(r"C:\Users\rinki\.mujoco\mujoco210\bin")
+#     os.add_dll_directory(r"C:\Users\rinki\miniconda3\envs\rpcrl_env\Library\bin")
 
-os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
+# os.environ["MUJOCO_PY_MUJOCO_PATH"] = r"C:\Users\rinki\.mujoco\mujoco210"
 
 
 import torch
@@ -1122,62 +1122,75 @@ def plot_eval_metrics(
     filename="eval_metrics.png",
 ):
     """
-    Plot evaluation metrics (reward, total cost, max cost) over evaluation
-    checkpoints and optionally save the plot.
-    Args:
-        evaluate_rewards:   List of avg rewards per evaluation checkpoint.
-        evaluate_costs:     List of avg total costs per evaluation checkpoint.
-        evaluate_max_costs: List of max costs per evaluation checkpoint.
-        persistent_eps:     Safety threshold — drawn as a horizontal reference line.
-        save:               Whether to save the plot to a file.
-        filename:           File name to save the plot.
+    Plot evaluation metrics with larger bold text.
     """
-    evals = list(range(1, len(evaluate_rewards) + 1))
 
-    fig, axes = plt.subplots(3, 1, figsize=(10, 9))
+    evals = np.arange(1, len(evaluate_rewards) + 1)
 
-    # ── Subplot 1: Evaluate Reward ────────────────────────────────────────────
-    axes[0].plot(evals, evaluate_rewards, color="blue", label="Eval Reward")
+    fig, axes = plt.subplots(3, 1, figsize=(14, 12))
+
+    # ------------------------------------------------------------
+    # Evaluation Reward
+    # ------------------------------------------------------------
+    axes[0].plot(
+        evals,
+        evaluate_rewards,
+        color="blue",
+        linewidth=3.5,
+        label="Eval Reward",
+    )
     axes[0].set_xlabel("Evaluation #")
     axes[0].set_ylabel("Reward")
     axes[0].set_title("Evaluation Reward")
     axes[0].legend()
-    axes[0].grid(True, alpha=0.3)
+    style_axis(axes[0])
 
-    # ── Subplot 2: Evaluate Max Cost (with safety threshold line) ────────────
-    axes[1].plot(evals, evaluate_max_costs, color="red", label="Eval Max Cost")
-    # axes[1].axhline(
-    #     y=persistent_eps,
-    #     color="black",
-    #     linestyle="--",
-    #     linewidth=1.5,
-    #     label=f"Safety threshold ({persistent_eps})",
-    # )
+    # ------------------------------------------------------------
+    # Evaluation Max Cost
+    # ------------------------------------------------------------
+    axes[1].plot(
+        evals,
+        evaluate_max_costs,
+        color="red",
+        linewidth=3.5,
+        label="Eval Max Cost",
+    )
     axes[1].set_xlabel("Evaluation #")
     axes[1].set_ylabel("Max Cost")
     axes[1].set_title("Evaluation Max Cost per Checkpoint")
     axes[1].legend()
-    axes[1].grid(True, alpha=0.3)
+    style_axis(axes[1])
 
-    # ── Subplot 3: Evaluate Total Cost ───────────────────────────────────────
-    axes[2].plot(evals, evaluate_costs, color="green", label="Eval Total Cost")
+    # ------------------------------------------------------------
+    # Evaluation Total Cost
+    # ------------------------------------------------------------
+    axes[2].plot(
+        evals,
+        evaluate_costs,
+        color="green",
+        linewidth=3.5,
+        label="Eval Total Cost",
+    )
     axes[2].axhline(
-            y=persistent_eps,
-            color="black",
-            linestyle="--",
-            linewidth=1.5,
-            label=f"Safety threshold ({persistent_eps})",
-        )
+        y=persistent_eps,
+        color="black",
+        linestyle="--",
+        linewidth=3.0,
+        label=f"Safety threshold ({persistent_eps})",
+    )
     axes[2].set_xlabel("Evaluation #")
     axes[2].set_ylabel("Total Cost")
     axes[2].set_title("Evaluation Total Cost per Checkpoint")
     axes[2].legend()
-    axes[2].grid(True, alpha=0.3)
+    style_axis(axes[2])
 
     plt.tight_layout()
+
     if save:
-        plt.savefig(filename, dpi=150)
+        plt.savefig(filename, dpi=300, bbox_inches="tight")
+
     plt.close()
+
 
             
 def plot_metrics(
@@ -1188,47 +1201,63 @@ def plot_metrics(
     filename="training_metrics.png",
 ):
     """
-    Plot the metrics (reward and cost) over episodes and optionally save the plot.
-    Args:
-        episode_rewards: List of total rewards per episode.
-        episode_costs: List of total costs per episode.
-        save: Whether to save the plot to a file.
-        filename: File name to save the plot.
+    Plot training metrics with larger bold text.
     """
-    # plt.ion()  # Turn on interactive mode
-    plt.figure(figsize=(10, 6))
-    plt.clf()  # Clear the current figure to avoid overlapping plots
-    # plt.figure(figsize=(10, 6))
 
-    # Plot total rewards
-    plt.subplot(3, 1, 1)
-    plt.plot(episode_rewards, label="Total Reward", color="blue")
-    plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.title("Total Reward per Episode")
-    plt.legend()
+    fig, axes = plt.subplots(3, 1, figsize=(14, 12))
 
-    # Plot total costs
-    plt.subplot(3, 1, 2)
-    plt.plot(max_costs, label="Max Cost", color="red")
-    plt.xlabel("Episode")
-    plt.ylabel("Max Cost")
-    plt.title("Max Cost per Episode")
-    plt.legend()
+    # ------------------------------------------------------------
+    # Total rewards
+    # ------------------------------------------------------------
+    axes[0].plot(
+        episode_rewards,
+        label="Total Reward",
+        color="blue",
+        linewidth=3.5,
+    )
+    axes[0].set_xlabel("Episode")
+    axes[0].set_ylabel("Reward")
+    axes[0].set_title("Total Reward per Episode")
+    axes[0].legend()
+    style_axis(axes[0])
 
-    # Plot total costs
-    plt.subplot(3, 1, 3)
-    plt.plot(episode_costs, label="Total Cost", color="green")
-    plt.xlabel("Episode")
-    plt.ylabel("Total Cost")
-    plt.title("Total Cost per Episode")
-    plt.legend()
+    # ------------------------------------------------------------
+    # Max costs
+    # ------------------------------------------------------------
+    axes[1].plot(
+        max_costs,
+        label="Max Cost",
+        color="red",
+        linewidth=3.5,
+    )
+    axes[1].set_xlabel("Episode")
+    axes[1].set_ylabel("Max Cost")
+    axes[1].set_title("Max Cost per Episode")
+    axes[1].legend()
+    style_axis(axes[1])
+
+    # ------------------------------------------------------------
+    # Total costs
+    # ------------------------------------------------------------
+    axes[2].plot(
+        episode_costs,
+        label="Total Cost",
+        color="green",
+        linewidth=3.5,
+    )
+    axes[2].set_xlabel("Episode")
+    axes[2].set_ylabel("Total Cost")
+    axes[2].set_title("Total Cost per Episode")
+    axes[2].legend()
+    style_axis(axes[2])
 
     plt.tight_layout()
+
     if save:
-        plt.savefig(filename)
-    # plt.show()
+        plt.savefig(filename, dpi=300, bbox_inches="tight")
+
     plt.close()
+
 
 
 def plot_cost_sparsity(
@@ -1239,25 +1268,25 @@ def plot_cost_sparsity(
     filename="cost_sparsity.png",
 ):
     """
-    Plot sparsity of received costs.
+    Plot sparsity of received costs with larger bold text.
 
-    episode_cost_event_counts:
-        Number of timesteps with nonzero cost in each episode.
-
-    episode_cost_event_rates:
-        Fraction of timesteps with nonzero cost in each episode.
-
-    episode_total_steps:
-        Total number of timesteps in each episode.
-
-    This plot helps show that costs are sparse:
-        - event count should be low
-        - event rate should be close to zero
+    Subplots:
+        1. Number of nonzero-cost timesteps per episode.
+        2. Total number of timesteps per episode.
+        3. Fraction of timesteps with zero cost.
     """
 
     episodes = np.arange(1, len(episode_cost_event_counts) + 1)
 
-    fig, axes = plt.subplots(3, 1, figsize=(12, 10))
+    episode_cost_event_counts = np.asarray(episode_cost_event_counts, dtype=np.float32)
+    episode_cost_event_rates = np.asarray(episode_cost_event_rates, dtype=np.float32)
+    episode_total_steps = np.asarray(episode_total_steps, dtype=np.float32)
+
+    # Fraction of timesteps with zero cost
+    episode_zero_cost_rates = 1.0 - episode_cost_event_rates
+    episode_zero_cost_rates = np.clip(episode_zero_cost_rates, 0.0, 1.0)
+
+    fig, axes = plt.subplots(3, 1, figsize=(14, 13))
 
     # ------------------------------------------------------------
     # 1. Number of nonzero cost events per episode
@@ -1266,68 +1295,115 @@ def plot_cost_sparsity(
         episodes,
         episode_cost_event_counts,
         color="purple",
-        linewidth=1.5,
+        linewidth=3.5,
         label="Nonzero Cost Count",
     )
     axes[0].set_xlabel("Episode")
     axes[0].set_ylabel("# Nonzero Cost Steps")
     axes[0].set_title("Sparse Cost Events per Episode")
-    axes[0].grid(True, alpha=0.3)
     axes[0].legend()
+    style_axis(axes[0])
 
     # ------------------------------------------------------------
-    # 2. Fraction of episode with nonzero cost
+    # 2. Total steps per episode
     # ------------------------------------------------------------
     axes[1].plot(
         episodes,
-        episode_cost_event_rates,
-        color="darkorange",
-        linewidth=1.5,
-        label="Nonzero Cost Rate",
+        episode_total_steps,
+        color="darkblue",
+        linewidth=3.5,
+        label="Total Episode Steps",
     )
     axes[1].set_xlabel("Episode")
-    axes[1].set_ylabel("Fraction of Steps")
-    axes[1].set_title("Fraction of Timesteps Receiving Nonzero Cost")
-    axes[1].set_ylim(-0.02, 1.02)
-    axes[1].grid(True, alpha=0.3)
+    axes[1].set_ylabel("Total Steps")
+    axes[1].set_title("Total Steps per Episode")
     axes[1].legend()
+    style_axis(axes[1])
 
     # ------------------------------------------------------------
-    # 3. Binary indicator: did this episode receive any cost?
+    # 3. Fraction of episode with zero cost
     # ------------------------------------------------------------
-    cost_received_indicator = np.asarray(episode_cost_event_counts) > 0
-
-    axes[2].scatter(
-        episodes[cost_received_indicator],
-        np.ones(np.sum(cost_received_indicator)),
-        color="red",
-        s=15,
-        label="Episode Received Cost",
-    )
-
-    axes[2].scatter(
-        episodes[~cost_received_indicator],
-        np.zeros(np.sum(~cost_received_indicator)),
+    axes[2].plot(
+        episodes,
+        episode_zero_cost_rates,
         color="green",
-        s=15,
-        label="No Cost Episode",
+        linewidth=3.5,
+        label="Zero Cost Fraction",
     )
-
     axes[2].set_xlabel("Episode")
-    axes[2].set_ylabel("Cost Received?")
-    axes[2].set_yticks([0, 1])
-    axes[2].set_yticklabels(["No", "Yes"])
-    axes[2].set_title("Episodes With Sparse Cost Events")
-    axes[2].grid(True, alpha=0.3)
+    axes[2].set_ylabel("Fraction of Steps")
+    axes[2].set_title("Fraction of Timesteps with Zero Cost")
+    axes[2].set_ylim(-0.02, 1.02)
     axes[2].legend()
+    style_axis(axes[2])
 
     plt.tight_layout()
 
     if save:
-        plt.savefig(filename, dpi=150, bbox_inches="tight")
+        plt.savefig(filename, dpi=300, bbox_inches="tight")
 
     plt.close()
 
+
+def style_axis(
+    ax,
+    title_fontsize=30,
+    label_fontsize=30,
+    tick_fontsize=25,
+    legend_fontsize=25,
+    spine_width=2.5,
+    tick_width=2.0,
+    tick_length=7,
+):
+    """
+    Make plot text larger and bold.
+    """
+
+    # Bold plot boundaries
+    for spine in ax.spines.values():
+        spine.set_linewidth(spine_width)
+        spine.set_color("black")
+
+    # Bigger tick numbers
+    ax.tick_params(
+        axis="both",
+        which="major",
+        labelsize=tick_fontsize,
+        width=tick_width,
+        length=tick_length,
+        direction="out",
+    )
+
+    # Bold tick labels
+    for tick_label in ax.get_xticklabels():
+        tick_label.set_fontweight("bold")
+
+    for tick_label in ax.get_yticklabels():
+        tick_label.set_fontweight("bold")
+
+    # Bigger and bold title
+    ax.title.set_fontsize(title_fontsize)
+    ax.title.set_fontweight("bold")
+
+    # Bigger and bold x/y axis labels
+    ax.xaxis.label.set_fontsize(label_fontsize)
+    ax.xaxis.label.set_fontweight("bold")
+
+    ax.yaxis.label.set_fontsize(label_fontsize)
+    ax.yaxis.label.set_fontweight("bold")
+
+    # Bigger and bold legend
+    legend = ax.get_legend()
+    if legend is not None:
+        for text in legend.get_texts():
+            text.set_fontsize(legend_fontsize)
+            text.set_fontweight("bold")
+
+        legend.get_frame().set_linewidth(1.8)
+        legend.get_frame().set_edgecolor("black")
+
+    # Grid
+    ax.grid(True, alpha=0.35, linewidth=1.2)
 
 
 def main(args, run_number):
@@ -1476,6 +1552,7 @@ def main(args, run_number):
             # total_cost += c
             # max_cost = max(max_cost, c)
             incremental_max_cost = info["incremental_max_cost"]
+            # print("in train wrapper incremental cost=", incremental_max_cost)
             total_cost +=incremental_max_cost
             max_cost = max(max_cost, incremental_max_cost)
             # print("cost:", c, "max_cost:", max_cost)  # Debugging: Print the cost and max cost
@@ -1632,6 +1709,12 @@ def main(args, run_number):
             f"{plot_data_dir}/episode_cost_event_rates.npy",
             np.asarray(episode_cost_event_rates),
         )
+
+        np.save(
+            f"{plot_data_dir}/episode_zero_cost_rates.npy",
+            1.0 - np.asarray(episode_cost_event_rates),
+        )
+
 
         np.save(
             f"{plot_data_dir}/episode_total_steps.npy",

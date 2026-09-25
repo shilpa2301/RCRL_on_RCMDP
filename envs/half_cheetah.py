@@ -2044,6 +2044,8 @@ class HalfCheetahCMDPSparse(HalfCheetahEnv):
         truncated = self._elapsed_steps >= self.max_steps
         terminated = False
 
+        # print("Env cost=", incremental_max_cost)
+
         info.update({
             # Returned transformed CMDP cost.
             "cost": cost,

@@ -360,12 +360,12 @@ plot_specs = [
     {
         "data_dir": BASE_DATA_DIR,
         "label": "b=300",
-        "runs": [12, 22]
+        "runs": [13, 23]
     },
     {
         "data_dir": BASE_DATA_DIR,
         "label": "b=3000",
-        "runs": [13, 23]
+        "runs": [12, 22]
     },
     
 ]
